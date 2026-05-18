@@ -1,0 +1,58 @@
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class UserEnterRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+
+
+class UserResponse(BaseModel):
+    user_id: str
+    created_at: str
+
+
+class ProjectCreateRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    title: str = Field(default="未命名项目", min_length=1, max_length=120)
+
+
+class ProjectUpdateRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    title: str | None = Field(default=None, min_length=1, max_length=120)
+
+
+class ScriptPatchRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    script: dict[str, Any]
+
+
+class ProjectResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str = Field(alias="_id")
+    user_id: str
+    title: str
+    brief: dict[str, Any]
+    current_script: dict[str, Any]
+    brand_insights: list[dict[str, Any]]
+    personas: list[dict[str, Any]]
+    active_persona_id: str | None
+    audience_analysis: dict[str, Any]
+    expert_suggestions: list[dict[str, Any]]
+    stale: dict[str, bool]
+    created_at: str
+    updated_at: str
+
+
+class ProjectListResponse(BaseModel):
+    projects: list[ProjectResponse]
+
+
+class LLMChatRequest(BaseModel):
+    messages: list[dict[str, str]]
+    task_type: str = "general_chat"
+    stream: bool = False
+    response_format: dict[str, Any] | None = None
+    complexity: Literal["normal", "high"] = "normal"
+

@@ -1,0 +1,17 @@
+[project]
+name = "brandvideo-backend"
+version = "0.1.0"
+description = "FastAPI backend for BrandVideo MVP"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi==0.115.6",
+    "uvicorn[standard]==0.34.0",
+    "motor==3.6.0",
+    "pydantic-settings==2.7.1",
+    "redis==5.2.1",
+    "httpx==0.28.1",
+]
+
+[tool.uv]
+package = false
+
