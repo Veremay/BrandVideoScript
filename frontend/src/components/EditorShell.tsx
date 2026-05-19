@@ -6,11 +6,13 @@ import { ScriptGrid } from "@/components/ScriptGrid";
 import {
   createBrandInsight,
   deleteBrandInsight,
+  fetchAgentMessages,
   saveBrief,
   saveScript,
+  streamAgentMessage,
   updateBrandInsight
 } from "@/lib/api";
-import type { AgentType, BrandInsight, BrandInsightCategory, BrandInsightConfidence, BrandInsightStatus } from "@/lib/types";
+import type { AgentMessage, AgentQuote, AgentType, BrandInsight, BrandInsightCategory, BrandInsightConfidence, BrandInsightStatus } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
 
 const SAVE_DELAY_MS = 700;
@@ -407,6 +409,117 @@ function PinnedItem({ insight, mark }: { insight: BrandInsight; mark: string }) 
 }
 
 function AgentChat({ agent, selectedText, placeholder }: { agent: AgentType; selectedText?: string; placeholder: string }) {
+  const {
+    agentChats,
+    appendAgentMessage,
+    appendAssistantToken,
+    project,
+    setAgentError,
+    setAgentMessages,
+    setAgentStreaming,
+    startAssistantMessage
+  } = useAppStore();
+  const [message, setMessage] = useState("");
+  const chat = agentChats[agent];
+
+  useEffect(() => {
+    if (!project) return;
+
+    fetchAgentMessages(project._id, project.user_id, agent)
+      .then((messages) => setAgentMessages(agent, messages))
+      .catch((error) => setAgentError(agent, String(error)));
+  }, [agent, project, setAgentError, setAgentMessages]);
+
+  async function handleSend() {
+    const content = message.trim();
+    if (!project || !content || chat.streaming) return;
+
+    const quotes: AgentQuote[] = selectedText ? [{ text: selectedText }] : [];
+    const timestamp = Date.now();
+    const userMessage: AgentMessage = {
+      _id: `local_user_${timestamp}`,
+      project_id: project._id,
+      user_id: project.user_id,
+      agent_type: agent,
+      role: "user",
+      content,
+      quotes,
+      created_at: new Date().toISOString()
+    };
+    const assistantId = `local_assistant_${timestamp}`;
+    const assistantMessage: AgentMessage = {
+      _id: assistantId,
+      project_id: project._id,
+      user_id: project.user_id,
+      agent_type: agent,
+      role: "assistant",
+      content: "",
+      quotes: [],
+      created_at: new Date().toISOString()
+    };
+
+    appendAgentMessage(agent, userMessage);
+    startAssistantMessage(agent, assistantMessage);
+    setAgentStreaming(agent, true);
+    setAgentError(agent, undefined);
+    setMessage("");
+
+    try {
+      await streamAgentMessage(
+        project._id,
+        agent,
+        { user_id: project.user_id, content, quotes },
+        {
+          onToken: (token) => appendAssistantToken(agent, assistantId, token),
+          onDone: async () => {
+            setAgentStreaming(agent, false);
+            setAgentMessages(agent, await fetchAgentMessages(project._id, project.user_id, agent));
+          },
+          onError: (error) => {
+            setAgentStreaming(agent, false);
+            setAgentError(agent, error);
+          }
+        }
+      );
+    } catch (error) {
+      setAgentStreaming(agent, false);
+      setAgentError(agent, String(error));
+    }
+  }
+
+  return (
+    <>
+      <div className="chat-area">
+        {chat.messages.length ? (
+          chat.messages.map((item) => (
+            <div className={`msg ${item.role === "user" ? "msg-user" : "msg-agent"}`} key={item._id}>
+              {item.content || "生成中..."}
+            </div>
+          ))
+        ) : (
+          <div className="msg msg-agent">{welcomeText(agent)}</div>
+        )}
+      </div>
+      {chat.error ? <div className="agent-error">{chat.error}</div> : null}
+      {selectedText ? (
+        <div className="input-quote-wrap show">
+          <div className={`input-quote-tag ${agent}`}>
+            <span className="input-quote-icon">→</span>
+            <span className="input-quote-text">{selectedText}</span>
+          </div>
+        </div>
+      ) : null}
+      <div className="chat-input">
+        <input disabled={chat.streaming} placeholder={placeholder} value={message} onChange={(event) => setMessage(event.target.value)} />
+        <button className={`send-btn send-${agent}`} disabled={chat.streaming} onClick={handleSend} type="button">
+          {chat.streaming ? "生成中" : "发送"}
+        </button>
+      </div>
+    </>
+  );
+}
+
+function LegacyAgentChat({ agent, selectedText, placeholder }: { agent: AgentType; selectedText?: string; placeholder: string }) {
   const { project, setProject } = useAppStore();
   const [message, setMessage] = useState("");
 

@@ -3,13 +3,19 @@
 import { create } from "zustand";
 
 import { insertColumn, insertRow, removeColumn, removeRow, renameColumn, updateCellValue } from "@/lib/scriptEditor";
-import type { AgentType, BrandInsightCategory, Project, SaveStatus, Script } from "@/lib/types";
+import type { AgentMessage, AgentType, BrandInsightCategory, Project, SaveStatus, Script } from "@/lib/types";
 
 type EditorState = {
   selectedRowId?: string;
   selectedColumnId?: string;
   selectedText?: string;
   saveStatus: SaveStatus;
+};
+
+type AgentChatState = {
+  messages: AgentMessage[];
+  streaming: boolean;
+  error?: string;
 };
 
 type AppState = {
@@ -37,6 +43,7 @@ type AppState = {
     hunkState: Record<string, true | false | null>;
     streaming: boolean;
   };
+  agentChats: Record<AgentType, AgentChatState>;
   setUserId: (userId?: string) => void;
   setProjects: (projects: Project[]) => void;
   setProject: (project: Project | null) => void;
@@ -52,6 +59,12 @@ type AppState = {
   setAgentColumnWidth: (width: number) => void;
   setSelection: (selection?: { rowId?: string; columnId?: string; text: string }) => void;
   setBrandPinnedTab: (tab: BrandInsightCategory) => void;
+  setAgentMessages: (agent: AgentType, messages: AgentMessage[]) => void;
+  appendAgentMessage: (agent: AgentType, message: AgentMessage) => void;
+  startAssistantMessage: (agent: AgentType, message: AgentMessage) => void;
+  appendAssistantToken: (agent: AgentType, messageId: string, token: string) => void;
+  setAgentStreaming: (agent: AgentType, streaming: boolean) => void;
+  setAgentError: (agent: AgentType, error?: string) => void;
 };
 
 export const useAppStore = create<AppState>((set) => ({
@@ -77,6 +90,11 @@ export const useAppStore = create<AppState>((set) => ({
     diffOverlayOpen: false,
     hunkState: {},
     streaming: false
+  },
+  agentChats: {
+    brand: { messages: [], streaming: false },
+    audience: { messages: [], streaming: false },
+    expert: { messages: [], streaming: false }
   },
   setUserId: (userId) => set({ userId }),
   setProjects: (projects) => set({ projects }),
@@ -162,5 +180,58 @@ export const useAppStore = create<AppState>((set) => ({
   setBrandPinnedTab: (tab) =>
     set((state) => ({
       brand: { ...state.brand, activePinnedTab: tab }
+    })),
+  setAgentMessages: (agent, messages) =>
+    set((state) => ({
+      agentChats: {
+        ...state.agentChats,
+        [agent]: { ...state.agentChats[agent], messages }
+      }
+    })),
+  appendAgentMessage: (agent, message) =>
+    set((state) => ({
+      agentChats: {
+        ...state.agentChats,
+        [agent]: {
+          ...state.agentChats[agent],
+          messages: [...state.agentChats[agent].messages, message]
+        }
+      }
+    })),
+  startAssistantMessage: (agent, message) =>
+    set((state) => ({
+      agentChats: {
+        ...state.agentChats,
+        [agent]: {
+          ...state.agentChats[agent],
+          messages: [...state.agentChats[agent].messages, message]
+        }
+      }
+    })),
+  appendAssistantToken: (agent, messageId, token) =>
+    set((state) => ({
+      agentChats: {
+        ...state.agentChats,
+        [agent]: {
+          ...state.agentChats[agent],
+          messages: state.agentChats[agent].messages.map((message) =>
+            message._id === messageId ? { ...message, content: `${message.content}${token}` } : message
+          )
+        }
+      }
+    })),
+  setAgentStreaming: (agent, streaming) =>
+    set((state) => ({
+      agentChats: {
+        ...state.agentChats,
+        [agent]: { ...state.agentChats[agent], streaming }
+      }
+    })),
+  setAgentError: (agent, error) =>
+    set((state) => ({
+      agentChats: {
+        ...state.agentChats,
+        [agent]: { ...state.agentChats[agent], error }
+      }
     }))
 }));
