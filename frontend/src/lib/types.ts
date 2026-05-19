@@ -128,6 +128,46 @@ export type Script = {
   updated_at?: string;
 };
 
+export type PersonaAdSensitivity = "low" | "medium" | "high";
+
+export type Persona = {
+  persona_id: string;
+  name: string;
+  icon: string;
+  gender: string;
+  age_range: string;
+  preferences: string;
+  behavior: string;
+  platform_context: string;
+  ad_sensitivity: PersonaAdSensitivity;
+  trust_trigger: string[];
+  reject_trigger: string[];
+  data_source: "manual" | "system_generated" | "imported_data";
+  created_at: string;
+  updated_at: string;
+};
+
+export type AudienceAnalysisPart = {
+  row_id: string;
+  reason: string;
+};
+
+export type AudienceAnalysis = {
+  analysis_id?: string;
+  persona_id?: string;
+  persona_name?: string;
+  based_on_script_updated_at?: string | null;
+  summary?: string;
+  naturalness_score?: number | null;
+  credibility_score?: number | null;
+  ad_sensitivity_score?: number | null;
+  key_risks?: string[];
+  liked_parts?: AudienceAnalysisPart[];
+  rejected_parts?: AudienceAnalysisPart[];
+  suggestions?: string[];
+  updated_at?: string;
+};
+
 export type Project = {
   _id: string;
   user_id: string;
@@ -136,9 +176,9 @@ export type Project = {
   brand_research?: BrandResearch;
   current_script: Script;
   brand_insights: BrandInsight[];
-  personas: Array<Record<string, unknown>>;
+  personas: Persona[];
   active_persona_id: string | null;
-  audience_analysis: Record<string, unknown>;
+  audience_analysis: AudienceAnalysis;
   expert_suggestions: Array<Record<string, unknown>>;
   stale: Record<AgentType, boolean>;
   created_at: string;

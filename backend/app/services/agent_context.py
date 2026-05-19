@@ -120,22 +120,94 @@ def format_brand_insights(project: dict[str, Any], *, max_per_category: int = 6)
     return "\n".join(sections) if sections else "（暂无可用洞察。）"
 
 
-def find_active_persona(project: dict[str, Any]) -> str:
+def get_active_persona(project: dict[str, Any]) -> dict[str, Any] | None:
     active_id = project.get("active_persona_id")
-    for persona in project.get("personas", []):
+    if not active_id:
+        return None
+    for persona in project.get("personas", []) or []:
         if persona.get("persona_id") == active_id:
-            return str(persona)
-    return "未选择 persona。"
+            return persona
+    return None
+
+
+_AD_SENSITIVITY_LABEL = {"low": "低", "medium": "中", "high": "高"}
+
+
+def format_active_persona(project: dict[str, Any]) -> str:
+    persona = get_active_persona(project)
+    if persona is None:
+        return "（尚未选择 persona。请用户先在观众 Agent 侧栏创建并选择一个 persona。）"
+
+    parts: list[str] = []
+    name = (persona.get("name") or "").strip() or "未命名 persona"
+    parts.append(f"- 名称：{name}")
+    for label, key in (
+        ("性别", "gender"),
+        ("年龄段 / 人群", "age_range"),
+        ("偏好", "preferences"),
+        ("行为习惯", "behavior"),
+        ("常用平台", "platform_context"),
+    ):
+        value = (persona.get(key) or "").strip()
+        if value:
+            parts.append(f"- {label}：{value}")
+    ad = persona.get("ad_sensitivity")
+    if ad:
+        parts.append(f"- 广告敏感度：{_AD_SENSITIVITY_LABEL.get(ad, ad)}")
+    trust = [t for t in (persona.get("trust_trigger") or []) if isinstance(t, str) and t.strip()]
+    if trust:
+        parts.append(f"- 信任触点：{' / '.join(trust[:6])}")
+    reject = [t for t in (persona.get("reject_trigger") or []) if isinstance(t, str) and t.strip()]
+    if reject:
+        parts.append(f"- 抵触触点：{' / '.join(reject[:6])}")
+    return "\n".join(parts)
+
+
+def get_active_persona_name(project: dict[str, Any]) -> str:
+    persona = get_active_persona(project)
+    if persona is None:
+        return "未指定 persona"
+    return (persona.get("name") or "").strip() or "未命名 persona"
+
+
+def format_audience_analysis_existing(project: dict[str, Any]) -> str:
+    analysis = project.get("audience_analysis") or {}
+    if not isinstance(analysis, dict) or not analysis.get("updated_at"):
+        return "（暂无上一轮结构化分析。）"
+
+    persona_name = (analysis.get("persona_name") or "").strip() or "（persona 名称缺失）"
+    parts = [
+        f"- persona：{persona_name}",
+        f"- 上次更新：{analysis.get('updated_at')}",
+    ]
+    summary = (analysis.get("summary") or "").strip()
+    if summary:
+        parts.append(f"- 摘要：{summary}")
+    for label, key in (
+        ("自然度", "naturalness_score"),
+        ("可信度", "credibility_score"),
+        ("广告感", "ad_sensitivity_score"),
+    ):
+        score = analysis.get(key)
+        if isinstance(score, int):
+            parts.append(f"- {label}：{score}/5")
+    risks = [r for r in (analysis.get("key_risks") or []) if isinstance(r, str) and r.strip()]
+    if risks:
+        parts.append("- 关键风险：" + " / ".join(risks[:5]))
+    return "\n".join(parts)
 
 
 def build_prompt_variables(project: dict[str, Any], recent_messages: list[dict[str, Any]], quotes: list[dict[str, Any]]) -> dict[str, str]:
     research_summary, research_snippets = format_brand_research(project)
+    persona_name = get_active_persona_name(project)
     return {
         "brief_summary": project.get("brief", {}).get("summary") or "无。",
         "script_summary": summarize_script(project.get("current_script", {})),
         "recent_messages": format_recent_messages(recent_messages),
         "quotes": format_quotes(quotes),
-        "active_persona": find_active_persona(project),
+        "active_persona": format_active_persona(project),
+        "persona_name": persona_name,
+        "audience_analysis_existing": format_audience_analysis_existing(project),
         "brand_entity": format_brand_entity(project),
         "brand_insights": format_brand_insights(project),
         "audience_analysis": str(project.get("audience_analysis") or {}),

@@ -19,6 +19,29 @@ def _project_stub() -> dict:
     }
 
 
+def _audience_project_stub() -> dict:
+    project = _project_stub()
+    project["personas"] = [
+        {
+            "persona_id": "persona_1",
+            "name": "年轻职场人",
+            "ad_sensitivity": "medium",
+            "trust_trigger": ["真实通勤场景"],
+            "reject_trigger": ["硬广独白"],
+        }
+    ]
+    project["active_persona_id"] = "persona_1"
+    project["current_script"] = {
+        "columns": [],
+        "rows": [
+            {"row_id": "row_1", "order": 0, "cells": []},
+            {"row_id": "row_2", "order": 1, "cells": []},
+        ],
+        "updated_at": "2026-05-19T00:00:00+00:00",
+    }
+    return project
+
+
 class _FakeStream:
     def __init__(self, chunks: list[str]) -> None:
         self._chunks = chunks
@@ -154,6 +177,94 @@ class AgentStreamTest(unittest.IsolatedAsyncioTestCase):
         done_payload = json.loads(done_event.split("data: ", 1)[1])
         self.assertEqual(done_payload["proposal_count"], 0)
         self.assertEqual(done_payload["persisted_count"], 0)
+
+    async def _collect_audience(
+        self, chunks: list[str], *, project: dict | None = None
+    ) -> tuple[list[str], AsyncMock]:
+        from app.services.agent_stream import stream_agent_response
+
+        fake_stream = _FakeStream(chunks)
+        save_analysis_mock = AsyncMock(return_value=_audience_project_stub())
+        stub_project = project if project is not None else _audience_project_stub()
+        with (
+            patch("app.services.agent_stream.get_project", new=AsyncMock(return_value=stub_project)),
+            patch("app.services.agent_stream.list_agent_messages", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_stream.create_agent_message",
+                new=AsyncMock(return_value={"_id": "msg_audience"}),
+            ),
+            patch("app.services.agent_stream.save_audience_analysis", new=save_analysis_mock),
+            patch("app.services.agent_stream.PromptLoader") as MockLoader,
+            patch("app.services.agent_stream.LLMClient") as MockClient,
+        ):
+            MockLoader.return_value.render.return_value = "system"
+            MockClient.return_value.stream_chat = fake_stream
+            events = [
+                event
+                async for event in stream_agent_response(
+                    AsyncMock(),
+                    project_id="p1",
+                    user_id="u1",
+                    agent_type="audience",
+                    content="Q",
+                    quotes=[],
+                )
+            ]
+        return events, save_analysis_mock
+
+    async def test_audience_agent_persists_analysis_artifact(self):
+        chunks = [
+            "以 年轻职场人 的视角，",
+            "整体可信度可接受。\n\n",
+            "<audience_analysis>",
+            '{"summary":"中段广告感稍重",',
+            '"naturalness_score":3,"credibility_score":4,"ad_sensitivity_score":4,',
+            '"key_risks":["品牌口播过早"],',
+            '"liked_parts":[{"row_id":"row_1","reason":"具体可信"}],',
+            '"rejected_parts":[{"row_id":"row_2","reason":"转折生硬"}],',
+            '"suggestions":["把形容词替换为数字"]}',
+            "</audience_analysis>",
+        ]
+        events, save_analysis = await self._collect_audience(chunks)
+
+        token_events = [e for e in events if e.startswith("event: token")]
+        token_text = "".join(json.loads(e.split("data: ", 1)[1])["content"] for e in token_events)
+        self.assertIn("年轻职场人", token_text)
+        self.assertNotIn("audience_analysis", token_text)
+        self.assertNotIn("naturalness_score", token_text)
+
+        artifact_event = next(e for e in events if e.startswith("event: artifact"))
+        artifact_payload = json.loads(artifact_event.split("data: ", 1)[1])
+        self.assertEqual(artifact_payload["type"], "audience_analysis")
+        self.assertEqual(artifact_payload["persona_id"], "persona_1")
+        self.assertEqual(artifact_payload["persisted"], True)
+        analysis = artifact_payload["analysis"]
+        self.assertEqual(analysis["naturalness_score"], 3)
+        self.assertEqual(analysis["liked_parts"][0]["row_id"], "row_1")
+        save_analysis.assert_awaited_once()
+
+        done_event = next(e for e in events if e.startswith("event: done"))
+        done_payload = json.loads(done_event.split("data: ", 1)[1])
+        self.assertEqual(done_payload["analysis_persisted"], True)
+        self.assertEqual(done_payload["message_id"], "msg_audience")
+
+    async def test_audience_agent_without_marker_skips_persist(self):
+        chunks = ["以 年轻职场人 的视角，", "这段还需要再讨论。"]
+        events, save_analysis = await self._collect_audience(chunks)
+        self.assertFalse(any(e.startswith("event: artifact") for e in events))
+        save_analysis.assert_not_awaited()
+        done_event = next(e for e in events if e.startswith("event: done"))
+        done_payload = json.loads(done_event.split("data: ", 1)[1])
+        self.assertEqual(done_payload["analysis_persisted"], False)
+
+    async def test_audience_agent_without_active_persona_returns_error(self):
+        project = _audience_project_stub()
+        project["active_persona_id"] = None
+        project["personas"] = []
+        events, save_analysis = await self._collect_audience(["..."], project=project)
+        self.assertEqual(len(events), 1)
+        self.assertTrue(events[0].startswith("event: error"))
+        save_analysis.assert_not_awaited()
 
 
 if __name__ == "__main__":

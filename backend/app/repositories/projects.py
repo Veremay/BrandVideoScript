@@ -10,6 +10,25 @@ BRAND_INSIGHT_CATEGORIES = {"explicit_requirement", "implicit_requirement", "bra
 BRAND_INSIGHT_CONFIDENCE = {"high", "medium", "low"}
 BRAND_INSIGHT_STATUS = {"new", "confirmed", "pending", "ignored"}
 
+PERSONA_AD_SENSITIVITY = {"low", "medium", "high"}
+PERSONA_DATA_SOURCES = {"manual", "system_generated", "imported_data"}
+
+PERSONA_OPTIONAL_TEXT_FIELDS = (
+    "icon",
+    "gender",
+    "age_range",
+    "preferences",
+    "behavior",
+    "platform_context",
+)
+PERSONA_OPTIONAL_LIST_FIELDS = ("trust_trigger", "reject_trigger")
+PERSONA_MUTABLE_FIELDS = (
+    "name",
+    *PERSONA_OPTIONAL_TEXT_FIELDS,
+    "ad_sensitivity",
+    *PERSONA_OPTIONAL_LIST_FIELDS,
+)
+
 
 def filter_insights_preserve_user_and_feedback(insights: list[dict]) -> list[dict]:
     """After a new Brief upload, drop agent-generated requirements; keep user items and all brand_feedback."""
@@ -161,6 +180,136 @@ def _next_timestamp_after(previous: str | None) -> str:
     if previous is None or current > previous:
         return current
     return (datetime.fromisoformat(previous) + timedelta(microseconds=1)).isoformat()
+
+
+def _normalize_persona_list_field(value: object) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        items: list[str] = []
+        for entry in value:
+            if entry is None:
+                continue
+            text = str(entry).strip()
+            if text:
+                items.append(text[:120])
+        return items[:10]
+    if isinstance(value, str):
+        return [chunk.strip()[:120] for chunk in value.split(",") if chunk.strip()][:10]
+    return []
+
+
+def build_persona(
+    *,
+    name: str,
+    icon: str = "",
+    gender: str = "",
+    age_range: str = "",
+    preferences: str = "",
+    behavior: str = "",
+    platform_context: str = "",
+    ad_sensitivity: str = "medium",
+    trust_trigger: list[str] | None = None,
+    reject_trigger: list[str] | None = None,
+    data_source: str = "manual",
+) -> dict:
+    name = (name or "").strip()
+    if not name:
+        raise ValueError("Persona name cannot be empty")
+    if ad_sensitivity not in PERSONA_AD_SENSITIVITY:
+        raise ValueError("Invalid persona ad_sensitivity")
+    if data_source not in PERSONA_DATA_SOURCES:
+        raise ValueError("Invalid persona data_source")
+
+    now = now_iso()
+    return {
+        "persona_id": new_id("persona"),
+        "name": name[:80],
+        "icon": (icon or "").strip()[:8],
+        "gender": (gender or "").strip()[:40],
+        "age_range": (age_range or "").strip()[:60],
+        "preferences": (preferences or "").strip()[:600],
+        "behavior": (behavior or "").strip()[:600],
+        "platform_context": (platform_context or "").strip()[:200],
+        "ad_sensitivity": ad_sensitivity,
+        "trust_trigger": _normalize_persona_list_field(trust_trigger),
+        "reject_trigger": _normalize_persona_list_field(reject_trigger),
+        "data_source": data_source,
+        "created_at": now,
+        "updated_at": now,
+    }
+
+
+def update_persona_in_list(personas: list[dict], persona_id: str, changes: dict) -> list[dict]:
+    found = False
+    updated_personas: list[dict] = []
+
+    for persona in personas:
+        if persona.get("persona_id") != persona_id:
+            updated_personas.append(persona)
+            continue
+
+        found = True
+        next_persona = {**persona}
+        for field, value in changes.items():
+            if field not in PERSONA_MUTABLE_FIELDS or value is None:
+                continue
+            if field in PERSONA_OPTIONAL_LIST_FIELDS:
+                next_persona[field] = _normalize_persona_list_field(value)
+            elif isinstance(value, str):
+                next_persona[field] = value.strip()
+            else:
+                next_persona[field] = value
+
+        if not str(next_persona.get("name") or "").strip():
+            raise ValueError("Persona name cannot be empty")
+        if next_persona.get("ad_sensitivity") not in PERSONA_AD_SENSITIVITY:
+            raise ValueError("Invalid persona ad_sensitivity")
+        next_persona["updated_at"] = _next_timestamp_after(persona.get("updated_at"))
+        updated_personas.append(next_persona)
+
+    if not found:
+        raise ValueError("Persona not found")
+    return updated_personas
+
+
+def remove_persona_from_list(personas: list[dict], persona_id: str) -> list[dict]:
+    updated = [persona for persona in personas if persona.get("persona_id") != persona_id]
+    if len(updated) == len(personas):
+        raise ValueError("Persona not found")
+    return updated
+
+
+def build_audience_analysis(
+    *,
+    persona_id: str,
+    persona_name: str,
+    summary: str,
+    naturalness_score: int | None,
+    credibility_score: int | None,
+    ad_sensitivity_score: int | None,
+    key_risks: list[str],
+    liked_parts: list[dict],
+    rejected_parts: list[dict],
+    suggestions: list[str],
+    based_on_script_updated_at: str | None = None,
+) -> dict:
+    now = now_iso()
+    return {
+        "analysis_id": new_id("analysis"),
+        "persona_id": persona_id,
+        "persona_name": persona_name,
+        "based_on_script_updated_at": based_on_script_updated_at,
+        "summary": (summary or "").strip(),
+        "naturalness_score": naturalness_score,
+        "credibility_score": credibility_score,
+        "ad_sensitivity_score": ad_sensitivity_score,
+        "key_risks": list(key_risks or []),
+        "liked_parts": list(liked_parts or []),
+        "rejected_parts": list(rejected_parts or []),
+        "suggestions": list(suggestions or []),
+        "updated_at": now,
+    }
 
 
 async def enter_user(db: AsyncIOMotorDatabase, user_id: str) -> dict:
@@ -411,6 +560,135 @@ async def delete_brand_insight(
         return None
     insights = remove_brand_insight_from_list(project.get("brand_insights", []), insight_id)
     return await _write_brand_insights(db, project_id, user_id, insights)
+
+
+async def create_persona(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    *,
+    name: str,
+    icon: str = "",
+    gender: str = "",
+    age_range: str = "",
+    preferences: str = "",
+    behavior: str = "",
+    platform_context: str = "",
+    ad_sensitivity: str = "medium",
+    trust_trigger: list[str] | None = None,
+    reject_trigger: list[str] | None = None,
+) -> dict | None:
+    project = await get_project(db, project_id, user_id)
+    if project is None:
+        return None
+
+    persona = build_persona(
+        name=name,
+        icon=icon,
+        gender=gender,
+        age_range=age_range,
+        preferences=preferences,
+        behavior=behavior,
+        platform_context=platform_context,
+        ad_sensitivity=ad_sensitivity,
+        trust_trigger=trust_trigger,
+        reject_trigger=reject_trigger,
+    )
+    personas = [*project.get("personas", []), persona]
+    active_id = project.get("active_persona_id") or persona["persona_id"]
+    return await _write_personas(db, project_id, user_id, personas=personas, active_persona_id=active_id)
+
+
+async def update_persona(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    persona_id: str,
+    changes: dict,
+) -> dict | None:
+    project = await get_project(db, project_id, user_id)
+    if project is None:
+        return None
+    personas = update_persona_in_list(project.get("personas", []), persona_id, changes)
+    return await _write_personas(db, project_id, user_id, personas=personas, active_persona_id=project.get("active_persona_id"))
+
+
+async def delete_persona(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    persona_id: str,
+) -> dict | None:
+    project = await get_project(db, project_id, user_id)
+    if project is None:
+        return None
+    personas = remove_persona_from_list(project.get("personas", []), persona_id)
+
+    active_id = project.get("active_persona_id")
+    if active_id == persona_id:
+        active_id = personas[0]["persona_id"] if personas else None
+
+    return await _write_personas(db, project_id, user_id, personas=personas, active_persona_id=active_id)
+
+
+async def set_active_persona(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    persona_id: str | None,
+) -> dict | None:
+    project = await get_project(db, project_id, user_id)
+    if project is None:
+        return None
+
+    personas = project.get("personas", [])
+    if persona_id is not None and not any(p.get("persona_id") == persona_id for p in personas):
+        raise ValueError("Persona not found")
+
+    return await _write_personas(db, project_id, user_id, personas=personas, active_persona_id=persona_id)
+
+
+async def save_audience_analysis(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    analysis: dict,
+) -> dict | None:
+    await db.projects.update_one(
+        {"_id": project_id, "user_id": user_id},
+        {
+            "$set": {
+                "audience_analysis": analysis,
+                "stale.audience": False,
+                "stale.expert": True,
+                "updated_at": now_iso(),
+            }
+        },
+    )
+    return await get_project(db, project_id, user_id)
+
+
+async def _write_personas(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    *,
+    personas: list[dict],
+    active_persona_id: str | None,
+) -> dict | None:
+    await db.projects.update_one(
+        {"_id": project_id, "user_id": user_id},
+        {
+            "$set": {
+                "personas": personas,
+                "active_persona_id": active_persona_id,
+                "stale.audience": True,
+                "stale.expert": True,
+                "updated_at": now_iso(),
+            }
+        },
+    )
+    return await get_project(db, project_id, user_id)
 
 
 async def _write_brand_insights(db: AsyncIOMotorDatabase, project_id: str, user_id: str, insights: list[dict]) -> dict | None:

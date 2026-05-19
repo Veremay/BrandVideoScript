@@ -2,9 +2,11 @@ import type {
   AgentMessage,
   AgentStreamPayload,
   AgentType,
+  AudienceAnalysis,
   BrandInsightCategory,
   BrandInsightConfidence,
   BrandInsightStatus,
+  PersonaAdSensitivity,
   Project,
   Script
 } from "@/lib/types";
@@ -114,6 +116,51 @@ export async function deleteBrandInsight(projectId: string, userId: string, insi
   });
 }
 
+export type PersonaInput = {
+  name: string;
+  icon?: string;
+  gender?: string;
+  age_range?: string;
+  preferences?: string;
+  behavior?: string;
+  platform_context?: string;
+  ad_sensitivity?: PersonaAdSensitivity;
+  trust_trigger?: string[];
+  reject_trigger?: string[];
+};
+
+export async function createPersona(projectId: string, userId: string, payload: PersonaInput): Promise<Project> {
+  return request(`/projects/${projectId}/personas`, {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId, ...payload })
+  });
+}
+
+export async function updatePersona(
+  projectId: string,
+  userId: string,
+  personaId: string,
+  payload: Partial<PersonaInput>
+): Promise<Project> {
+  return request(`/projects/${projectId}/personas/${personaId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ user_id: userId, ...payload })
+  });
+}
+
+export async function deletePersona(projectId: string, userId: string, personaId: string): Promise<Project> {
+  return request(`/projects/${projectId}/personas/${personaId}?user_id=${encodeURIComponent(userId)}`, {
+    method: "DELETE"
+  });
+}
+
+export async function setActivePersona(projectId: string, userId: string, personaId: string | null): Promise<Project> {
+  return request(`/projects/${projectId}/active-persona`, {
+    method: "PATCH",
+    body: JSON.stringify({ user_id: userId, persona_id: personaId })
+  });
+}
+
 export async function saveScriptCell(
   projectId: string,
   userId: string,
@@ -188,17 +235,29 @@ export type BrandInsightProposalItem = {
   evidence?: Array<{ source_type?: string; quote?: string }>;
 };
 
-export type AgentStreamArtifact = {
+export type BrandInsightProposalsArtifact = {
   type: "brand_insight_proposals";
   items: BrandInsightProposalItem[];
   persisted_count?: number;
   trace_run_id?: string;
 };
 
+export type AudienceAnalysisArtifact = {
+  type: "audience_analysis";
+  analysis: AudienceAnalysis;
+  persona_id?: string | null;
+  persona_name?: string | null;
+  persisted?: boolean;
+  trace_run_id?: string;
+};
+
+export type AgentStreamArtifact = BrandInsightProposalsArtifact | AudienceAnalysisArtifact;
+
 export type AgentStreamDoneInfo = {
   messageId: string;
   proposalCount: number;
   persistedCount: number;
+  analysisPersisted: boolean;
 };
 
 type StreamHandlers = {
@@ -245,18 +304,30 @@ export async function streamAgentMessage(
       const parsed = JSON.parse(data);
       if (event === "token") handlers.onToken(parsed.content ?? "");
       if (event === "artifact") {
-        handlers.onArtifact?.({
-          type: parsed.type,
-          items: parsed.items ?? [],
-          persisted_count: parsed.persisted_count,
-          trace_run_id: parsed.trace_run_id
-        });
+        if (parsed.type === "audience_analysis") {
+          handlers.onArtifact?.({
+            type: "audience_analysis",
+            analysis: parsed.analysis ?? ({} as AudienceAnalysis),
+            persona_id: parsed.persona_id,
+            persona_name: parsed.persona_name,
+            persisted: parsed.persisted,
+            trace_run_id: parsed.trace_run_id
+          });
+        } else {
+          handlers.onArtifact?.({
+            type: "brand_insight_proposals",
+            items: parsed.items ?? [],
+            persisted_count: parsed.persisted_count,
+            trace_run_id: parsed.trace_run_id
+          });
+        }
       }
       if (event === "done") {
         handlers.onDone({
           messageId: parsed.message_id ?? "",
           proposalCount: parsed.proposal_count ?? 0,
-          persistedCount: parsed.persisted_count ?? 0
+          persistedCount: parsed.persisted_count ?? 0,
+          analysisPersisted: parsed.analysis_persisted ?? false
         });
       }
       if (event === "error") handlers.onError(parsed.message ?? "Agent stream failed");

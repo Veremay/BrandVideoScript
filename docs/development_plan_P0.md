@@ -168,12 +168,15 @@ BrandVideo/
 
 ### Phase 4 — 观众 Agent + Persona
 
+> 设计细则：`docs/superpowers/specs/2026-05-19-phase-4-audience-persona-design.md`
+> 实施计划：`docs/superpowers/plans/2026-05-19-phase-4-audience.md`
+
 | ID | 任务 |
 |----|------|
-| 4.1 | Persona CRUD + `active_persona_id` |
-| 4.2 | Audience Agent 流式 + `audience_analysis`（32B） |
-| 4.3 | 回复标明当前 persona |
-| 4.4 | persona 变更触发 stale 规则 |
+| 4.1 | Persona CRUD + `active_persona_id`（含新建 / 编辑 / 删除 / 切换） |
+| 4.2 | Audience Agent 流式 + 结构化 `audience_analysis`（32B，`<audience_analysis>` artifact） |
+| 4.3 | 回复首段标明当前 persona；prompt 强制提示 |
+| 4.4 | persona 编辑 / 切换 / 删除触发 `stale.audience` + `stale.expert` |
 
 **验收：** PRD §15.4。
 
@@ -268,9 +271,9 @@ BrandVideo/
 
 ### 8.4 Phase 4 — 观众（PRD §15.4）
 
-- [ ] Persona 新建/编辑/删除/切换
-- [ ] 回复标明 persona
-- [ ] 自然度、可信度、广告感等结构化分析
+- [x] Persona 新建/编辑/删除/切换
+- [x] 回复标明 persona
+- [x] 自然度、可信度、广告感等结构化分析
 
 ### 8.5 Phase 5 — 专家（PRD §15.5）
 

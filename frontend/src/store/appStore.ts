@@ -5,6 +5,11 @@ import { create } from "zustand";
 import { insertColumn, insertRow, removeColumn, removeRow, renameColumn, updateCellValue } from "@/lib/scriptEditor";
 import type { AgentMessage, AgentType, BrandInsightCategory, Project, SaveStatus, Script } from "@/lib/types";
 
+export type PersonaModalState = {
+  mode: "create" | "edit";
+  personaId?: string;
+};
+
 type EditorState = {
   selectedRowId?: string;
   selectedColumnId?: string;
@@ -33,8 +38,7 @@ type AppState = {
     streaming: boolean;
   };
   audience: {
-    activePersonaId?: string;
-    modalMode: "create" | "edit" | null;
+    personaModal: PersonaModalState | null;
     streaming: boolean;
   };
   expert: {
@@ -59,6 +63,7 @@ type AppState = {
   setAgentColumnWidth: (width: number) => void;
   setSelection: (selection?: { rowId?: string; columnId?: string; text: string }) => void;
   setBrandPinnedTab: (tab: BrandInsightCategory) => void;
+  openPersonaModal: (state: PersonaModalState | null) => void;
   setAgentMessages: (agent: AgentType, messages: AgentMessage[]) => void;
   appendAgentMessage: (agent: AgentType, message: AgentMessage) => void;
   startAssistantMessage: (agent: AgentType, message: AgentMessage) => void;
@@ -83,7 +88,7 @@ export const useAppStore = create<AppState>((set) => ({
     streaming: false
   },
   audience: {
-    modalMode: null,
+    personaModal: null,
     streaming: false
   },
   expert: {
@@ -180,6 +185,10 @@ export const useAppStore = create<AppState>((set) => ({
   setBrandPinnedTab: (tab) =>
     set((state) => ({
       brand: { ...state.brand, activePinnedTab: tab }
+    })),
+  openPersonaModal: (personaModal) =>
+    set((state) => ({
+      audience: { ...state.audience, personaModal }
     })),
   setAgentMessages: (agent, messages) =>
     set((state) => ({

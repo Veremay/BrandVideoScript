@@ -5,46 +5,71 @@ import { useEffect, useRef, useState } from "react";
 import { ScriptGrid } from "@/components/ScriptGrid";
 import {
   createBrandInsight,
+  createPersona,
   deleteBrandInsight,
+  deletePersona,
   fetchAgentMessages,
   fetchProject,
   saveBrief,
   saveScript,
+  setActivePersona,
   streamAgentMessage,
-  updateBrandInsight
+  updateBrandInsight,
+  updatePersona,
+  type PersonaInput
 } from "@/lib/api";
 import type {
   AgentMessage,
   AgentQuote,
   AgentType,
+  AudienceAnalysis,
   BrandInsight,
   BrandInsightCategory,
   BrandInsightConfidence,
   BrandInsightStatus,
+  Persona,
+  PersonaAdSensitivity,
   Project
 } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
 
 const SAVE_DELAY_MS = 700;
 
-const AGENTS: Array<{
-  type: AgentType;
-  title: string;
-  badge: string;
-  badgeClass: string;
-  tone: "brand" | "audience" | "expert";
-}> = [
-  { type: "brand", title: "品牌方 Agent", badge: "分析完成", badgeClass: "badge-done", tone: "brand" },
-  { type: "audience", title: "观众 Agent", badge: "待触发", badgeClass: "badge-wait", tone: "audience" },
-  { type: "expert", title: "专家 Agent", badge: "有新输入", badgeClass: "badge-new", tone: "expert" }
+type AgentTone = "brand" | "audience" | "expert";
+
+const AGENTS: Array<{ type: AgentType; title: string; tone: AgentTone }> = [
+  { type: "brand", title: "品牌方 Agent", tone: "brand" },
+  { type: "audience", title: "观众 Agent", tone: "audience" },
+  { type: "expert", title: "专家 Agent", tone: "expert" }
 ];
 
-function brandAgentBadge(project: Project) {
+type AgentBadge = { label: string; badgeClass: string };
+
+function brandAgentBadge(project: Project): AgentBadge {
   const st = project.brand_research?.status;
-  if (st === "running") return { label: "Brief 分析中", badgeClass: "badge-wait" as const };
-  if (st === "failed") return { label: "Brief 分析失败", badgeClass: "badge-new" as const };
-  if (st === "done") return { label: "分析完成", badgeClass: "badge-done" as const };
-  return { label: "待 Brief", badgeClass: "badge-wait" as const };
+  if (st === "running") return { label: "Brief 分析中", badgeClass: "badge-wait" };
+  if (st === "failed") return { label: "Brief 分析失败", badgeClass: "badge-new" };
+  if (st === "done") return { label: "分析完成", badgeClass: "badge-done" };
+  return { label: "待 Brief", badgeClass: "badge-wait" };
+}
+
+function audienceAgentBadge(project: Project): AgentBadge {
+  if (!project.personas.length) return { label: "新建 persona", badgeClass: "badge-wait" };
+  if (!project.active_persona_id) return { label: "未选 persona", badgeClass: "badge-wait" };
+  if (project.stale.audience) return { label: "分析过期", badgeClass: "badge-new" };
+  if (project.audience_analysis?.updated_at) return { label: "分析已更新", badgeClass: "badge-done" };
+  return { label: "待分析", badgeClass: "badge-wait" };
+}
+
+function expertAgentBadge(project: Project): AgentBadge {
+  if (project.stale.expert) return { label: "有新输入", badgeClass: "badge-new" };
+  return { label: "已同步", badgeClass: "badge-done" };
+}
+
+function getAgentBadge(agent: AgentType, project: Project): AgentBadge {
+  if (agent === "brand") return brandAgentBadge(project);
+  if (agent === "audience") return audienceAgentBadge(project);
+  return expertAgentBadge(project);
 }
 
 const BRAND_TABS: Array<{ category: BrandInsightCategory; label: string; addLabel: string }> = [
@@ -222,9 +247,7 @@ export function EditorShell() {
 
       <aside className="agents-col">
         {AGENTS.map((agent) => {
-          const brandBadge = agent.type === "brand" ? brandAgentBadge(project) : null;
-          const badgeLabel = brandBadge?.label ?? agent.badge;
-          const badgeClass = brandBadge?.badgeClass ?? agent.badgeClass;
+          const badge = getAgentBadge(agent.type, project);
           return (
             <section
               className={`agent-panel panel-${agent.tone} ${activePanel === agent.type ? "expanded" : "collapsed"}`}
@@ -233,11 +256,7 @@ export function EditorShell() {
               <button className="panel-header" onClick={() => openPanel(agent.type)} type="button">
                 <span className={`panel-dot dot-${agent.tone}`} />
                 <span className={`panel-name name-${agent.tone}`}>{agent.title}</span>
-                <span
-                  className={`panel-badge ${agent.type === "brand" ? badgeClass : agent.type === "audience" ? "badge-wait" : "badge-new"}`}
-                >
-                  {agent.type === "brand" ? badgeLabel : agent.badge}
-                </span>
+                <span className={`panel-badge ${badge.badgeClass}`}>{badge.label}</span>
                 <IconChevron />
               </button>
               {activePanel === agent.type ? <AgentBody agent={agent.type} selectedText={editor.selectedText} /> : null}
@@ -245,6 +264,7 @@ export function EditorShell() {
           );
         })}
       </aside>
+      <PersonaModalContainer />
     </main>
   );
 }
@@ -312,18 +332,8 @@ function AgentBody({ agent, selectedText }: { agent: AgentType; selectedText?: s
     );
   }
 
-  if (agent === "audience") {
-    return (
-      <div className="panel-body">
-        <div className="persona-bar">
-          <span className="persona-label">画像</span>
-          <button className="chip active" type="button">年轻职场人</button>
-          <button className="chip" type="button">首次购车</button>
-          <button className="chip add-chip" type="button">+</button>
-        </div>
-        <AgentChat agent="audience" selectedText={selectedText} placeholder="发送片段让观众评估..." />
-      </div>
-    );
+  if (agent === "audience" && project) {
+    return <AudiencePanel project={project} selectedText={selectedText} />;
   }
 
   return (
@@ -506,6 +516,7 @@ function AgentChat({ agent, selectedText, placeholder }: { agent: AgentType; sel
     setAgentError(agent, undefined);
     setMessage("");
 
+    let shouldRefresh = false;
     try {
       await streamAgentMessage(
         project._id,
@@ -516,13 +527,18 @@ function AgentChat({ agent, selectedText, placeholder }: { agent: AgentType; sel
           onArtifact: (artifact) => {
             if (artifact.type === "brand_insight_proposals" && (artifact.persisted_count ?? 0) > 0) {
               setBrandPinnedTab("explicit_requirement");
+              shouldRefresh = true;
+            }
+            if (artifact.type === "audience_analysis" && artifact.persisted) {
+              shouldRefresh = true;
             }
           },
-          onDone: async ({ persistedCount }) => {
+          onDone: async ({ persistedCount, analysisPersisted }) => {
             setAgentStreaming(agent, false);
+            const needsRefresh = shouldRefresh || persistedCount > 0 || analysisPersisted;
             const [messages, refreshed] = await Promise.all([
               fetchAgentMessages(project._id, project.user_id, agent),
-              persistedCount > 0 ? fetchProject(project._id, project.user_id) : Promise.resolve(null)
+              needsRefresh ? fetchProject(project._id, project.user_id) : Promise.resolve(null)
             ]);
             setAgentMessages(agent, messages);
             if (refreshed) setProject(refreshed);
@@ -568,6 +584,403 @@ function AgentChat({ agent, selectedText, placeholder }: { agent: AgentType; sel
         </button>
       </div>
     </>
+  );
+}
+
+function AudiencePanel({ project, selectedText }: { project: Project; selectedText?: string }) {
+  const { audience, openPersonaModal, setProject } = useAppStore();
+
+  async function handleSelectPersona(personaId: string) {
+    if (project.active_persona_id === personaId) return;
+    const updated = await setActivePersona(project._id, project.user_id, personaId);
+    setProject(updated);
+  }
+
+  return (
+    <div className="panel-body">
+      <div className="persona-bar">
+        <span className="persona-label">画像</span>
+        {project.personas.length ? (
+          project.personas.map((persona) => (
+            <PersonaChip
+              key={persona.persona_id}
+              persona={persona}
+              active={project.active_persona_id === persona.persona_id}
+              onSelect={() => handleSelectPersona(persona.persona_id)}
+              onEdit={() => openPersonaModal({ mode: "edit", personaId: persona.persona_id })}
+            />
+          ))
+        ) : (
+          <span className="persona-empty">尚未创建任何 persona。</span>
+        )}
+        <button
+          className="chip add-chip"
+          onClick={() => openPersonaModal({ mode: "create" })}
+          type="button"
+          aria-label="新建 persona"
+        >
+          +
+        </button>
+      </div>
+      <AudienceAnalysisCard project={project} />
+      {audience.personaModal ? null : null}
+      <AgentChat
+        agent="audience"
+        selectedText={selectedText}
+        placeholder={
+          project.active_persona_id
+            ? "发送片段让观众评估..."
+            : "请先选择或创建一个 persona 再发起对话..."
+        }
+      />
+    </div>
+  );
+}
+
+function PersonaChip({
+  persona,
+  active,
+  onSelect,
+  onEdit
+}: {
+  persona: Persona;
+  active: boolean;
+  onSelect: () => void;
+  onEdit: () => void;
+}) {
+  return (
+    <span className={`persona-chip ${active ? "active" : ""}`}>
+      <button className="persona-chip-main" onClick={onSelect} type="button" title={persona.preferences || persona.behavior || persona.name}>
+        {persona.icon ? <span className="persona-chip-icon">{persona.icon}</span> : null}
+        <span className="persona-chip-name">{persona.name}</span>
+      </button>
+      <button
+        className="persona-chip-edit"
+        onClick={(event) => {
+          event.stopPropagation();
+          onEdit();
+        }}
+        type="button"
+        aria-label={`编辑 ${persona.name}`}
+        title="编辑"
+      >
+        ✎
+      </button>
+    </span>
+  );
+}
+
+function AudienceAnalysisCard({ project }: { project: Project }) {
+  const [expanded, setExpanded] = useState(true);
+  const analysis = project.audience_analysis ?? {};
+  const hasAnalysis = Boolean(analysis.updated_at);
+  const stale = project.stale.audience;
+
+  if (!hasAnalysis) {
+    return (
+      <div className="audience-card audience-card-empty">
+        <span>与观众 Agent 对话以生成结构化分析。</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`audience-card ${stale ? "is-stale" : ""}`}>
+      <button className="audience-card-header" onClick={() => setExpanded((value) => !value)} type="button">
+        <span className="audience-card-title">
+          观众分析 · {analysis.persona_name || "未指定 persona"}
+        </span>
+        <span className="audience-card-meta">
+          {stale ? <span className="audience-card-stale">分析可能过期</span> : null}
+          <ScoreChip label="自然度" score={analysis.naturalness_score} />
+          <ScoreChip label="可信度" score={analysis.credibility_score} />
+          <ScoreChip label="广告感" score={analysis.ad_sensitivity_score} />
+          <IconChevron />
+        </span>
+      </button>
+      {expanded ? <AudienceAnalysisBody analysis={analysis} /> : null}
+    </div>
+  );
+}
+
+function ScoreChip({ label, score }: { label: string; score?: number | null }) {
+  if (typeof score !== "number") return null;
+  const tone = score >= 4 ? "high" : score >= 3 ? "medium" : "low";
+  return <span className={`audience-score audience-score-${tone}`}>{label} {score}/5</span>;
+}
+
+function AudienceAnalysisBody({ analysis }: { analysis: AudienceAnalysis }) {
+  return (
+    <div className="audience-card-body">
+      {analysis.summary ? <p className="audience-summary">{analysis.summary}</p> : null}
+      {analysis.key_risks?.length ? (
+        <AnalysisListBlock title="关键风险" items={analysis.key_risks} />
+      ) : null}
+      {analysis.liked_parts?.length ? (
+        <AnalysisRowsBlock title="观众喜欢" items={analysis.liked_parts} />
+      ) : null}
+      {analysis.rejected_parts?.length ? (
+        <AnalysisRowsBlock title="观众反感" items={analysis.rejected_parts} />
+      ) : null}
+      {analysis.suggestions?.length ? (
+        <AnalysisListBlock title="改进建议" items={analysis.suggestions} />
+      ) : null}
+    </div>
+  );
+}
+
+function AnalysisListBlock({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div className="audience-block">
+      <span className="audience-block-title">{title}</span>
+      <ul>
+        {items.map((item, index) => (
+          <li key={`${title}-${index}`}>{item}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function AnalysisRowsBlock({ title, items }: { title: string; items: Array<{ row_id: string; reason: string }> }) {
+  return (
+    <div className="audience-block">
+      <span className="audience-block-title">{title}</span>
+      <ul>
+        {items.map((item, index) => (
+          <li key={`${title}-${index}`}>
+            <code>{item.row_id}</code> {item.reason ? `· ${item.reason}` : null}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function PersonaModalContainer() {
+  const { audience, openPersonaModal, project, setProject } = useAppStore();
+  if (!audience.personaModal || !project) return null;
+
+  return (
+    <PersonaModal
+      mode={audience.personaModal.mode}
+      persona={
+        audience.personaModal.mode === "edit"
+          ? project.personas.find((p) => p.persona_id === audience.personaModal?.personaId) ?? null
+          : null
+      }
+      project={project}
+      onClose={() => openPersonaModal(null)}
+      onSaved={(updated) => {
+        setProject(updated);
+        openPersonaModal(null);
+      }}
+    />
+  );
+}
+
+const AD_SENSITIVITY_OPTIONS: Array<{ value: PersonaAdSensitivity; label: string }> = [
+  { value: "low", label: "低" },
+  { value: "medium", label: "中" },
+  { value: "high", label: "高" }
+];
+
+function PersonaModal({
+  mode,
+  persona,
+  project,
+  onClose,
+  onSaved
+}: {
+  mode: "create" | "edit";
+  persona: Persona | null;
+  project: Project;
+  onClose: () => void;
+  onSaved: (project: Project) => void;
+}) {
+  const [draft, setDraft] = useState<PersonaInput>(() => ({
+    name: persona?.name ?? "",
+    icon: persona?.icon ?? "",
+    gender: persona?.gender ?? "",
+    age_range: persona?.age_range ?? "",
+    preferences: persona?.preferences ?? "",
+    behavior: persona?.behavior ?? "",
+    platform_context: persona?.platform_context ?? "",
+    ad_sensitivity: persona?.ad_sensitivity ?? "medium",
+    trust_trigger: persona?.trust_trigger ?? [],
+    reject_trigger: persona?.reject_trigger ?? []
+  }));
+  const [trustText, setTrustText] = useState((persona?.trust_trigger ?? []).join(", "));
+  const [rejectText, setRejectText] = useState((persona?.reject_trigger ?? []).join(", "));
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function parseTriggers(text: string): string[] {
+    return text
+      .split(/[,，]/)
+      .map((chunk) => chunk.trim())
+      .filter(Boolean);
+  }
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!draft.name.trim()) {
+      setError("请填写 persona 名称。");
+      return;
+    }
+
+    const payload: PersonaInput = {
+      ...draft,
+      name: draft.name.trim(),
+      icon: (draft.icon ?? "").trim().slice(0, 4),
+      gender: (draft.gender ?? "").trim(),
+      age_range: (draft.age_range ?? "").trim(),
+      preferences: (draft.preferences ?? "").trim(),
+      behavior: (draft.behavior ?? "").trim(),
+      platform_context: (draft.platform_context ?? "").trim(),
+      trust_trigger: parseTriggers(trustText),
+      reject_trigger: parseTriggers(rejectText)
+    };
+
+    setSubmitting(true);
+    setError(null);
+    try {
+      const updated =
+        mode === "create"
+          ? await createPersona(project._id, project.user_id, payload)
+          : await updatePersona(project._id, project.user_id, persona!.persona_id, payload);
+      onSaved(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "保存失败");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!persona) return;
+    if (!window.confirm(`确定删除 persona「${persona.name}」？`)) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const updated = await deletePersona(project._id, project.user_id, persona.persona_id);
+      onSaved(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "删除失败");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="persona-modal-backdrop" role="dialog" aria-modal="true">
+      <form className="persona-modal" onSubmit={handleSubmit}>
+        <header className="persona-modal-header">
+          <h2>{mode === "create" ? "新建 Persona" : "编辑 Persona"}</h2>
+          <button className="persona-modal-close" onClick={onClose} type="button" aria-label="关闭">
+            ×
+          </button>
+        </header>
+        <div className="persona-modal-body">
+          <label>
+            名称 *
+            <input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} required />
+          </label>
+          <div className="persona-modal-row">
+            <label>
+              图标
+              <input
+                value={draft.icon ?? ""}
+                onChange={(event) => setDraft({ ...draft, icon: event.target.value })}
+                placeholder="单字或 emoji"
+              />
+            </label>
+            <label>
+              性别
+              <input value={draft.gender ?? ""} onChange={(event) => setDraft({ ...draft, gender: event.target.value })} />
+            </label>
+            <label>
+              年龄段 / 人群
+              <input
+                value={draft.age_range ?? ""}
+                onChange={(event) => setDraft({ ...draft, age_range: event.target.value })}
+                placeholder="例如 25-32 岁 / 大学生"
+              />
+            </label>
+          </div>
+          <label>
+            偏好
+            <textarea
+              value={draft.preferences ?? ""}
+              onChange={(event) => setDraft({ ...draft, preferences: event.target.value })}
+              rows={2}
+            />
+          </label>
+          <label>
+            行为习惯
+            <textarea
+              value={draft.behavior ?? ""}
+              onChange={(event) => setDraft({ ...draft, behavior: event.target.value })}
+              rows={2}
+            />
+          </label>
+          <label>
+            常用平台
+            <input
+              value={draft.platform_context ?? ""}
+              onChange={(event) => setDraft({ ...draft, platform_context: event.target.value })}
+              placeholder="例如 小红书 / 抖音"
+            />
+          </label>
+          <div className="persona-modal-row">
+            <label>
+              广告敏感度
+              <select
+                value={draft.ad_sensitivity ?? "medium"}
+                onChange={(event) => setDraft({ ...draft, ad_sensitivity: event.target.value as PersonaAdSensitivity })}
+              >
+                {AD_SENSITIVITY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              信任触点（逗号分隔）
+              <input value={trustText} onChange={(event) => setTrustText(event.target.value)} />
+            </label>
+            <label>
+              抵触触点（逗号分隔）
+              <input value={rejectText} onChange={(event) => setRejectText(event.target.value)} />
+            </label>
+          </div>
+        </div>
+        {error ? <div className="persona-modal-error">{error}</div> : null}
+        <footer className="persona-modal-footer">
+          {mode === "edit" ? (
+            <button
+              className="insight-delete-btn"
+              disabled={submitting}
+              onClick={handleDelete}
+              type="button"
+            >
+              删除
+            </button>
+          ) : (
+            <span />
+          )}
+          <div className="persona-modal-actions">
+            <button className="topbar-btn" disabled={submitting} onClick={onClose} type="button">
+              取消
+            </button>
+            <button className="pinned-add-btn" disabled={submitting} type="submit">
+              {submitting ? "保存中..." : mode === "create" ? "创建" : "保存"}
+            </button>
+          </div>
+        </footer>
+      </form>
+    </div>
   );
 }
 
