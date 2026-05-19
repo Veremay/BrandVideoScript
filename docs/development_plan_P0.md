@@ -9,7 +9,7 @@
 
 | # | 决策 | 说明 |
 |---|------|------|
-| 1 | **UI 重建** | 不依赖外部 HTML 原型；按 PRD §2 交互与暗色视觉在 Next.js 中 state-first 实现。 |
+| 1 | **UI 重建** | 不依赖外部 HTML 原型；按 PRD §2 交互与浅色视觉在 Next.js 中 state-first 实现。 |
 | 2 | **Brief 格式（MVP）** | 仅支持 **`.md` / `.txt` 上传** 与 **纯文本粘贴**；PDF/DOC/PPT 等列入二期。 |
 | 3 | **默认列** | 保留 **「反馈建议」**（`feedback`，textarea）；与 PRD §5.1.1 一致。 |
 
@@ -78,7 +78,7 @@ BrandVideo/
 
 ## 5. 分阶段计划
 
-### Phase 0 — 基础工程与数据闭环（约 1 周）
+### Phase 0 — 基础工程与数据闭环
 
 **目标：** 前后端可运行；项目与脚本可持久化；尚无真实 Agent。
 
@@ -105,7 +105,7 @@ BrandVideo/
 
 ---
 
-### Phase 1 — Script Editor 与页面壳（约 1.5–2 周）
+### Phase 1 — Script Editor 与页面壳
 
 **目标：** 无 Agent 时达到 PRD §15.1；布局达到 PRD §2。
 
@@ -125,7 +125,7 @@ BrandVideo/
 
 ---
 
-### Phase 2 — Agent 基础设施（约 1 周）
+### Phase 2 — Agent 基础设施
 
 | ID | 任务 |
 |----|------|
@@ -140,7 +140,7 @@ BrandVideo/
 
 ---
 
-### Phase 3 — Brief + 品牌方 Agent（约 1 周）
+### Phase 3 — Brief + 品牌方 Agent
 
 | ID | 任务 |
 |----|------|
@@ -156,7 +156,7 @@ BrandVideo/
 
 ---
 
-### Phase 4 — 观众 Agent + Persona（约 1 周）
+### Phase 4 — 观众 Agent + Persona
 
 | ID | 任务 |
 |----|------|
@@ -169,7 +169,7 @@ BrandVideo/
 
 ---
 
-### Phase 5 — 专家方案闭环（约 1.5–2 周）
+### Phase 5 — 专家方案闭环
 
 | ID | 任务 |
 |----|------|
@@ -185,7 +185,7 @@ BrandVideo/
 
 ---
 
-### Phase 6 — 整合与答辩准备（约 0.5–1 周）
+### Phase 6 — 整合与答辩准备
 
 | ID | 任务 |
 |----|------|
