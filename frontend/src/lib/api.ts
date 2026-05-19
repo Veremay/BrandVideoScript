@@ -1,4 +1,7 @@
 import type {
+  AgentMessage,
+  AgentStreamPayload,
+  AgentType,
   BrandInsightCategory,
   BrandInsightConfidence,
   BrandInsightStatus,
@@ -167,4 +170,59 @@ export async function deleteScriptColumn(projectId: string, userId: string, colu
   return request(`/projects/${projectId}/script/columns/${columnId}?user_id=${encodeURIComponent(userId)}`, {
     method: "DELETE"
   });
+}
+
+export async function fetchAgentMessages(projectId: string, userId: string, agentType: AgentType): Promise<AgentMessage[]> {
+  const data = await request<{ messages: AgentMessage[] }>(
+    `/projects/${projectId}/agents/${agentType}/messages?user_id=${encodeURIComponent(userId)}`
+  );
+  return data.messages;
+}
+
+type StreamHandlers = {
+  onToken: (content: string) => void;
+  onDone: (messageId: string) => void;
+  onError: (message: string) => void;
+};
+
+export async function streamAgentMessage(
+  projectId: string,
+  agentType: AgentType,
+  payload: AgentStreamPayload,
+  handlers: StreamHandlers
+): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/projects/${projectId}/agents/${agentType}/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok || !response.body) {
+    handlers.onError(await response.text());
+    return;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const frames = buffer.split("\n\n");
+    buffer = frames.pop() ?? "";
+
+    for (const frame of frames) {
+      const event = frame.match(/^event: (.+)$/m)?.[1];
+      const data = frame.match(/^data: (.+)$/m)?.[1];
+      if (!event || !data) continue;
+
+      const parsed = JSON.parse(data);
+      if (event === "token") handlers.onToken(parsed.content ?? "");
+      if (event === "done") handlers.onDone(parsed.message_id ?? "");
+      if (event === "error") handlers.onError(parsed.message ?? "Agent stream failed");
+    }
+  }
 }

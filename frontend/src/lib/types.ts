@@ -4,6 +4,31 @@ export type BrandInsightCategory = "explicit_requirement" | "implicit_requiremen
 export type BrandInsightConfidence = "high" | "medium" | "low";
 export type BrandInsightStatus = "new" | "confirmed" | "pending" | "ignored";
 
+export type AgentQuote = {
+  text: string;
+  row_id?: string;
+  column_id?: string;
+  selection_start?: number;
+  selection_end?: number;
+};
+
+export type AgentMessage = {
+  _id: string;
+  project_id: string;
+  user_id: string;
+  agent_type: AgentType;
+  role: "user" | "assistant" | "system";
+  content: string;
+  quotes: AgentQuote[];
+  created_at: string;
+};
+
+export type AgentStreamPayload = {
+  user_id: string;
+  content: string;
+  quotes: AgentQuote[];
+};
+
 export type Brief = {
   filename: string | null;
   text: string;
