@@ -84,7 +84,6 @@ class BrandInsightUpdateRequest(BaseModel):
 class PersonaCreateRequest(BaseModel):
     user_id: str = Field(min_length=1, max_length=80)
     name: str = Field(min_length=1, max_length=80)
-    icon: str = Field(default="", max_length=8)
     gender: str = Field(default="", max_length=40)
     age_range: str = Field(default="", max_length=60)
     preferences: str = Field(default="", max_length=600)
@@ -98,7 +97,6 @@ class PersonaCreateRequest(BaseModel):
 class PersonaUpdateRequest(BaseModel):
     user_id: str = Field(min_length=1, max_length=80)
     name: str | None = Field(default=None, min_length=1, max_length=80)
-    icon: str | None = Field(default=None, max_length=8)
     gender: str | None = Field(default=None, max_length=40)
     age_range: str | None = Field(default=None, max_length=60)
     preferences: str | None = Field(default=None, max_length=600)

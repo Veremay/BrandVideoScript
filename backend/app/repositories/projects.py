@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime, timedelta
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -14,13 +15,42 @@ PERSONA_AD_SENSITIVITY = {"low", "medium", "high"}
 PERSONA_DATA_SOURCES = {"manual", "system_generated", "imported_data"}
 
 PERSONA_OPTIONAL_TEXT_FIELDS = (
-    "icon",
     "gender",
     "age_range",
     "preferences",
     "behavior",
     "platform_context",
 )
+
+_PERSONA_ICON_POOL = (
+    "👤",
+    "👩",
+    "👨",
+    "🧑",
+    "🧑‍💻",
+    "💼",
+    "🎒",
+    "📱",
+    "☕",
+    "🛒",
+    "🎬",
+    "📺",
+    "🎧",
+    "🏃",
+    "🧘",
+    "🐱",
+    "🌟",
+    "💡",
+    "🔍",
+    "✨",
+)
+
+
+def random_persona_icon() -> str:
+    """Assign a display icon when a persona is created; not user-editable."""
+    return secrets.choice(_PERSONA_ICON_POOL)
+
+
 PERSONA_OPTIONAL_LIST_FIELDS = ("trust_trigger", "reject_trigger")
 PERSONA_MUTABLE_FIELDS = (
     "name",
@@ -50,7 +80,6 @@ def default_personas() -> list[dict]:
     return [
         build_persona(
             name="年轻职场人",
-            icon="💼",
             gender="不限",
             age_range="22-30 岁",
             preferences="效率工具、生活质感、性价比",
@@ -63,7 +92,6 @@ def default_personas() -> list[dict]:
         ),
         build_persona(
             name="学生 / 价格敏感型",
-            icon="🎒",
             gender="不限",
             age_range="18-23 岁",
             preferences="高性价比、入门款、可复刻方案",
@@ -240,7 +268,6 @@ def _normalize_persona_list_field(value: object) -> list[str]:
 def build_persona(
     *,
     name: str,
-    icon: str = "",
     gender: str = "",
     age_range: str = "",
     preferences: str = "",
@@ -263,7 +290,7 @@ def build_persona(
     return {
         "persona_id": new_id("persona"),
         "name": name[:80],
-        "icon": (icon or "").strip()[:8],
+        "icon": random_persona_icon(),
         "gender": (gender or "").strip()[:40],
         "age_range": (age_range or "").strip()[:60],
         "preferences": (preferences or "").strip()[:600],
@@ -607,7 +634,6 @@ async def create_persona(
     user_id: str,
     *,
     name: str,
-    icon: str = "",
     gender: str = "",
     age_range: str = "",
     preferences: str = "",
@@ -623,7 +649,6 @@ async def create_persona(
 
     persona = build_persona(
         name=name,
-        icon=icon,
         gender=gender,
         age_range=age_range,
         preferences=preferences,

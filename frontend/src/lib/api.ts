@@ -118,7 +118,6 @@ export async function deleteBrandInsight(projectId: string, userId: string, insi
 
 export type PersonaInput = {
   name: string;
-  icon?: string;
   gender?: string;
   age_range?: string;
   preferences?: string;

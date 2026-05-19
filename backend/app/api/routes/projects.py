@@ -179,7 +179,6 @@ async def add_persona(
             project_id,
             payload.user_id.strip(),
             name=payload.name,
-            icon=payload.icon,
             gender=payload.gender,
             age_range=payload.age_range,
             preferences=payload.preferences,

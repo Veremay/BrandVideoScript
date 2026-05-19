@@ -800,7 +800,6 @@ function PersonaModal({
 }) {
   const [draft, setDraft] = useState<PersonaInput>(() => ({
     name: persona?.name ?? "",
-    icon: persona?.icon ?? "",
     gender: persona?.gender ?? "",
     age_range: persona?.age_range ?? "",
     preferences: persona?.preferences ?? "",
@@ -832,7 +831,6 @@ function PersonaModal({
     const payload: PersonaInput = {
       ...draft,
       name: draft.name.trim(),
-      icon: (draft.icon ?? "").trim().slice(0, 4),
       gender: (draft.gender ?? "").trim(),
       age_range: (draft.age_range ?? "").trim(),
       preferences: (draft.preferences ?? "").trim(),
@@ -887,14 +885,6 @@ function PersonaModal({
             <input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} required />
           </label>
           <div className="persona-modal-row">
-            <label>
-              图标
-              <input
-                value={draft.icon ?? ""}
-                onChange={(event) => setDraft({ ...draft, icon: event.target.value })}
-                placeholder="单字或 emoji"
-              />
-            </label>
             <label>
               性别
               <input value={draft.gender ?? ""} onChange={(event) => setDraft({ ...draft, gender: event.target.value })} />
