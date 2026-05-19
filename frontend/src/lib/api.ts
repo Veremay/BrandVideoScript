@@ -179,10 +179,33 @@ export async function fetchAgentMessages(projectId: string, userId: string, agen
   return data.messages;
 }
 
+export type BrandInsightProposalItem = {
+  category: BrandInsightCategory;
+  title: string;
+  content: string;
+  reason?: string;
+  confidence?: BrandInsightConfidence;
+  evidence?: Array<{ source_type?: string; quote?: string }>;
+};
+
+export type AgentStreamArtifact = {
+  type: "brand_insight_proposals";
+  items: BrandInsightProposalItem[];
+  persisted_count?: number;
+  trace_run_id?: string;
+};
+
+export type AgentStreamDoneInfo = {
+  messageId: string;
+  proposalCount: number;
+  persistedCount: number;
+};
+
 type StreamHandlers = {
   onToken: (content: string) => void;
-  onDone: (messageId: string) => void;
+  onDone: (info: AgentStreamDoneInfo) => void;
   onError: (message: string) => void;
+  onArtifact?: (artifact: AgentStreamArtifact) => void;
 };
 
 export async function streamAgentMessage(
@@ -221,7 +244,21 @@ export async function streamAgentMessage(
 
       const parsed = JSON.parse(data);
       if (event === "token") handlers.onToken(parsed.content ?? "");
-      if (event === "done") handlers.onDone(parsed.message_id ?? "");
+      if (event === "artifact") {
+        handlers.onArtifact?.({
+          type: parsed.type,
+          items: parsed.items ?? [],
+          persisted_count: parsed.persisted_count,
+          trace_run_id: parsed.trace_run_id
+        });
+      }
+      if (event === "done") {
+        handlers.onDone({
+          messageId: parsed.message_id ?? "",
+          proposalCount: parsed.proposal_count ?? 0,
+          persistedCount: parsed.persisted_count ?? 0
+        });
+      }
       if (event === "error") handlers.onError(parsed.message ?? "Agent stream failed");
     }
   }

@@ -52,6 +52,74 @@ def format_brand_research(project: dict[str, Any]) -> tuple[str, str]:
     return summary, snippets
 
 
+_CATEGORY_LABEL = {
+    "explicit_requirement": "显式需求",
+    "implicit_requirement": "隐式需求",
+    "brand_feedback": "品牌反馈",
+}
+
+
+def format_brand_entity(project: dict[str, Any]) -> str:
+    br = project.get("brand_research") or {}
+    entity = br.get("entity") or {}
+    brand_name = (entity.get("brand_name") or "").strip()
+    if not brand_name:
+        return "（尚未识别合作品牌。）"
+    parts = [f"品牌：{brand_name}"]
+    category = (entity.get("category") or "").strip()
+    if category:
+        parts.append(f"品类：{category}")
+    product = (entity.get("product") or "").strip()
+    if product:
+        parts.append(f"主推产品：{product}")
+    if br.get("matched_wiki"):
+        parts.append("内部手册：已匹配")
+    return " | ".join(parts)
+
+
+def format_brand_insights(project: dict[str, Any], *, max_per_category: int = 6) -> str:
+    insights = project.get("brand_insights") or []
+    if not insights:
+        return "（尚未沉淀品牌洞察。上传 Brief 后将自动生成显式 / 隐式需求。）"
+
+    grouped: dict[str, list[dict[str, Any]]] = {
+        "explicit_requirement": [],
+        "implicit_requirement": [],
+        "brand_feedback": [],
+    }
+    for item in insights:
+        cat = item.get("category")
+        if cat in grouped:
+            grouped[cat].append(item)
+
+    sections: list[str] = []
+    for cat, items in grouped.items():
+        if not items:
+            continue
+        sections.append(f"### {_CATEGORY_LABEL[cat]}（{len(items)} 条）")
+        for ins in items[:max_per_category]:
+            title = (ins.get("title") or "").strip() or "(无标题)"
+            content = (ins.get("content") or "").strip()
+            reason = (ins.get("reason") or "").strip()
+            conf = ins.get("confidence") or "medium"
+            status = ins.get("status") or "new"
+            origin = "用户" if ins.get("created_by") == "user" else "Agent"
+            ev_lines: list[str] = []
+            for ev in (ins.get("evidence") or [])[:3]:
+                source = ev.get("source_type") or "brief"
+                quote = (ev.get("quote") or "").strip()[:160]
+                if quote:
+                    ev_lines.append(f"  - [{source}] {quote}")
+            evidence_block = "\n".join(ev_lines) if ev_lines else "  - （无依据）"
+            sections.append(
+                f"- **{title}**（{origin} · {conf} · {status}）\n"
+                f"  {content}\n"
+                f"  推理：{reason or '（无）'}\n"
+                f"  依据：\n{evidence_block}"
+            )
+    return "\n".join(sections) if sections else "（暂无可用洞察。）"
+
+
 def find_active_persona(project: dict[str, Any]) -> str:
     active_id = project.get("active_persona_id")
     for persona in project.get("personas", []):
@@ -68,7 +136,8 @@ def build_prompt_variables(project: dict[str, Any], recent_messages: list[dict[s
         "recent_messages": format_recent_messages(recent_messages),
         "quotes": format_quotes(quotes),
         "active_persona": find_active_persona(project),
-        "brand_insights": str(project.get("brand_insights") or []),
+        "brand_entity": format_brand_entity(project),
+        "brand_insights": format_brand_insights(project),
         "audience_analysis": str(project.get("audience_analysis") or {}),
         "brand_research_summary": research_summary,
         "brand_research_snippets": research_snippets,

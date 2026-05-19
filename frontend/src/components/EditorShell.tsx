@@ -457,6 +457,8 @@ function AgentChat({ agent, selectedText, placeholder }: { agent: AgentType; sel
     setAgentError,
     setAgentMessages,
     setAgentStreaming,
+    setBrandPinnedTab,
+    setProject,
     startAssistantMessage
   } = useAppStore();
   const [message, setMessage] = useState("");
@@ -511,9 +513,19 @@ function AgentChat({ agent, selectedText, placeholder }: { agent: AgentType; sel
         { user_id: project.user_id, content, quotes },
         {
           onToken: (token) => appendAssistantToken(agent, assistantId, token),
-          onDone: async () => {
+          onArtifact: (artifact) => {
+            if (artifact.type === "brand_insight_proposals" && (artifact.persisted_count ?? 0) > 0) {
+              setBrandPinnedTab("explicit_requirement");
+            }
+          },
+          onDone: async ({ persistedCount }) => {
             setAgentStreaming(agent, false);
-            setAgentMessages(agent, await fetchAgentMessages(project._id, project.user_id, agent));
+            const [messages, refreshed] = await Promise.all([
+              fetchAgentMessages(project._id, project.user_id, agent),
+              persistedCount > 0 ? fetchProject(project._id, project.user_id) : Promise.resolve(null)
+            ]);
+            setAgentMessages(agent, messages);
+            if (refreshed) setProject(refreshed);
           },
           onError: (error) => {
             setAgentStreaming(agent, false);
