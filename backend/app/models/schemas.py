@@ -90,6 +90,7 @@ class ProjectResponse(BaseModel):
     brief: dict[str, Any]
     current_script: dict[str, Any]
     brand_insights: list[dict[str, Any]]
+    brand_research: dict[str, Any] = Field(default_factory=dict)
     personas: list[dict[str, Any]]
     active_persona_id: str | None
     audience_analysis: dict[str, Any]

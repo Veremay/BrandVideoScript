@@ -416,6 +416,7 @@ class CreatorStudioState(BaseModel):
 |---|---|---|---|
 | `script` | `load_script_node` | Brand / Audience / Expert | 每次图执行开始时拉取快照，只读 |
 | `brief_text` | `load_script_node` | Brand Agent | Brief 全文，Brand 分析的原始输入 |
+| `brand_research` | Brand Brief 流水线 | Brand Agent | Tavily + `llm-wiki` 检索片段与归纳；Brief 上传后自动写入 |
 | `trigger` | 入口节点 | Router | 决定本次运行进入哪条分支 |
 | `brand_insights` | Brand Agent | Expert Agent | 结构化品牌需求，专家依赖此生成方案 |
 | `brand_messages` | Brand Agent | Brand Agent（多轮） | 使用 `add_messages` 自动追加，不覆盖 |

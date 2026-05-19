@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.db.mongo import database_dependency
@@ -16,6 +16,7 @@ from app.models.schemas import (
     ScriptPatchRequest,
     ScriptRowCreateRequest,
 )
+from app.services.brand_brief_pipeline import run_brand_brief_pipeline
 from app.repositories.projects import (
     create_brand_insight,
     create_script_column,
@@ -79,6 +80,7 @@ async def update(
 async def save_brief(
     project_id: str,
     payload: BriefUpdateRequest,
+    background_tasks: BackgroundTasks,
     db: AsyncIOMotorDatabase = Depends(database_dependency),
 ) -> dict:
     try:
@@ -93,6 +95,8 @@ async def save_brief(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
+    uid = payload.user_id.strip()
+    background_tasks.add_task(run_brand_brief_pipeline, db, project_id, uid)
     return project
 
 

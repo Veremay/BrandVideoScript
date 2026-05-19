@@ -10,7 +10,8 @@
 | # | 决策 | 说明 |
 |---|------|------|
 | 1 | **UI 重建** | 不依赖外部 HTML 原型；按 PRD §2 交互与浅色视觉在 Next.js 中 state-first 实现。 |
-| 2 | **Brief 格式（MVP）** | 仅支持 **`.md` / `.txt` 上传** 与 **纯文本粘贴**；PDF/DOC/PPT 等列入二期。 |
+| 2 | **Brief 格式（MVP）** | 仅支持 **`.md` / `.txt` 文件上传**（**不提供粘贴入口**）；PDF/DOC/PPT 等列入二期。 |
+| 2b | **品牌分析流水线** | Brief 解析完成后 **自动** Agentic Search（Tavily + `llm-wiki`）→ 解析显式/隐式需求 → 写入 `brand_insights`。详见 `docs/superpowers/specs/2026-05-19-phase-3-brand-agentic-search-design.md`。 |
 | 3 | **默认列** | 保留 **「反馈建议」**（`feedback`，textarea）；与 PRD §5.1.1 一致。 |
 
 **技术栈裁决（轻量方案）：** MongoDB、Redis、FastAPI、Next.js + Zustand、SSE、SiliconFlow（Qwen3-8B / 32B）。暂不引入 LangGraph、PostgreSQL、每次编辑 ScriptVersion。
@@ -24,8 +25,8 @@
 ## 1. 北极星闭环
 
 ```text
-user_id 进入 → 创建/打开项目 → 上传/粘贴 Brief（MD/TXT）
-→ 表格编辑脚本 → 品牌/观众/专家 Agent 反馈
+user_id 进入 → 创建/打开项目 → 上传 Brief（MD/TXT）
+→ 自动品牌检索 + 显式/隐式需求分析 → 表格编辑脚本 → 品牌/观众/专家 Agent 反馈
 → 专家多方案 + cell-level hunk → Diff 预览 → 逐段确认 → 写回脚本
 ```
 
@@ -40,7 +41,8 @@ user_id 进入 → 创建/打开项目 → 上传/粘贴 Brief（MD/TXT）
 | 数据库 | PostgreSQL（远期） | MongoDB，数据嵌入 `projects` |
 | Agent 编排 | LangGraph（远期） | Brand / Audience / Expert Service + SSE |
 | Brief 实体 | 独立 BriefFile（远期） | 嵌入 `project.brief` |
-| Brief 文件类型 | 多种格式 | **MVP：MD + TXT + 粘贴** |
+| Brief 文件类型 | 多种格式 | **MVP：仅 MD + TXT 上传** |
+| 品牌检索 | 无 | **Tavily Web Search + `llm-wiki` 品牌手册库** |
 | 脚本版本 | 每次编辑 ScriptVersion | `current_script` + 关键时刻 snapshot |
 | 默认业务列 | 5 列含 feedback | **保留 feedback** |
 | 鉴权 | 正式登录（远期） | 自定义 `user_id` + localStorage |
@@ -142,17 +144,21 @@ BrandVideo/
 
 ### Phase 3 — Brief + 品牌方 Agent
 
+> 设计细则：`docs/superpowers/specs/2026-05-19-phase-3-brand-agentic-search-design.md`
+
 | ID | 任务 |
 |----|------|
-| 3.1 | Brief：**上传 `.md` / `.txt`** 或粘贴纯文本 → `project.brief` |
+| 3.1 | Brief：**仅上传** `.md` / `.txt` → `project.brief`；**删除** Topbar「粘贴 Brief」 |
 | 3.2 | 文本读取 + `parse_status`；生成 `brief.summary`（8B） |
-| 3.3 | Brand Agent 流式对话 + quote |
-| 3.4 | BrandInsight（32B）→ `brand_insights`；pinned 三 tab 可编辑 |
-| 3.5 | Brief 就绪后可选触发初始品牌分析 |
+| 3.3 | **Agentic Search：** Tavily API + `llm-wiki/brands/{slug}/` 手册检索 → `project.brand_research` |
+| 3.4 | Brief 解析完成后 **自动** 跑品牌流水线：检索归并 → Brand Agent 初始分析（32B）→ 显式/隐式 `brand_insights` |
+| 3.5 | Brand Agent 流式对话 + quote；上下文含 brief 摘要 + `brand_research` + insights |
+| 3.6 | BrandInsight CRUD + pinned 三 tab 可编辑；`evidence.source_type` 支持 `web`、`brand_wiki` |
+| 3.7 | 初始化 `llm-wiki/` 目录与示例品牌手册；`.env` 文档化 `TAVILY_API_KEY` |
 
-**验收：** PRD §15.3；§15.2.4–5（品牌侧）。
+**验收：** PRD §15.3；§15.2.4–5（品牌侧）；设计文档 §7。
 
-**MVP 明确不做：** PDF/DOC/DOCX/PPT 解析。
+**MVP 明确不做：** PDF/DOC/DOCX/PPT 解析；Brief 粘贴入口。
 
 ---
 
@@ -252,7 +258,9 @@ BrandVideo/
 - [x] 显式/隐式/品牌反馈三 tab
 - [x] insight 可增删改
 - [x] insight 含 reason / evidence / confidence / status（点击展开）
-- [x] MD/TXT Brief 上传或粘贴可解析为文本
+- [ ] 仅 MD/TXT **上传**（无粘贴入口）可解析为文本
+- [ ] Brief 解析后 **自动** 生成显式/隐式需求（无需用户二次触发）
+- [ ] `brand_research` 含 wiki 和/或 web 检索片段，并进入 Brand Agent 上下文
 
 ### 8.4 Phase 4 — 观众（PRD §15.4）
 
@@ -297,4 +305,5 @@ BrandVideo/
 
 - 产品需求：`docs/prd.md`
 - 轻量技术方案：`docs/technical_plan_lightweight.md`
+- Phase 3 品牌增强设计：`docs/superpowers/specs/2026-05-19-phase-3-brand-agentic-search-design.md`
 - 远期数据结构：`docs/data_structures.md`

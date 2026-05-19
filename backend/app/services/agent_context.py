@@ -34,6 +34,24 @@ def format_recent_messages(messages: list[dict[str, Any]]) -> str:
     return "\n".join(f"{message.get('role')}: {message.get('content')}" for message in messages)
 
 
+def format_brand_research(project: dict[str, Any]) -> tuple[str, str]:
+    br = project.get("brand_research") or {}
+    summary = (br.get("research_summary") or "").strip() or "（暂无品牌检索摘要。上传 Brief 后将自动检索内部手册与公开来源。）"
+    lines: list[str] = []
+    for item in (br.get("wiki_snippets") or [])[:6]:
+        heading = item.get("heading") or ""
+        snippet = (item.get("snippet") or "")[:500]
+        path = item.get("path") or ""
+        lines.append(f"[品牌手册 {path}] {heading}\n{snippet}")
+    for item in (br.get("web_snippets") or [])[:5]:
+        title = item.get("title") or ""
+        url = item.get("url") or ""
+        snippet = (item.get("snippet") or "")[:400]
+        lines.append(f"[网页] {title} {url}\n{snippet}")
+    snippets = "\n".join(lines) if lines else "（尚无检索片段。）"
+    return summary, snippets
+
+
 def find_active_persona(project: dict[str, Any]) -> str:
     active_id = project.get("active_persona_id")
     for persona in project.get("personas", []):
@@ -43,6 +61,7 @@ def find_active_persona(project: dict[str, Any]) -> str:
 
 
 def build_prompt_variables(project: dict[str, Any], recent_messages: list[dict[str, Any]], quotes: list[dict[str, Any]]) -> dict[str, str]:
+    research_summary, research_snippets = format_brand_research(project)
     return {
         "brief_summary": project.get("brief", {}).get("summary") or "无。",
         "script_summary": summarize_script(project.get("current_script", {})),
@@ -51,6 +70,8 @@ def build_prompt_variables(project: dict[str, Any], recent_messages: list[dict[s
         "active_persona": find_active_persona(project),
         "brand_insights": str(project.get("brand_insights") or []),
         "audience_analysis": str(project.get("audience_analysis") or {}),
+        "brand_research_summary": research_summary,
+        "brand_research_snippets": research_snippets,
     }
 
 

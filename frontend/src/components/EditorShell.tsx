@@ -7,12 +7,22 @@ import {
   createBrandInsight,
   deleteBrandInsight,
   fetchAgentMessages,
+  fetchProject,
   saveBrief,
   saveScript,
   streamAgentMessage,
   updateBrandInsight
 } from "@/lib/api";
-import type { AgentMessage, AgentQuote, AgentType, BrandInsight, BrandInsightCategory, BrandInsightConfidence, BrandInsightStatus } from "@/lib/types";
+import type {
+  AgentMessage,
+  AgentQuote,
+  AgentType,
+  BrandInsight,
+  BrandInsightCategory,
+  BrandInsightConfidence,
+  BrandInsightStatus,
+  Project
+} from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
 
 const SAVE_DELAY_MS = 700;
@@ -21,12 +31,21 @@ const AGENTS: Array<{
   type: AgentType;
   title: string;
   badge: string;
+  badgeClass: string;
   tone: "brand" | "audience" | "expert";
 }> = [
-  { type: "brand", title: "品牌方 Agent", badge: "分析完成", tone: "brand" },
-  { type: "audience", title: "观众 Agent", badge: "待触发", tone: "audience" },
-  { type: "expert", title: "专家 Agent", badge: "有新输入", tone: "expert" }
+  { type: "brand", title: "品牌方 Agent", badge: "分析完成", badgeClass: "badge-done", tone: "brand" },
+  { type: "audience", title: "观众 Agent", badge: "待触发", badgeClass: "badge-wait", tone: "audience" },
+  { type: "expert", title: "专家 Agent", badge: "有新输入", badgeClass: "badge-new", tone: "expert" }
 ];
+
+function brandAgentBadge(project: Project) {
+  const st = project.brand_research?.status;
+  if (st === "running") return { label: "Brief 分析中", badgeClass: "badge-wait" as const };
+  if (st === "failed") return { label: "Brief 分析失败", badgeClass: "badge-new" as const };
+  if (st === "done") return { label: "分析完成", badgeClass: "badge-done" as const };
+  return { label: "待 Brief", badgeClass: "badge-wait" as const };
+}
 
 const BRAND_TABS: Array<{ category: BrandInsightCategory; label: string; addLabel: string }> = [
   { category: "explicit_requirement", label: "显式需求", addLabel: "添加需求" },
@@ -74,6 +93,20 @@ export function EditorShell() {
 
     return () => window.clearTimeout(timeoutId);
   }, [editor.saveStatus, project, script, setProject, setSaveStatus]);
+
+  useEffect(() => {
+    if (!project) return;
+    if (project.brand_research?.status !== "running") return;
+    const id = window.setInterval(async () => {
+      try {
+        const p = await fetchProject(project._id, project.user_id);
+        setProject(p);
+      } catch {
+        /* ignore transient errors while polling */
+      }
+    }, 2000);
+    return () => window.clearInterval(id);
+  }, [project?._id, project?.brand_research?.status, project?.user_id, setProject]);
 
   function handleBack() {
     setProject(null);
@@ -129,13 +162,6 @@ export function EditorShell() {
     await persistBrief(await file.text(), file.name);
   }
 
-  async function handlePasteBrief() {
-    const text = window.prompt("粘贴品牌 Brief 文本");
-    if (text?.trim()) {
-      await persistBrief(text, "pasted-brief.txt");
-    }
-  }
-
   if (!project || !script) return null;
 
   return (
@@ -151,10 +177,12 @@ export function EditorShell() {
           <IconUpload />
           上传 Brief
         </button>
-        <button className="topbar-btn" onClick={handlePasteBrief} type="button">
-          粘贴 Brief
-        </button>
-        <span className="topbar-brief-hint">{project.brief.filename ?? "MD / TXT"}</span>
+        <span className="topbar-brief-hint">
+          {project.brief.filename ?? "MD / TXT"}
+          {project.brand_research?.status === "running" ? " · 品牌分析中…" : null}
+          {project.brand_research?.status === "failed" ? " · 品牌分析失败" : null}
+          {project.brand_research?.status === "done" ? " · 品牌分析完成" : null}
+        </span>
         <div className="topbar-sep" />
         <input className="topbar-project-input" value={project.title} readOnly aria-label="项目名称" />
         <div className="topbar-spacer" />
@@ -193,22 +221,29 @@ export function EditorShell() {
       />
 
       <aside className="agents-col">
-        {AGENTS.map((agent) => (
-          <section
-            className={`agent-panel panel-${agent.tone} ${activePanel === agent.type ? "expanded" : "collapsed"}`}
-            key={agent.type}
-          >
-            <button className="panel-header" onClick={() => openPanel(agent.type)} type="button">
-              <span className={`panel-dot dot-${agent.tone}`} />
-              <span className={`panel-name name-${agent.tone}`}>{agent.title}</span>
-              <span className={`panel-badge ${agent.type === "brand" ? "badge-done" : agent.type === "audience" ? "badge-wait" : "badge-new"}`}>
-                {agent.badge}
-              </span>
-              <IconChevron />
-            </button>
-            {activePanel === agent.type ? <AgentBody agent={agent.type} selectedText={editor.selectedText} /> : null}
-          </section>
-        ))}
+        {AGENTS.map((agent) => {
+          const brandBadge = agent.type === "brand" ? brandAgentBadge(project) : null;
+          const badgeLabel = brandBadge?.label ?? agent.badge;
+          const badgeClass = brandBadge?.badgeClass ?? agent.badgeClass;
+          return (
+            <section
+              className={`agent-panel panel-${agent.tone} ${activePanel === agent.type ? "expanded" : "collapsed"}`}
+              key={agent.type}
+            >
+              <button className="panel-header" onClick={() => openPanel(agent.type)} type="button">
+                <span className={`panel-dot dot-${agent.tone}`} />
+                <span className={`panel-name name-${agent.tone}`}>{agent.title}</span>
+                <span
+                  className={`panel-badge ${agent.type === "brand" ? badgeClass : agent.type === "audience" ? "badge-wait" : "badge-new"}`}
+                >
+                  {agent.type === "brand" ? badgeLabel : agent.badge}
+                </span>
+                <IconChevron />
+              </button>
+              {activePanel === agent.type ? <AgentBody agent={agent.type} selectedText={editor.selectedText} /> : null}
+            </section>
+          );
+        })}
       </aside>
     </main>
   );
@@ -253,6 +288,11 @@ function AgentBody({ agent, selectedText }: { agent: AgentType; selectedText?: s
           </div>
           <div className="pinned-content show">
             {project.brief.summary ? <div className="brief-summary">Brief: {project.brief.summary}</div> : null}
+            {project.brand_research?.status === "failed" && project.brand_research.error_message ? (
+              <div className="brief-summary" role="alert">
+                品牌分析失败：{project.brand_research.error_message}
+              </div>
+            ) : null}
             <div className="pinned-list">
               {insights.length ? (
                 insights.map((insight, index) => <PinnedItem insight={insight} key={insight.insight_id} mark={String(index + 1).padStart(2, "0")} />)

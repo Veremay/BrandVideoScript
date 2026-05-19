@@ -10,8 +10,48 @@ BRAND_INSIGHT_CONFIDENCE = {"high", "medium", "low"}
 BRAND_INSIGHT_STATUS = {"new", "confirmed", "pending", "ignored"}
 
 
+def filter_insights_preserve_user_and_feedback(insights: list[dict]) -> list[dict]:
+    """After a new Brief upload, drop agent-generated requirements; keep user items and all brand_feedback."""
+    return [
+        insight
+        for insight in insights
+        if insight.get("created_by") == "user" or insight.get("category") == "brand_feedback"
+    ]
+
+
+def default_brand_research_idle() -> dict:
+    return {
+        "status": "idle",
+        "brand_slug": None,
+        "matched_wiki": False,
+        "queries": [],
+        "web_snippets": [],
+        "wiki_snippets": [],
+        "research_summary": "",
+        "error_message": None,
+        "updated_at": None,
+    }
+
+
+def brand_research_running_placeholder() -> dict:
+    now = now_iso()
+    return {
+        "status": "running",
+        "brand_slug": None,
+        "matched_wiki": False,
+        "queries": [],
+        "web_snippets": [],
+        "wiki_snippets": [],
+        "research_summary": "",
+        "error_message": None,
+        "updated_at": now,
+    }
+
+
 def serialize_project(document: dict) -> dict:
     document["_id"] = str(document["_id"])
+    if not document.get("brand_research"):
+        document["brand_research"] = default_brand_research_idle()
     return document
 
 
@@ -146,6 +186,7 @@ async def create_project(db: AsyncIOMotorDatabase, user_id: str, title: str) -> 
         "active_persona_id": None,
         "audience_analysis": {},
         "expert_suggestions": [],
+        "brand_research": default_brand_research_idle(),
         "stale": {"brand": False, "audience": False, "expert": False},
         "created_at": now,
         "updated_at": now,
@@ -275,10 +316,26 @@ async def update_brief(
     filename: str | None,
     text: str,
 ) -> dict | None:
+    existing = await db.projects.find_one({"_id": project_id, "user_id": user_id})
+    if existing is None:
+        return None
+
     brief = build_brief(filename=filename, text=text)
+    kept_insights = filter_insights_preserve_user_and_feedback(existing.get("brand_insights", []))
+    brand_research = brand_research_running_placeholder()
+
     await db.projects.update_one(
         {"_id": project_id, "user_id": user_id},
-        {"$set": {"brief": brief, "stale.brand": True, "updated_at": now_iso()}},
+        {
+            "$set": {
+                "brief": brief,
+                "brand_insights": kept_insights,
+                "brand_research": brand_research,
+                "stale.brand": True,
+                "stale.expert": True,
+                "updated_at": now_iso(),
+            }
+        },
     )
     return await get_project(db, project_id, user_id)
 

@@ -37,6 +37,28 @@ export type Brief = {
   uploaded_at: string | null;
 };
 
+export type BrandResearchStatus = "idle" | "running" | "done" | "failed";
+
+export type BrandResearchSnippet = {
+  title?: string;
+  url?: string;
+  snippet?: string;
+  path?: string;
+  heading?: string;
+};
+
+export type BrandResearch = {
+  status: BrandResearchStatus;
+  brand_slug: string | null;
+  matched_wiki: boolean;
+  queries: string[];
+  web_snippets: BrandResearchSnippet[];
+  wiki_snippets: BrandResearchSnippet[];
+  research_summary: string;
+  error_message: string | null;
+  updated_at: string | null;
+};
+
 export type BrandInsight = {
   insight_id: string;
   agent_type: "brand";
@@ -45,7 +67,7 @@ export type BrandInsight = {
   content: string;
   reason: string;
   evidence: Array<{
-    source_type?: "brief" | "pr_feedback" | "script" | "chat" | string;
+    source_type?: "brief" | "pr_feedback" | "script" | "chat" | "web" | "brand_wiki" | string;
     quote?: string;
     row_id?: string;
     column_id?: string;
@@ -90,6 +112,7 @@ export type Project = {
   user_id: string;
   title: string;
   brief: Brief;
+  brand_research?: BrandResearch;
   current_script: Script;
   brand_insights: BrandInsight[];
   personas: Array<Record<string, unknown>>;

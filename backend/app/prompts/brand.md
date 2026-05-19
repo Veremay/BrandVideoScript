@@ -3,6 +3,12 @@
 ## 当前 Brief 摘要
 {{brief_summary}}
 
+## 品牌检索摘要（内部手册 + 公开来源）
+{{brand_research_summary}}
+
+## 品牌检索片段
+{{brand_research_snippets}}
+
 ## 当前脚本摘要
 {{script_summary}}
 

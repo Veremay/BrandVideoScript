@@ -3,6 +3,7 @@ import unittest
 from app.repositories.projects import (
     build_brand_insight,
     build_brief,
+    filter_insights_preserve_user_and_feedback,
     remove_brand_insight_from_list,
     update_brand_insight_in_list,
 )
@@ -68,7 +69,35 @@ class BrandOpsTest(unittest.TestCase):
         self.assertEqual(updated[0]["updated_by"], "user")
         self.assertNotEqual(updated[0]["updated_at"], original["updated_at"])
 
-    def test_remove_brand_insight_from_list_deletes_matching_item(self):
+    def test_filter_insights_preserve_user_and_feedback(self):
+        agent_exp = build_brand_insight(
+            category="explicit_requirement",
+            title="Agent",
+            content="x",
+            reason="r",
+            evidence=[],
+            created_by="agent",
+        )
+        user_exp = build_brand_insight(
+            category="explicit_requirement",
+            title="User",
+            content="y",
+            reason="r",
+            evidence=[],
+            created_by="user",
+        )
+        agent_fb = build_brand_insight(
+            category="brand_feedback",
+            title="PR",
+            content="z",
+            reason="r",
+            evidence=[],
+            created_by="agent",
+        )
+        kept = filter_insights_preserve_user_and_feedback([agent_exp, user_exp, agent_fb])
+        self.assertEqual(len(kept), 2)
+        self.assertEqual({i["title"] for i in kept}, {"User", "PR"})
+
         first = build_brand_insight(
             category="brand_feedback",
             title="PR feedback",
