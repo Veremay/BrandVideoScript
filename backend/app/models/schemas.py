@@ -109,3 +109,34 @@ class LLMChatRequest(BaseModel):
     stream: bool = False
     response_format: dict[str, Any] | None = None
     complexity: Literal["normal", "high"] = "normal"
+
+
+class AgentQuoteRequest(BaseModel):
+    text: str = Field(min_length=1)
+    row_id: str | None = None
+    column_id: str | None = None
+    selection_start: int | None = None
+    selection_end: int | None = None
+
+
+class AgentStreamRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    content: str = Field(min_length=1)
+    quotes: list[AgentQuoteRequest] = Field(default_factory=list)
+
+
+class AgentMessageResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str = Field(alias="_id")
+    project_id: str
+    user_id: str
+    agent_type: Literal["brand", "audience", "expert"]
+    role: Literal["user", "assistant", "system"]
+    content: str
+    quotes: list[dict[str, Any]]
+    created_at: str
+
+
+class AgentMessagesResponse(BaseModel):
+    messages: list[AgentMessageResponse]
