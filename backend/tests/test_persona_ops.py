@@ -3,6 +3,7 @@ import unittest
 from app.repositories.projects import (
     build_audience_analysis,
     build_persona,
+    default_personas,
     remove_persona_from_list,
     update_persona_in_list,
 )
@@ -68,6 +69,20 @@ class PersonaBuilderTest(unittest.TestCase):
         a = build_persona(name="A")
         with self.assertRaises(ValueError):
             remove_persona_from_list([a], "persona_missing")
+
+
+class DefaultPersonaSeedTest(unittest.TestCase):
+    def test_default_personas_returns_two_system_generated_entries(self):
+        seeded = default_personas()
+        self.assertEqual(len(seeded), 2)
+        self.assertTrue(all(p["data_source"] == "system_generated" for p in seeded))
+        ids = {p["persona_id"] for p in seeded}
+        self.assertEqual(len(ids), 2, "persona ids should be unique")
+        for persona in seeded:
+            self.assertTrue(persona["name"])
+            self.assertIn(persona["ad_sensitivity"], {"low", "medium", "high"})
+            self.assertTrue(persona["trust_trigger"], "trust_trigger should be populated")
+            self.assertTrue(persona["reject_trigger"], "reject_trigger should be populated")
 
 
 class AudienceAnalysisBuilderTest(unittest.TestCase):

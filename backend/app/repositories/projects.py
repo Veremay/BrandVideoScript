@@ -39,6 +39,44 @@ def filter_insights_preserve_user_and_feedback(insights: list[dict]) -> list[dic
     ]
 
 
+def default_personas() -> list[dict]:
+    """Seed personas attached to every new project.
+
+    MVP placeholder: 用静态 mock 数据先撑起观众 Agent 的体验。后续将由
+    「同赛道视频评论 → persona 抽取」流水线生成（见
+    `docs/superpowers/specs/2026-05-19-phase-4-audience-persona-design.md`
+    §12 与 `docs/development_plan_P0.md` §9 暂缓项）。
+    """
+    return [
+        build_persona(
+            name="年轻职场人",
+            icon="💼",
+            gender="不限",
+            age_range="22-30 岁",
+            preferences="效率工具、生活质感、性价比",
+            behavior="通勤刷短视频、周末看长测评、习惯收藏对比",
+            platform_context="小红书 / B站 / 抖音",
+            ad_sensitivity="medium",
+            trust_trigger=["真实使用细节", "缺点坦诚", "创作者本人出镜"],
+            reject_trigger=["硬广独白", "夸张转折", "跳脱原本人设"],
+            data_source="system_generated",
+        ),
+        build_persona(
+            name="学生 / 价格敏感型",
+            icon="🎒",
+            gender="不限",
+            age_range="18-23 岁",
+            preferences="高性价比、入门款、可复刻方案",
+            behavior="课后晚上刷视频、爱翻评论区、习惯多账号对比",
+            platform_context="B站 / 小红书",
+            ad_sensitivity="high",
+            trust_trigger=["长测对比", "价格透明", "创作者真实购买"],
+            reject_trigger=["含糊带过缺点", "频繁植入", "明显复读官方话术"],
+            data_source="system_generated",
+        ),
+    ]
+
+
 def default_brand_research_idle() -> dict:
     return {
         "status": "idle",
@@ -326,6 +364,7 @@ async def enter_user(db: AsyncIOMotorDatabase, user_id: str) -> dict:
 async def create_project(db: AsyncIOMotorDatabase, user_id: str, title: str) -> dict:
     await enter_user(db, user_id)
     now = now_iso()
+    seeded_personas = default_personas()
     project = {
         "_id": new_id("project"),
         "user_id": user_id,
@@ -339,8 +378,8 @@ async def create_project(db: AsyncIOMotorDatabase, user_id: str, title: str) -> 
         },
         "current_script": default_script(),
         "brand_insights": [],
-        "personas": [],
-        "active_persona_id": None,
+        "personas": seeded_personas,
+        "active_persona_id": seeded_personas[0]["persona_id"] if seeded_personas else None,
         "audience_analysis": {},
         "expert_suggestions": [],
         "brand_research": default_brand_research_idle(),

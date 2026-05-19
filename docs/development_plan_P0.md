@@ -177,8 +177,11 @@ BrandVideo/
 | 4.2 | Audience Agent 流式 + 结构化 `audience_analysis`（32B，`<audience_analysis>` artifact） |
 | 4.3 | 回复首段标明当前 persona；prompt 强制提示 |
 | 4.4 | persona 编辑 / 切换 / 删除触发 `stale.audience` + `stale.expert` |
+| 4.5 | 新建项目默认预填 2 个 mock persona（`data_source=system_generated`），首条自动设为 active；待后续 §9 数据流水线落地后替换为真实来源 |
 
 **验收：** PRD §15.4。
+
+**MVP 明确不做（与 §9 对应）：** 从同赛道视频评论自动抽取 persona 的数据流水线（详见 §9.8）。
 
 ---
 
@@ -294,6 +297,11 @@ BrandVideo/
 5. AudienceAnalysis 历史列表、多 persona 对比  
 6. 正式登录注册、多人协作  
 7. 复杂任务队列  
+8. **同赛道视频评论 → persona 抽取流水线**（替换当前 mock 默认 persona）  
+   - 输入：博主选定的同赛道参考视频列表（URL / 平台 ID）。  
+   - 步骤：拉取评论（B站 / 小红书 / 抖音 API 或离线导出）→ 清洗 → 主题聚类 → LLM 总结成 persona 字段（age_range / preferences / behavior / trust_trigger / reject_trigger）→ 写入 `project.personas`，`data_source="system_generated"`。  
+   - 替换点：`backend/app/repositories/projects.py::default_personas()` 当前返回静态 mock；流水线落地后改为「项目创建后异步生成」并尊重用户已编辑的 persona。  
+   - 风险：评论 API 反爬 / 隐私合规；先以离线 CSV 导入路径打通，再考虑接入官方 API。  
 
 ---
 

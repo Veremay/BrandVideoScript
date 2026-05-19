@@ -234,3 +234,36 @@ prompt 要求：
 | `docs/technical_plan_lightweight.md` | 无需修改（已含 §4.5 / §4.6 / §8.2） |
 | `docs/superpowers/plans/2026-05-19-phase-4-audience.md` | 配套实施 plan |
 | 本文档 | 权威设计说明 |
+
+---
+
+## 12. 默认 Persona 与未来数据流水线
+
+### 12.1 当前实现（MVP）
+
+新项目通过 `create_project` 自动预填 2 个 mock persona，避免观众 Agent 一进入就「无 persona 可选」：
+
+- 「年轻职场人」（22-30 岁，性价比 / 真实感导向，中度广告敏感）
+- 「学生 / 价格敏感型」（18-23 岁，价格透明 / 长测对比导向，高度广告敏感）
+
+实现：`backend/app/repositories/projects.py::default_personas()`；首条自动写入 `active_persona_id`；`data_source` 标记为 `system_generated`，便于后续区分手工与系统生成。
+
+### 12.2 待办：同赛道视频评论 → persona 抽取流水线
+
+> 本项作为 Phase 4 的 **未来增强**，不在 MVP 排期。详见 `docs/development_plan_P0.md` §9.8。
+
+设想链路：
+
+```text
+博主选定参考视频列表（同赛道）
+  → 拉取评论（API 或离线 CSV）
+  → 清洗 / 去重 / 过滤
+  → 主题与画像聚类（embedding + KMeans / LLM 归纳）
+  → LLM 总结为 persona 字段（name / age_range / preferences / behavior / trust_trigger / reject_trigger）
+  → 写入 project.personas（data_source="system_generated"）
+  → 用户可继续编辑或重命名
+```
+
+替换点：当流水线落地后，把 `default_personas()` 改为「项目创建时入队异步任务」，并保留用户已编辑的 persona，仅对 `data_source=system_generated` 且未被用户改名的条目重写。
+
+短期 fallback：用 CSV 上传评论文件 + 一次性 LLM 归纳，先打通端到端，再考虑 API 直接对接。
