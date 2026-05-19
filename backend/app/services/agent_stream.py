@@ -8,6 +8,7 @@ from app.services.agent_context import build_agent_chat_messages, build_prompt_v
 from app.services.llm_client import LLMClient
 from app.services.prompt_loader import PromptLoader
 from app.services.sse import encode_sse
+from app.services.trace import TraceRecorder
 
 
 TASK_TYPES = {
@@ -62,9 +63,14 @@ async def stream_agent_response(
         quotes=quotes,
     )
 
+    trace = TraceRecorder(source=f"agent_stream:{agent_type}")
     assistant_parts: list[str] = []
     try:
-        async for token in LLMClient().stream_chat(messages=llm_messages, task_type=TASK_TYPES[agent_type]):
+        async for token in LLMClient().stream_chat(
+            messages=llm_messages,
+            task_type=TASK_TYPES[agent_type],
+            trace=trace,
+        ):
             assistant_parts.append(token)
             yield encode_sse("token", {"content": token})
     except Exception as exc:

@@ -47,6 +47,25 @@ export type BrandResearchSnippet = {
   heading?: string;
 };
 
+export type BrandPipelineTraceKind =
+  | "brief_uploaded"
+  | "pipeline_started"
+  | "pipeline_completed"
+  | "pipeline_failed"
+  | "tool_call"
+  | "tool_result"
+  | "llm_request"
+  | "llm_response";
+
+export type BrandPipelineTraceEvent = {
+  id: string;
+  ts: string;
+  kind: BrandPipelineTraceKind;
+  source: string;
+  run_id: string;
+  data: Record<string, unknown>;
+};
+
 export type BrandResearch = {
   status: BrandResearchStatus;
   brand_slug: string | null;
@@ -56,6 +75,8 @@ export type BrandResearch = {
   wiki_snippets: BrandResearchSnippet[];
   research_summary: string;
   error_message: string | null;
+  trace_run_id?: string | null;
+  traces?: BrandPipelineTraceEvent[];
   updated_at: string | null;
 };
 

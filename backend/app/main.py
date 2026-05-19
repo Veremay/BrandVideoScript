@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -14,6 +15,9 @@ async def lifespan(app: FastAPI):
     yield
     await close_mongo()
 
+
+logging.basicConfig(level=logging.INFO)
+logging.getLogger("brandvideo.trace").setLevel(logging.INFO)
 
 settings = get_settings()
 app = FastAPI(title=settings.app_name, lifespan=lifespan)

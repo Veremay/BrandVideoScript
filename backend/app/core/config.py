@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     siliconflow_base_url: str = "https://api.siliconflow.cn/v1"
     siliconflow_default_model: str = "Qwen/Qwen3-8B"
     siliconflow_advanced_model: str = "Qwen/Qwen3-32B"
+    siliconflow_chat_timeout: float = 180.0
+    siliconflow_stream_timeout: float = 300.0
     tavily_api_key: str = ""
     brand_wiki_root: str = ""
 

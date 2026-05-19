@@ -8,8 +8,9 @@ from app.core.paths import default_llm_wiki_root
 from app.models.script import now_iso
 from app.repositories.projects import build_brand_insight, filter_insights_preserve_user_and_feedback, get_project
 from app.services.brand_wiki import extract_wiki_snippets, find_brand_slug_from_wiki
-from app.services.llm_client import LLMClient
+from app.services.llm_client import LLMClient, _describe_exception
 from app.services.tavily_search import tavily_search
+from app.services.trace import TraceRecorder
 
 INSIGHTS_JSON_INSTRUCTION = """你是品牌合作 brief 分析师。根据 Brief 正文、内部品牌手册片段、公开检索摘要，输出显式需求与隐式需求。
 只输出一个 JSON 对象，不要 Markdown，不要解释。格式严格如下：
@@ -139,6 +140,7 @@ async def _call_llm_for_insights(
     research_summary: str,
     wiki_snippets: list[dict],
     web_snippets: list[dict],
+    trace: TraceRecorder | None = None,
 ) -> list[dict[str, Any]]:
     settings = get_settings()
     wiki_block = "\n".join(f"- [{s.get('heading')}] {s.get('snippet', '')[:500]}" for s in wiki_snippets[:6])
@@ -170,6 +172,7 @@ async def _call_llm_for_insights(
         stream=False,
         complexity="high",
         mock=False,
+        trace=trace,
     )
 
     if result.get("mock") or not settings.siliconflow_api_key:
@@ -191,6 +194,32 @@ async def _call_llm_for_insights(
         return _mock_insights(brief_text)
 
 
+def _brand_research_payload(
+    trace: TraceRecorder,
+    *,
+    status: str,
+    brand_slug: str | None,
+    matched_wiki: bool,
+    queries: list[str],
+    web_snippets: list[dict],
+    wiki_snippets: list[dict],
+    research_summary: str,
+    error_message: str | None = None,
+) -> dict[str, Any]:
+    base = {
+        "status": status,
+        "brand_slug": brand_slug,
+        "matched_wiki": matched_wiki,
+        "queries": queries,
+        "web_snippets": web_snippets,
+        "wiki_snippets": wiki_snippets,
+        "research_summary": research_summary,
+        "error_message": error_message,
+        "updated_at": now_iso(),
+    }
+    return trace.merge_brand_research(base)
+
+
 async def run_brand_brief_pipeline(db: Any, project_id: str, user_id: str) -> None:
     project = await get_project(db, project_id, user_id)
     if project is None:
@@ -206,40 +235,78 @@ async def run_brand_brief_pipeline(db: Any, project_id: str, user_id: str) -> No
     settings = get_settings()
     wiki_root = _wiki_root()
 
+    existing_br = project.get("brand_research") or {}
+    trace = TraceRecorder(
+        source="brand_brief_pipeline",
+        run_id=existing_br.get("trace_run_id"),
+        initial_events=existing_br.get("traces") or [],
+    )
+    trace.pipeline_started()
+
     try:
+        trace.tool_call(
+            "wiki_match",
+            {"wiki_root": str(wiki_root), "filename": filename, "brief_chars": len(brief_text)},
+        )
         brand_slug, meta_matched = find_brand_slug_from_wiki(wiki_root, filename, brief_text)
+        trace.tool_result(
+            "wiki_match",
+            {"brand_slug": brand_slug, "meta_matched": meta_matched},
+        )
+
+        trace.tool_call("wiki_extract", {"brand_slug": brand_slug})
         wiki_snippets = extract_wiki_snippets(wiki_root, brand_slug, brief_text)
         matched_wiki = bool(wiki_snippets)
+        trace.tool_result(
+            "wiki_extract",
+            {
+                "snippet_count": len(wiki_snippets),
+                "headings": [s.get("heading") for s in wiki_snippets[:5]],
+            },
+        )
 
         queries: list[str] = []
         web_snippets: list[dict[str, Any]] = []
         if settings.tavily_api_key:
             q = f"{Path(filename).stem if filename else 'brand'} 品牌 brief 调性 合作 视频 要求"
             queries.append(q)
+            trace.tool_call("tavily_search", {"query": q, "max_results": 5})
             try:
                 web_snippets = await tavily_search(api_key=settings.tavily_api_key, query=q, max_results=5)
-            except Exception:
+                trace.tool_result(
+                    "tavily_search",
+                    {
+                        "result_count": len(web_snippets),
+                        "titles": [s.get("title") for s in web_snippets[:5]],
+                    },
+                )
+            except Exception as exc:
                 web_snippets = []
+                trace.tool_result("tavily_search", {"result_count": 0}, error=str(exc))
         else:
             queries.append("(Tavily 未配置 TAVILY_API_KEY)")
+            trace.tool_result(
+                "tavily_search",
+                {"skipped": True, "reason": "TAVILY_API_KEY not configured"},
+            )
 
         research_summary = _build_research_summary(brief_text, wiki_snippets, web_snippets)
+        wiki_for_store = [{k: v for k, v in s.items() if k != "score"} for s in wiki_snippets]
 
         await db.projects.update_one(
             {"_id": project_id, "user_id": user_id},
             {
                 "$set": {
-                    "brand_research": {
-                        "status": "running",
-                        "brand_slug": brand_slug,
-                        "matched_wiki": matched_wiki or meta_matched,
-                        "queries": queries,
-                        "web_snippets": web_snippets,
-                        "wiki_snippets": [{k: v for k, v in s.items() if k != "score"} for s in wiki_snippets],
-                        "research_summary": research_summary,
-                        "error_message": None,
-                        "updated_at": now_iso(),
-                    },
+                    "brand_research": _brand_research_payload(
+                        trace,
+                        status="running",
+                        brand_slug=brand_slug,
+                        matched_wiki=matched_wiki or meta_matched,
+                        queries=queries,
+                        web_snippets=web_snippets,
+                        wiki_snippets=wiki_for_store,
+                        research_summary=research_summary,
+                    ),
                     "updated_at": now_iso(),
                 }
             },
@@ -251,6 +318,7 @@ async def run_brand_brief_pipeline(db: Any, project_id: str, user_id: str) -> No
             research_summary=research_summary,
             wiki_snippets=wiki_snippets,
             web_snippets=web_snippets,
+            trace=trace,
         )
 
         refreshed = await get_project(db, project_id, user_id)
@@ -272,23 +340,23 @@ async def run_brand_brief_pipeline(db: Any, project_id: str, user_id: str) -> No
             )
 
         merged = base_insights + new_insights
+        trace.pipeline_completed(insight_count=len(new_insights))
 
         await db.projects.update_one(
             {"_id": project_id, "user_id": user_id},
             {
                 "$set": {
                     "brand_insights": merged,
-                    "brand_research": {
-                        "status": "done",
-                        "brand_slug": brand_slug,
-                        "matched_wiki": matched_wiki or meta_matched,
-                        "queries": queries,
-                        "web_snippets": web_snippets,
-                        "wiki_snippets": [{k: v for k, v in s.items() if k != "score"} for s in wiki_snippets],
-                        "research_summary": research_summary,
-                        "error_message": None,
-                        "updated_at": now_iso(),
-                    },
+                    "brand_research": _brand_research_payload(
+                        trace,
+                        status="done",
+                        brand_slug=brand_slug,
+                        matched_wiki=matched_wiki or meta_matched,
+                        queries=queries,
+                        web_snippets=web_snippets,
+                        wiki_snippets=wiki_for_store,
+                        research_summary=research_summary,
+                    ),
                     "stale.brand": False,
                     "stale.expert": True,
                     "updated_at": now_iso(),
@@ -296,21 +364,23 @@ async def run_brand_brief_pipeline(db: Any, project_id: str, user_id: str) -> No
             },
         )
     except Exception as exc:  # noqa: BLE001 — pipeline must not crash the worker
+        described = _describe_exception(exc)
+        trace.pipeline_failed(error=described)
         await db.projects.update_one(
             {"_id": project_id, "user_id": user_id},
             {
                 "$set": {
-                    "brand_research": {
-                        "status": "failed",
-                        "brand_slug": None,
-                        "matched_wiki": False,
-                        "queries": [],
-                        "web_snippets": [],
-                        "wiki_snippets": [],
-                        "research_summary": "",
-                        "error_message": str(exc)[:500],
-                        "updated_at": now_iso(),
-                    },
+                    "brand_research": _brand_research_payload(
+                        trace,
+                        status="failed",
+                        brand_slug=None,
+                        matched_wiki=False,
+                        queries=[],
+                        web_snippets=[],
+                        wiki_snippets=[],
+                        research_summary="",
+                        error_message=described[:500],
+                    ),
                     "updated_at": now_iso(),
                 }
             },

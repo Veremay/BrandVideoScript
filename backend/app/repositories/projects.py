@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.script import default_script, new_id, now_iso
+from app.services.trace import TraceRecorder
 from app.models.script_ops import add_column, add_row, delete_column, delete_row, rename_column, update_cell
 
 BRAND_INSIGHT_CATEGORIES = {"explicit_requirement", "implicit_requirement", "brand_feedback"}
@@ -29,13 +30,15 @@ def default_brand_research_idle() -> dict:
         "wiki_snippets": [],
         "research_summary": "",
         "error_message": None,
+        "trace_run_id": None,
+        "traces": [],
         "updated_at": None,
     }
 
 
-def brand_research_running_placeholder() -> dict:
+def brand_research_running_placeholder(*, trace: TraceRecorder | None = None) -> dict:
     now = now_iso()
-    return {
+    base = {
         "status": "running",
         "brand_slug": None,
         "matched_wiki": False,
@@ -44,8 +47,13 @@ def brand_research_running_placeholder() -> dict:
         "wiki_snippets": [],
         "research_summary": "",
         "error_message": None,
+        "trace_run_id": None,
+        "traces": [],
         "updated_at": now,
     }
+    if trace is not None:
+        return trace.merge_brand_research(base)
+    return base
 
 
 def serialize_project(document: dict) -> dict:
@@ -322,7 +330,13 @@ async def update_brief(
 
     brief = build_brief(filename=filename, text=text)
     kept_insights = filter_insights_preserve_user_and_feedback(existing.get("brand_insights", []))
-    brand_research = brand_research_running_placeholder()
+    trace = TraceRecorder(source="brief_api")
+    trace.brief_uploaded(
+        filename=brief.get("filename"),
+        text_length=len(brief.get("text") or ""),
+        summary=brief.get("summary") or "",
+    )
+    brand_research = brand_research_running_placeholder(trace=trace)
 
     await db.projects.update_one(
         {"_id": project_id, "user_id": user_id},
