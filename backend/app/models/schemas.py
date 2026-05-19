@@ -27,6 +27,31 @@ class ScriptPatchRequest(BaseModel):
     script: dict[str, Any]
 
 
+class ScriptCellPatchRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    row_id: str = Field(min_length=1)
+    column_id: str = Field(min_length=1)
+    value: str = ""
+
+
+class ScriptRowCreateRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    after_row_id: str | None = None
+
+
+class ScriptColumnCreateRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    after_column_id: str | None = None
+    label: str = Field(default="新列", min_length=1, max_length=40)
+    type: Literal["duration", "text", "textarea", "tag"] = "text"
+    multiline: bool = False
+
+
+class ScriptColumnUpdateRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    label: str = Field(min_length=1, max_length=40)
+
+
 class ProjectResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -55,4 +80,3 @@ class LLMChatRequest(BaseModel):
     stream: bool = False
     response_format: dict[str, Any] | None = None
     complexity: Literal["normal", "high"] = "normal"
-

@@ -1,6 +1,7 @@
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.script import default_script, new_id, now_iso
+from app.models.script_ops import add_column, add_row, delete_column, delete_row, rename_column, update_cell
 
 
 def serialize_project(document: dict) -> dict:
@@ -82,6 +83,85 @@ async def patch_script(
     user_id: str,
     script: dict,
 ) -> dict | None:
+    return await _write_script(db, project_id, user_id, script)
+
+
+async def patch_script_cell(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    row_id: str,
+    column_id: str,
+    value: str,
+) -> dict | None:
+    project = await get_project(db, project_id, user_id)
+    if project is None:
+        return None
+    return await _write_script(db, project_id, user_id, update_cell(project["current_script"], row_id, column_id, value))
+
+
+async def create_script_row(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    after_row_id: str | None,
+) -> dict | None:
+    project = await get_project(db, project_id, user_id)
+    if project is None:
+        return None
+    return await _write_script(db, project_id, user_id, add_row(project["current_script"], after_row_id))
+
+
+async def remove_script_row(db: AsyncIOMotorDatabase, project_id: str, user_id: str, row_id: str) -> dict | None:
+    project = await get_project(db, project_id, user_id)
+    if project is None:
+        return None
+    return await _write_script(db, project_id, user_id, delete_row(project["current_script"], row_id))
+
+
+async def create_script_column(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    after_column_id: str | None,
+    label: str,
+    column_type: str,
+    multiline: bool,
+) -> dict | None:
+    project = await get_project(db, project_id, user_id)
+    if project is None:
+        return None
+    script = add_column(
+        project["current_script"],
+        after_column_id=after_column_id,
+        label=label,
+        column_type=column_type,
+        multiline=multiline,
+    )
+    return await _write_script(db, project_id, user_id, script)
+
+
+async def update_script_column(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    column_id: str,
+    label: str,
+) -> dict | None:
+    project = await get_project(db, project_id, user_id)
+    if project is None:
+        return None
+    return await _write_script(db, project_id, user_id, rename_column(project["current_script"], column_id, label))
+
+
+async def remove_script_column(db: AsyncIOMotorDatabase, project_id: str, user_id: str, column_id: str) -> dict | None:
+    project = await get_project(db, project_id, user_id)
+    if project is None:
+        return None
+    return await _write_script(db, project_id, user_id, delete_column(project["current_script"], column_id))
+
+
+async def _write_script(db: AsyncIOMotorDatabase, project_id: str, user_id: str, script: dict) -> dict | None:
     script["updated_at"] = now_iso()
     await db.projects.update_one(
         {"_id": project_id, "user_id": user_id},
@@ -94,4 +174,3 @@ async def patch_script(
         },
     )
     return await get_project(db, project_id, user_id)
-

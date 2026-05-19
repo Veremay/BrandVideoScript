@@ -14,9 +14,7 @@ export function UserGate() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const userId = value.trim();
-    if (!userId) {
-      return;
-    }
+    if (!userId) return;
 
     setSubmitting(true);
     setError(null);
@@ -53,4 +51,3 @@ export function UserGate() {
     </main>
   );
 }
-

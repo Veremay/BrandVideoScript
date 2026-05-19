@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 
+import { insertColumn, insertRow, removeColumn, removeRow, renameColumn, updateCellValue } from "@/lib/scriptEditor";
 import type { AgentType, Project, SaveStatus, Script } from "@/lib/types";
 
 type EditorState = {
@@ -43,6 +44,13 @@ type AppState = {
   updateCell: (rowId: string, columnId: string, value: string) => void;
   setSaveStatus: (saveStatus: SaveStatus) => void;
   openPanel: (agent: AgentType | null) => void;
+  insertRowAfter: (rowId?: string) => void;
+  deleteRow: (rowId: string) => void;
+  insertColumnAfter: (columnId?: string, label?: string, multiline?: boolean) => void;
+  deleteColumn: (columnId: string) => void;
+  renameColumn: (columnId: string, label: string) => void;
+  setAgentColumnWidth: (width: number) => void;
+  setSelection: (selection?: { rowId?: string; columnId?: string; text: string }) => void;
 };
 
 export const useAppStore = create<AppState>((set) => ({
@@ -84,22 +92,8 @@ export const useAppStore = create<AppState>((set) => ({
         return state;
       }
 
-      const script: Script = {
-        ...state.script,
-        rows: state.script.rows.map((row) =>
-          row.row_id === rowId
-            ? {
-                ...row,
-                cells: row.cells.map((cell) =>
-                  cell.column_id === columnId ? { ...cell, value } : cell
-                )
-              }
-            : row
-        )
-      };
-
       return {
-        script,
+        script: updateCellValue(state.script, rowId, columnId, value),
         editor: { ...state.editor, saveStatus: "editing" }
       };
     }),
@@ -110,6 +104,58 @@ export const useAppStore = create<AppState>((set) => ({
   openPanel: (agent) =>
     set((state) => ({
       layout: { ...state.layout, activePanel: state.layout.activePanel === agent ? null : agent }
+    })),
+  insertRowAfter: (rowId) =>
+    set((state) => {
+      if (!state.script) return state;
+      return {
+        script: insertRow(state.script, rowId),
+        editor: { ...state.editor, saveStatus: "editing" }
+      };
+    }),
+  deleteRow: (rowId) =>
+    set((state) => {
+      if (!state.script) return state;
+      return {
+        script: removeRow(state.script, rowId),
+        editor: { ...state.editor, saveStatus: "editing" }
+      };
+    }),
+  insertColumnAfter: (columnId, label = "新列", multiline = false) =>
+    set((state) => {
+      if (!state.script) return state;
+      return {
+        script: insertColumn(state.script, columnId, label, multiline),
+        editor: { ...state.editor, saveStatus: "editing" }
+      };
+    }),
+  deleteColumn: (columnId) =>
+    set((state) => {
+      if (!state.script) return state;
+      return {
+        script: removeColumn(state.script, columnId),
+        editor: { ...state.editor, saveStatus: "editing" }
+      };
+    }),
+  renameColumn: (columnId, label) =>
+    set((state) => {
+      if (!state.script) return state;
+      return {
+        script: renameColumn(state.script, columnId, label),
+        editor: { ...state.editor, saveStatus: "editing" }
+      };
+    }),
+  setAgentColumnWidth: (width) =>
+    set((state) => ({
+      layout: { ...state.layout, agentsColWidth: Math.min(520, Math.max(280, width)) }
+    })),
+  setSelection: (selection) =>
+    set((state) => ({
+      editor: {
+        ...state.editor,
+        selectedRowId: selection?.rowId,
+        selectedColumnId: selection?.columnId,
+        selectedText: selection?.text
+      }
     }))
 }));
-

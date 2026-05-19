@@ -1,0 +1,236 @@
+import type { Script, ScriptColumn, ScriptRow } from "@/lib/types";
+
+export type DurationIssue = {
+  rowIds: string[];
+  message: string;
+  range?: string;
+};
+
+export type TimelineSegment = {
+  rowId: string;
+  start: number;
+  end: number;
+  left: number;
+  width: number;
+  hasOverlap: boolean;
+};
+
+export type TimelineOverlap = {
+  start: number;
+  end: number;
+  left: number;
+  width: number;
+};
+
+function clientId(prefix: string) {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `${prefix}_${crypto.randomUUID().slice(0, 8)}`;
+  }
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function sortedColumns(script: Script) {
+  return [...script.columns].sort((a, b) => a.order - b.order);
+}
+
+function sortedRows(script: Script) {
+  return [...script.rows].sort((a, b) => a.order - b.order);
+}
+
+function reorder<T extends { order: number }>(items: T[]) {
+  return items.map((item, order) => ({ ...item, order }));
+}
+
+function emptyCells(columns: ScriptColumn[]) {
+  return columns.map((column) => ({ column_id: column.column_id, value: "" }));
+}
+
+function alignRowCells(row: ScriptRow, columns: ScriptColumn[]) {
+  const cellsById = new Map(row.cells.map((cell) => [cell.column_id, cell]));
+  return {
+    ...row,
+    cells: columns.map((column) => cellsById.get(column.column_id) ?? { column_id: column.column_id, value: "" })
+  };
+}
+
+export function updateCellValue(script: Script, rowId: string, columnId: string, value: string): Script {
+  return {
+    ...script,
+    rows: script.rows.map((row) =>
+      row.row_id === rowId
+        ? {
+            ...row,
+            cells: row.cells.map((cell) => (cell.column_id === columnId ? { ...cell, value } : cell))
+          }
+        : row
+    )
+  };
+}
+
+export function insertRow(script: Script, afterRowId?: string): Script {
+  const columns = sortedColumns(script);
+  const rows = sortedRows(script);
+  const insertAt = afterRowId === undefined ? 0 : afterRowId ? rows.findIndex((row) => row.row_id === afterRowId) + 1 : rows.length;
+  const safeInsertAt = insertAt >= 0 ? insertAt : rows.length;
+  const nextRow: ScriptRow = {
+    row_id: clientId("row"),
+    order: safeInsertAt,
+    cells: emptyCells(columns)
+  };
+
+  return {
+    ...script,
+    rows: reorder([...rows.slice(0, safeInsertAt), nextRow, ...rows.slice(safeInsertAt)])
+  };
+}
+
+export function removeRow(script: Script, rowId: string): Script {
+  const rows = sortedRows(script);
+  if (rows.length <= 1) {
+    throw new Error("至少保留一行脚本。");
+  }
+  return {
+    ...script,
+    rows: reorder(rows.filter((row) => row.row_id !== rowId))
+  };
+}
+
+export function insertColumn(script: Script, afterColumnId?: string, label = "新列", multiline = false): Script {
+  const columns = sortedColumns(script);
+  const insertAt = afterColumnId === undefined ? 0 : afterColumnId ? columns.findIndex((column) => column.column_id === afterColumnId) + 1 : columns.length;
+  const safeInsertAt = insertAt >= 0 ? insertAt : columns.length;
+  const nextColumn: ScriptColumn = {
+    column_id: clientId("col"),
+    key: `custom_${clientId("field")}`,
+    label,
+    type: multiline ? "textarea" : "text",
+    multiline,
+    order: safeInsertAt
+  };
+  const nextColumns = reorder([...columns.slice(0, safeInsertAt), nextColumn, ...columns.slice(safeInsertAt)]);
+
+  return {
+    ...script,
+    columns: nextColumns,
+    rows: sortedRows(script).map((row) => alignRowCells(row, nextColumns))
+  };
+}
+
+export function removeColumn(script: Script, columnId: string): Script {
+  const columns = sortedColumns(script);
+  if (columns.length <= 1) {
+    throw new Error("至少保留一个业务列。");
+  }
+  const nextColumns = reorder(columns.filter((column) => column.column_id !== columnId));
+  return {
+    ...script,
+    columns: nextColumns,
+    rows: sortedRows(script).map((row) => ({
+      ...row,
+      cells: row.cells.filter((cell) => cell.column_id !== columnId)
+    }))
+  };
+}
+
+export function renameColumn(script: Script, columnId: string, label: string): Script {
+  return {
+    ...script,
+    columns: script.columns.map((column) => (column.column_id === columnId ? { ...column, label } : column))
+  };
+}
+
+export function parseDuration(value: string): [number, number] | null {
+  const [startText, endText] = value.split("-").map((part) => part.trim());
+  if (!startText || !endText) return null;
+  const start = Number(startText);
+  const end = Number(endText);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end <= start) return null;
+  return [start, end];
+}
+
+function formatSeconds(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, "");
+}
+
+export function analyzeDurations(script: Script): {
+  issues: DurationIssue[];
+  overlaps: TimelineOverlap[];
+  timeline: TimelineSegment[];
+} {
+  const durationColumn = script.columns.find((column) => column.type === "duration");
+  if (!durationColumn) {
+    return { issues: [], overlaps: [], timeline: [] };
+  }
+
+  const ranges = sortedRows(script)
+    .map((row) => {
+      const value = row.cells.find((cell) => cell.column_id === durationColumn.column_id)?.value ?? "";
+      const parsed = parseDuration(value);
+      return parsed ? { rowId: row.row_id, start: parsed[0], end: parsed[1] } : value ? { rowId: row.row_id, invalid: true } : null;
+    })
+    .filter(Boolean) as Array<{ rowId: string; start?: number; end?: number; invalid?: boolean }>;
+
+  const issues: DurationIssue[] = ranges
+    .filter((range) => range.invalid)
+    .map((range) => ({ rowIds: [range.rowId], message: "时长格式应为起止秒，例如 0-5。" }));
+
+  const validRanges = ranges.filter((range) => range.start !== undefined && range.end !== undefined) as Array<{
+    rowId: string;
+    start: number;
+    end: number;
+  }>;
+
+  const overlapped = new Set<string>();
+  const overlapRanges: Array<{ start: number; end: number }> = [];
+  for (let index = 0; index < validRanges.length; index += 1) {
+    for (const candidate of validRanges.slice(index + 1)) {
+      const start = Math.max(validRanges[index].start, candidate.start);
+      const end = Math.min(validRanges[index].end, candidate.end);
+      if (start < end) {
+        overlapped.add(validRanges[index].rowId);
+        overlapped.add(candidate.rowId);
+        overlapRanges.push({ start, end });
+        issues.push({
+          rowIds: [validRanges[index].rowId, candidate.rowId],
+          message: "时长与其他段落重叠。",
+          range: `${formatSeconds(start)}-${formatSeconds(end)}`
+        });
+      }
+    }
+  }
+
+  const maxEnd = Math.max(1, ...validRanges.map((range) => range.end));
+  return {
+    issues,
+    overlaps: mergeRanges(overlapRanges).map((range) => ({
+      start: range.start,
+      end: range.end,
+      left: (range.start / maxEnd) * 100,
+      width: ((range.end - range.start) / maxEnd) * 100
+    })),
+    timeline: validRanges.map((range) => ({
+      rowId: range.rowId,
+      start: range.start,
+      end: range.end,
+      left: (range.start / maxEnd) * 100,
+      width: ((range.end - range.start) / maxEnd) * 100,
+      hasOverlap: overlapped.has(range.rowId)
+    }))
+  };
+}
+
+function mergeRanges(ranges: Array<{ start: number; end: number }>) {
+  const sorted = [...ranges].sort((a, b) => a.start - b.start || a.end - b.end);
+  const merged: Array<{ start: number; end: number }> = [];
+
+  for (const range of sorted) {
+    const previous = merged.at(-1);
+    if (!previous || range.start > previous.end) {
+      merged.push({ ...range });
+    } else {
+      previous.end = Math.max(previous.end, range.end);
+    }
+  }
+
+  return merged;
+}

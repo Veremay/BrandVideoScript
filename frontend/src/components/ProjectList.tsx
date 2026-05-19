@@ -11,9 +11,7 @@ export function ProjectList() {
   const [error, setError] = useState<string | null>(null);
 
   async function handleCreate() {
-    if (!userId) {
-      return;
-    }
+    if (!userId) return;
 
     setCreating(true);
     setError(null);
@@ -30,9 +28,7 @@ export function ProjectList() {
   }
 
   async function handleOpen(projectId: string) {
-    if (!userId) {
-      return;
-    }
+    if (!userId) return;
 
     setError(null);
     try {
@@ -49,14 +45,14 @@ export function ProjectList() {
           <p className="eyebrow">Project Hub</p>
           <h1>项目列表</h1>
         </div>
-        <button onClick={handleCreate} disabled={creating}>
+        <button onClick={handleCreate} disabled={creating} type="button">
           {creating ? "创建中..." : "新建项目"}
         </button>
       </header>
       {error ? <p className="formError">{error}</p> : null}
       <section className="projectGrid">
         {projects.map((project) => (
-          <button className="projectCard" key={project._id} onClick={() => handleOpen(project._id)}>
+          <button className="projectCard" key={project._id} onClick={() => handleOpen(project._id)} type="button">
             <strong>{project.title}</strong>
             <span>{new Date(project.updated_at).toLocaleString()}</span>
           </button>
@@ -66,4 +62,3 @@ export function ProjectList() {
     </main>
   );
 }
-

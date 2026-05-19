@@ -69,4 +69,3 @@ def default_script() -> dict:
         "rows": [empty_row()],
         "updated_at": now_iso(),
     }
-

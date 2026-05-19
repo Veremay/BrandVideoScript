@@ -53,3 +53,60 @@ export async function saveScript(projectId: string, userId: string, script: Scri
   });
 }
 
+export async function saveScriptCell(
+  projectId: string,
+  userId: string,
+  rowId: string,
+  columnId: string,
+  value: string
+): Promise<Project> {
+  return request(`/projects/${projectId}/script/cells`, {
+    method: "PATCH",
+    body: JSON.stringify({ user_id: userId, row_id: rowId, column_id: columnId, value })
+  });
+}
+
+export async function createScriptRow(projectId: string, userId: string, afterRowId?: string): Promise<Project> {
+  return request(`/projects/${projectId}/script/rows`, {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId, after_row_id: afterRowId })
+  });
+}
+
+export async function deleteScriptRow(projectId: string, userId: string, rowId: string): Promise<Project> {
+  return request(`/projects/${projectId}/script/rows/${rowId}?user_id=${encodeURIComponent(userId)}`, {
+    method: "DELETE"
+  });
+}
+
+export async function createScriptColumn(
+  projectId: string,
+  userId: string,
+  afterColumnId: string | undefined,
+  label: string,
+  multiline: boolean
+): Promise<Project> {
+  return request(`/projects/${projectId}/script/columns`, {
+    method: "POST",
+    body: JSON.stringify({
+      user_id: userId,
+      after_column_id: afterColumnId,
+      label,
+      type: multiline ? "textarea" : "text",
+      multiline
+    })
+  });
+}
+
+export async function renameScriptColumn(projectId: string, userId: string, columnId: string, label: string): Promise<Project> {
+  return request(`/projects/${projectId}/script/columns/${columnId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ user_id: userId, label })
+  });
+}
+
+export async function deleteScriptColumn(projectId: string, userId: string, columnId: string): Promise<Project> {
+  return request(`/projects/${projectId}/script/columns/${columnId}?user_id=${encodeURIComponent(userId)}`, {
+    method: "DELETE"
+  });
+}
