@@ -52,6 +52,35 @@ class ScriptColumnUpdateRequest(BaseModel):
     label: str = Field(min_length=1, max_length=40)
 
 
+class BriefUpdateRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    text: str = Field(min_length=1)
+    filename: str | None = Field(default=None, max_length=180)
+
+
+class BrandInsightCreateRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    category: Literal["explicit_requirement", "implicit_requirement", "brand_feedback"]
+    title: str = Field(min_length=1, max_length=120)
+    content: str = Field(min_length=1)
+    reason: str = ""
+    evidence: list[dict[str, Any]] = Field(default_factory=list)
+    confidence: Literal["high", "medium", "low"] = "medium"
+    status: Literal["new", "confirmed", "pending", "ignored"] = "new"
+    created_by: Literal["agent", "user"] = "user"
+
+
+class BrandInsightUpdateRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    category: Literal["explicit_requirement", "implicit_requirement", "brand_feedback"] | None = None
+    title: str | None = Field(default=None, min_length=1, max_length=120)
+    content: str | None = Field(default=None, min_length=1)
+    reason: str | None = None
+    evidence: list[dict[str, Any]] | None = None
+    confidence: Literal["high", "medium", "low"] | None = None
+    status: Literal["new", "confirmed", "pending", "ignored"] | None = None
+
+
 class ProjectResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 

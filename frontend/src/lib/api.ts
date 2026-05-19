@@ -1,4 +1,10 @@
-import type { Project, Script } from "@/lib/types";
+import type {
+  BrandInsightCategory,
+  BrandInsightConfidence,
+  BrandInsightStatus,
+  Project,
+  Script
+} from "@/lib/types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
 
@@ -50,6 +56,58 @@ export async function saveScript(projectId: string, userId: string, script: Scri
   return request(`/projects/${projectId}/script`, {
     method: "PATCH",
     body: JSON.stringify({ user_id: userId, script })
+  });
+}
+
+export async function saveBrief(projectId: string, userId: string, text: string, filename?: string): Promise<Project> {
+  return request(`/projects/${projectId}/brief`, {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId, text, filename })
+  });
+}
+
+export async function createBrandInsight(
+  projectId: string,
+  userId: string,
+  payload: {
+    category: BrandInsightCategory;
+    title: string;
+    content: string;
+    reason?: string;
+    evidence?: Array<Record<string, unknown>>;
+    confidence?: BrandInsightConfidence;
+    status?: BrandInsightStatus;
+  }
+): Promise<Project> {
+  return request(`/projects/${projectId}/agents/brand/insights`, {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId, ...payload })
+  });
+}
+
+export async function updateBrandInsight(
+  projectId: string,
+  userId: string,
+  insightId: string,
+  payload: Partial<{
+    category: BrandInsightCategory;
+    title: string;
+    content: string;
+    reason: string;
+    evidence: Array<Record<string, unknown>>;
+    confidence: BrandInsightConfidence;
+    status: BrandInsightStatus;
+  }>
+): Promise<Project> {
+  return request(`/projects/${projectId}/agents/brand/insights/${insightId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ user_id: userId, ...payload })
+  });
+}
+
+export async function deleteBrandInsight(projectId: string, userId: string, insightId: string): Promise<Project> {
+  return request(`/projects/${projectId}/agents/brand/insights/${insightId}?user_id=${encodeURIComponent(userId)}`, {
+    method: "DELETE"
   });
 }
 

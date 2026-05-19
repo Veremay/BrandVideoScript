@@ -249,10 +249,10 @@ BrandVideo/
 
 ### 8.3 Phase 3 — 品牌（PRD §15.3）
 
-- [ ] 显式/隐式/品牌反馈三 tab
-- [ ] insight 可增删改
-- [ ] insight 含 reason / evidence / confidence / status
-- [ ] MD/TXT Brief 上传或粘贴可解析为文本
+- [x] 显式/隐式/品牌反馈三 tab
+- [x] insight 可增删改
+- [x] insight 含 reason / evidence / confidence / status（点击展开）
+- [x] MD/TXT Brief 上传或粘贴可解析为文本
 
 ### 8.4 Phase 4 — 观众（PRD §15.4）
 

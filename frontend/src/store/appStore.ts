@@ -3,7 +3,7 @@
 import { create } from "zustand";
 
 import { insertColumn, insertRow, removeColumn, removeRow, renameColumn, updateCellValue } from "@/lib/scriptEditor";
-import type { AgentType, Project, SaveStatus, Script } from "@/lib/types";
+import type { AgentType, BrandInsightCategory, Project, SaveStatus, Script } from "@/lib/types";
 
 type EditorState = {
   selectedRowId?: string;
@@ -51,6 +51,7 @@ type AppState = {
   renameColumn: (columnId: string, label: string) => void;
   setAgentColumnWidth: (width: number) => void;
   setSelection: (selection?: { rowId?: string; columnId?: string; text: string }) => void;
+  setBrandPinnedTab: (tab: BrandInsightCategory) => void;
 };
 
 export const useAppStore = create<AppState>((set) => ({
@@ -157,5 +158,9 @@ export const useAppStore = create<AppState>((set) => ({
         selectedColumnId: selection?.columnId,
         selectedText: selection?.text
       }
+    })),
+  setBrandPinnedTab: (tab) =>
+    set((state) => ({
+      brand: { ...state.brand, activePinnedTab: tab }
     }))
 }));

@@ -1,5 +1,38 @@
 export type SaveStatus = "saved" | "editing" | "saving" | "failed";
 export type AgentType = "brand" | "audience" | "expert";
+export type BrandInsightCategory = "explicit_requirement" | "implicit_requirement" | "brand_feedback";
+export type BrandInsightConfidence = "high" | "medium" | "low";
+export type BrandInsightStatus = "new" | "confirmed" | "pending" | "ignored";
+
+export type Brief = {
+  filename: string | null;
+  text: string;
+  summary: string;
+  parse_status: "pending" | "parsing" | "parsed" | "failed";
+  uploaded_at: string | null;
+};
+
+export type BrandInsight = {
+  insight_id: string;
+  agent_type: "brand";
+  category: BrandInsightCategory;
+  title: string;
+  content: string;
+  reason: string;
+  evidence: Array<{
+    source_type?: "brief" | "pr_feedback" | "script" | "chat" | string;
+    quote?: string;
+    row_id?: string;
+    column_id?: string;
+  }>;
+  confidence: BrandInsightConfidence;
+  status: BrandInsightStatus;
+  created_by: "agent" | "user";
+  updated_by: "agent" | "user";
+  based_on_script_version_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
 
 export type ScriptColumn = {
   column_id: string;
@@ -31,9 +64,9 @@ export type Project = {
   _id: string;
   user_id: string;
   title: string;
-  brief: Record<string, unknown>;
+  brief: Brief;
   current_script: Script;
-  brand_insights: Array<Record<string, unknown>>;
+  brand_insights: BrandInsight[];
   personas: Array<Record<string, unknown>>;
   active_persona_id: string | null;
   audience_analysis: Record<string, unknown>;
@@ -42,4 +75,3 @@ export type Project = {
   created_at: string;
   updated_at: string;
 };
-

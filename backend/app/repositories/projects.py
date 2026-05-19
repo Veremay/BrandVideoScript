@@ -1,12 +1,118 @@
+from datetime import datetime, timedelta
+
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.script import default_script, new_id, now_iso
 from app.models.script_ops import add_column, add_row, delete_column, delete_row, rename_column, update_cell
 
+BRAND_INSIGHT_CATEGORIES = {"explicit_requirement", "implicit_requirement", "brand_feedback"}
+BRAND_INSIGHT_CONFIDENCE = {"high", "medium", "low"}
+BRAND_INSIGHT_STATUS = {"new", "confirmed", "pending", "ignored"}
+
 
 def serialize_project(document: dict) -> dict:
     document["_id"] = str(document["_id"])
     return document
+
+
+def build_brief(filename: str | None, text: str) -> dict:
+    normalized_text = text.strip()
+    if not normalized_text:
+        raise ValueError("Brief text cannot be empty")
+
+    summary = " ".join(line.strip() for line in normalized_text.splitlines() if line.strip())[:240]
+    now = now_iso()
+    return {
+        "filename": filename.strip() if filename else None,
+        "text": normalized_text,
+        "summary": summary,
+        "parse_status": "parsed",
+        "uploaded_at": now,
+    }
+
+
+def build_brand_insight(
+    *,
+    category: str,
+    title: str,
+    content: str,
+    reason: str,
+    evidence: list[dict],
+    confidence: str = "medium",
+    status: str = "new",
+    created_by: str = "user",
+) -> dict:
+    _validate_brand_insight_values(category=category, confidence=confidence, status=status)
+    now = now_iso()
+    return {
+        "insight_id": new_id("insight"),
+        "agent_type": "brand",
+        "category": category,
+        "title": title.strip(),
+        "content": content.strip(),
+        "reason": reason.strip(),
+        "evidence": evidence,
+        "confidence": confidence,
+        "status": status,
+        "created_by": created_by,
+        "updated_by": created_by,
+        "based_on_script_version_id": None,
+        "created_at": now,
+        "updated_at": now,
+    }
+
+
+def update_brand_insight_in_list(insights: list[dict], insight_id: str, changes: dict) -> list[dict]:
+    allowed_fields = {"category", "title", "content", "reason", "evidence", "confidence", "status"}
+    found = False
+    updated_insights: list[dict] = []
+
+    for insight in insights:
+        if insight.get("insight_id") != insight_id:
+            updated_insights.append(insight)
+            continue
+
+        found = True
+        updated = {**insight}
+        for field, value in changes.items():
+            if field in allowed_fields and value is not None:
+                updated[field] = value.strip() if isinstance(value, str) else value
+
+        _validate_brand_insight_values(
+            category=updated.get("category"),
+            confidence=updated.get("confidence"),
+            status=updated.get("status"),
+        )
+        updated["updated_by"] = "user"
+        updated["updated_at"] = _next_timestamp_after(insight.get("updated_at"))
+        updated_insights.append(updated)
+
+    if not found:
+        raise ValueError("Brand insight not found")
+    return updated_insights
+
+
+def remove_brand_insight_from_list(insights: list[dict], insight_id: str) -> list[dict]:
+    updated = [insight for insight in insights if insight.get("insight_id") != insight_id]
+    if len(updated) == len(insights):
+        raise ValueError("Brand insight not found")
+    return updated
+
+
+def _validate_brand_insight_values(*, category: str, confidence: str, status: str) -> None:
+    if category not in BRAND_INSIGHT_CATEGORIES:
+        raise ValueError("Invalid brand insight category")
+    if confidence not in BRAND_INSIGHT_CONFIDENCE:
+        raise ValueError("Invalid brand insight confidence")
+    if status not in BRAND_INSIGHT_STATUS:
+        raise ValueError("Invalid brand insight status")
+
+
+def _next_timestamp_after(previous: str | None) -> str:
+    current = now_iso()
+    if previous is None or current > previous:
+        return current
+    return (datetime.fromisoformat(previous) + timedelta(microseconds=1)).isoformat()
 
 
 async def enter_user(db: AsyncIOMotorDatabase, user_id: str) -> dict:
@@ -159,6 +265,89 @@ async def remove_script_column(db: AsyncIOMotorDatabase, project_id: str, user_i
     if project is None:
         return None
     return await _write_script(db, project_id, user_id, delete_column(project["current_script"], column_id))
+
+
+async def update_brief(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    *,
+    filename: str | None,
+    text: str,
+) -> dict | None:
+    brief = build_brief(filename=filename, text=text)
+    await db.projects.update_one(
+        {"_id": project_id, "user_id": user_id},
+        {"$set": {"brief": brief, "stale.brand": True, "updated_at": now_iso()}},
+    )
+    return await get_project(db, project_id, user_id)
+
+
+async def create_brand_insight(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    *,
+    category: str,
+    title: str,
+    content: str,
+    reason: str,
+    evidence: list[dict],
+    confidence: str,
+    status: str,
+    created_by: str,
+) -> dict | None:
+    project = await get_project(db, project_id, user_id)
+    if project is None:
+        return None
+
+    insight = build_brand_insight(
+        category=category,
+        title=title,
+        content=content,
+        reason=reason,
+        evidence=evidence,
+        confidence=confidence,
+        status=status,
+        created_by=created_by,
+    )
+    insights = [*project.get("brand_insights", []), insight]
+    return await _write_brand_insights(db, project_id, user_id, insights)
+
+
+async def update_brand_insight(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    insight_id: str,
+    changes: dict,
+) -> dict | None:
+    project = await get_project(db, project_id, user_id)
+    if project is None:
+        return None
+    insights = update_brand_insight_in_list(project.get("brand_insights", []), insight_id, changes)
+    return await _write_brand_insights(db, project_id, user_id, insights)
+
+
+async def delete_brand_insight(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    insight_id: str,
+) -> dict | None:
+    project = await get_project(db, project_id, user_id)
+    if project is None:
+        return None
+    insights = remove_brand_insight_from_list(project.get("brand_insights", []), insight_id)
+    return await _write_brand_insights(db, project_id, user_id, insights)
+
+
+async def _write_brand_insights(db: AsyncIOMotorDatabase, project_id: str, user_id: str, insights: list[dict]) -> dict | None:
+    await db.projects.update_one(
+        {"_id": project_id, "user_id": user_id},
+        {"$set": {"brand_insights": insights, "stale.expert": True, "updated_at": now_iso()}},
+    )
+    return await get_project(db, project_id, user_id)
 
 
 async def _write_script(db: AsyncIOMotorDatabase, project_id: str, user_id: str, script: dict) -> dict | None:

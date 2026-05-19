@@ -1,10 +1,16 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { ScriptGrid } from "@/components/ScriptGrid";
-import { saveScript } from "@/lib/api";
-import type { AgentType } from "@/lib/types";
+import {
+  createBrandInsight,
+  deleteBrandInsight,
+  saveBrief,
+  saveScript,
+  updateBrandInsight
+} from "@/lib/api";
+import type { AgentType, BrandInsight, BrandInsightCategory, BrandInsightConfidence, BrandInsightStatus } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
 
 const SAVE_DELAY_MS = 700;
@@ -20,6 +26,12 @@ const AGENTS: Array<{
   { type: "expert", title: "专家 Agent", badge: "有新输入", tone: "expert" }
 ];
 
+const BRAND_TABS: Array<{ category: BrandInsightCategory; label: string; addLabel: string }> = [
+  { category: "explicit_requirement", label: "显式需求", addLabel: "添加需求" },
+  { category: "implicit_requirement", label: "隐式需求", addLabel: "添加洞察" },
+  { category: "brand_feedback", label: "品牌反馈", addLabel: "添加反馈" }
+];
+
 export function EditorShell() {
   const {
     editor,
@@ -27,12 +39,14 @@ export function EditorShell() {
     project,
     script,
     setAgentColumnWidth,
+    setBrandPinnedTab,
     setProject,
     setSaveStatus,
     setUserId,
     openPanel
   } = useAppStore();
   const hasHydrated = useRef(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const activePanel = layout.activePanel ?? "brand";
 
   useEffect(() => {
@@ -91,6 +105,35 @@ export function EditorShell() {
     window.addEventListener("pointerup", handleUp);
   }
 
+  async function persistBrief(text: string, filename?: string) {
+    if (!project) return;
+    const savedProject = await saveBrief(project._id, project.user_id, text, filename);
+    setProject(savedProject);
+    setBrandPinnedTab("explicit_requirement");
+    openPanel("brand");
+  }
+
+  async function handleBriefFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    const isSupported = file.name.endsWith(".md") || file.name.endsWith(".txt");
+    if (!isSupported) {
+      window.alert("当前 MVP 仅支持 .md / .txt Brief。");
+      return;
+    }
+
+    await persistBrief(await file.text(), file.name);
+  }
+
+  async function handlePasteBrief() {
+    const text = window.prompt("粘贴品牌 Brief 文本");
+    if (text?.trim()) {
+      await persistBrief(text, "pasted-brief.txt");
+    }
+  }
+
   if (!project || !script) return null;
 
   return (
@@ -101,11 +144,15 @@ export function EditorShell() {
           项目
         </button>
         <span className="logo">Creator Studio</span>
-        <button className="topbar-btn" type="button">
+        <input ref={fileInputRef} accept=".md,.txt,text/markdown,text/plain" hidden onChange={handleBriefFile} type="file" />
+        <button className="topbar-btn" onClick={() => fileInputRef.current?.click()} type="button">
           <IconUpload />
-          上传品牌 Brief
+          上传 Brief
         </button>
-        <span className="topbar-brief-hint">MD / TXT</span>
+        <button className="topbar-btn" onClick={handlePasteBrief} type="button">
+          粘贴 Brief
+        </button>
+        <span className="topbar-brief-hint">{project.brief.filename ?? "MD / TXT"}</span>
         <div className="topbar-sep" />
         <input className="topbar-project-input" value={project.title} readOnly aria-label="项目名称" />
         <div className="topbar-spacer" />
@@ -140,7 +187,7 @@ export function EditorShell() {
         onPointerDown={handleSplitterPointerDown}
         role="separator"
         aria-orientation="vertical"
-        aria-label="拖拽调整脚本编辑器与 Agent 面板宽度"
+        aria-label="拖动调整脚本编辑器与 Agent 面板宽度"
       />
 
       <aside className="agents-col">
@@ -166,26 +213,59 @@ export function EditorShell() {
 }
 
 function AgentBody({ agent, selectedText }: { agent: AgentType; selectedText?: string }) {
-  if (agent === "brand") {
+  const { brand, project, setBrandPinnedTab, setProject } = useAppStore();
+
+  if (agent === "brand" && project) {
+    const activeTab = brand.activePinnedTab;
+    const activeTabMeta = BRAND_TABS.find((tab) => tab.category === activeTab) ?? BRAND_TABS[0];
+    const insights = project.brand_insights.filter((insight) => insight.category === activeTab);
+
+    async function handleAddInsight() {
+      if (!project) return;
+      const savedProject = await createBrandInsight(project._id, project.user_id, {
+        category: activeTab,
+        title: activeTabMeta.label,
+        content: "新的品牌洞察",
+        reason: project.brief.summary ? `来自 Brief：${project.brief.summary}` : "用户手动新增。",
+        evidence: project.brief.text ? [{ source_type: "brief", quote: project.brief.summary || project.brief.text.slice(0, 120) }] : [],
+        confidence: "medium",
+        status: "new"
+      });
+      setProject(savedProject);
+    }
+
     return (
       <div className="panel-body">
         <div className="pinned">
           <div className="pinned-tabs">
-            <button className="ptab active-brand" type="button">显式需求</button>
-            <button className="ptab" type="button">隐式需求</button>
-            <button className="ptab" type="button">品牌反馈</button>
+            {BRAND_TABS.map((tab) => (
+              <button
+                className={`ptab ${activeTab === tab.category ? "active-brand" : ""}`}
+                key={tab.category}
+                onClick={() => setBrandPinnedTab(tab.category)}
+                type="button"
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
           <div className="pinned-content show">
+            {project.brief.summary ? <div className="brief-summary">Brief: {project.brief.summary}</div> : null}
             <div className="pinned-list">
-              <PinnedItem mark="01" text="口播要保留真实体验感，避免像硬广。" tone="blue" />
-              <PinnedItem mark="02" text="突出具体使用场景和可验证细节。" tone="blue" />
+              {insights.length ? (
+                insights.map((insight, index) => <PinnedItem insight={insight} key={insight.insight_id} mark={String(index + 1).padStart(2, "0")} />)
+              ) : (
+                <div className="pinned-empty">暂无条目</div>
+              )}
             </div>
             <div className="pinned-add-row">
-              <button className="pinned-add-btn" type="button">+ 添加需求</button>
+              <button className="pinned-add-btn" onClick={handleAddInsight} type="button">
+                + {activeTabMeta.addLabel}
+              </button>
             </div>
           </div>
         </div>
-        <AgentChat agent="brand" selectedText={selectedText} placeholder="向品牌方 Agent 提问..." />
+        <AgentChat agent="brand" selectedText={selectedText} placeholder="向品牌方 Agent 提问或粘贴 PR feedback..." />
       </div>
     );
   }
@@ -229,16 +309,126 @@ function AgentBody({ agent, selectedText }: { agent: AgentType; selectedText?: s
   );
 }
 
-function PinnedItem({ mark, text, tone }: { mark: string; text: string; tone: "blue" | "warn" }) {
+function PinnedItem({ insight, mark }: { insight: BrandInsight; mark: string }) {
+  const { project, setProject } = useAppStore();
+  const [expanded, setExpanded] = useState(false);
+  const [draft, setDraft] = useState({
+    title: insight.title,
+    content: insight.content,
+    reason: insight.reason,
+    confidence: insight.confidence,
+    status: insight.status
+  });
+
+  useEffect(() => {
+    setDraft({
+      title: insight.title,
+      content: insight.content,
+      reason: insight.reason,
+      confidence: insight.confidence,
+      status: insight.status
+    });
+  }, [insight]);
+
+  if (!project) return null;
+
+  async function handleSave() {
+    if (!project) return;
+    const savedProject = await updateBrandInsight(project._id, project.user_id, insight.insight_id, draft);
+    setProject(savedProject);
+  }
+
+  async function handleDelete() {
+    if (!project) return;
+    const savedProject = await deleteBrandInsight(project._id, project.user_id, insight.insight_id);
+    setProject(savedProject);
+  }
+
   return (
-    <div className="pinned-item">
-      <span className={`pinned-item-mark mark-${tone}`}>{mark}</span>
-      <span className="pinned-item-text">{text}</span>
+    <div className={`pinned-item ${expanded ? "is-expanded" : ""}`}>
+      <button className="pinned-item-main" onClick={() => setExpanded((value) => !value)} type="button">
+        <span className="pinned-item-mark mark-blue">{mark}</span>
+        <span className="pinned-item-text">{insight.content}</span>
+        <span className={`insight-chip confidence-${insight.confidence}`}>{confidenceLabel(insight.confidence)}</span>
+        <span className={`insight-chip status-${insight.status}`}>{statusLabelInsight(insight.status)}</span>
+      </button>
+      {expanded ? (
+        <div className="insight-details">
+          <label>
+            标题
+            <input value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} />
+          </label>
+          <label>
+            内容
+            <textarea value={draft.content} onChange={(event) => setDraft({ ...draft, content: event.target.value })} />
+          </label>
+          <label>
+            Reason
+            <textarea value={draft.reason} onChange={(event) => setDraft({ ...draft, reason: event.target.value })} />
+          </label>
+          <div className="insight-select-row">
+            <label>
+              Confidence
+              <select
+                value={draft.confidence}
+                onChange={(event) => setDraft({ ...draft, confidence: event.target.value as BrandInsightConfidence })}
+              >
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </label>
+            <label>
+              Status
+              <select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value as BrandInsightStatus })}>
+                <option value="new">New</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="pending">Pending</option>
+                <option value="ignored">Ignored</option>
+              </select>
+            </label>
+          </div>
+          <div className="insight-evidence">
+            <span>Evidence</span>
+            {insight.evidence.length ? (
+              insight.evidence.map((item, index) => <blockquote key={`${insight.insight_id}-${index}`}>{item.quote ?? "未填写 quote"}</blockquote>)
+            ) : (
+              <p>暂无 evidence</p>
+            )}
+          </div>
+          <div className="insight-actions">
+            <button className="pinned-add-btn" onClick={handleSave} type="button">保存</button>
+            <button className="insight-delete-btn" onClick={handleDelete} type="button">删除</button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
 
 function AgentChat({ agent, selectedText, placeholder }: { agent: AgentType; selectedText?: string; placeholder: string }) {
+  const { project, setProject } = useAppStore();
+  const [message, setMessage] = useState("");
+
+  async function handleSend() {
+    if (!project || !message.trim()) return;
+
+    if (agent === "brand") {
+      const savedProject = await createBrandInsight(project._id, project.user_id, {
+        category: "brand_feedback",
+        title: "PR feedback",
+        content: message.trim(),
+        reason: selectedText ? "用户基于选中脚本片段补充的品牌反馈。" : "用户在品牌方 Agent 对话中输入的反馈。",
+        evidence: selectedText ? [{ source_type: "script", quote: selectedText }] : [{ source_type: "chat", quote: message.trim() }],
+        confidence: "medium",
+        status: "pending"
+      });
+      setProject(savedProject);
+    }
+
+    setMessage("");
+  }
+
   return (
     <>
       <div className="chat-area">
@@ -253,8 +443,8 @@ function AgentChat({ agent, selectedText, placeholder }: { agent: AgentType; sel
         </div>
       ) : null}
       <div className="chat-input">
-        <input placeholder={placeholder} readOnly value="" />
-        <button className={`send-btn send-${agent}`} type="button">发送</button>
+        <input placeholder={placeholder} value={message} onChange={(event) => setMessage(event.target.value)} />
+        <button className={`send-btn send-${agent}`} onClick={handleSend} type="button">发送</button>
       </div>
     </>
   );
@@ -277,6 +467,19 @@ function statusLabel(status: string) {
   if (status === "saving") return "保存中";
   if (status === "failed") return "保存失败";
   return "已保存";
+}
+
+function confidenceLabel(confidence: BrandInsightConfidence) {
+  if (confidence === "high") return "高";
+  if (confidence === "low") return "低";
+  return "中";
+}
+
+function statusLabelInsight(status: BrandInsightStatus) {
+  if (status === "confirmed") return "已确认";
+  if (status === "pending") return "待确认";
+  if (status === "ignored") return "忽略";
+  return "新增";
 }
 
 function IconUpload() {

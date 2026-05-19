@@ -3,6 +3,9 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.db.mongo import database_dependency
 from app.models.schemas import (
+    BriefUpdateRequest,
+    BrandInsightCreateRequest,
+    BrandInsightUpdateRequest,
     ProjectCreateRequest,
     ProjectListResponse,
     ProjectResponse,
@@ -14,9 +17,11 @@ from app.models.schemas import (
     ScriptRowCreateRequest,
 )
 from app.repositories.projects import (
+    create_brand_insight,
     create_script_column,
     create_script_row,
     create_project,
+    delete_brand_insight,
     delete_project,
     get_project,
     list_projects,
@@ -24,6 +29,8 @@ from app.repositories.projects import (
     patch_script_cell,
     remove_script_column,
     remove_script_row,
+    update_brand_insight,
+    update_brief,
     update_script_column,
     update_project,
 )
@@ -63,6 +70,87 @@ async def update(
     db: AsyncIOMotorDatabase = Depends(database_dependency),
 ) -> dict:
     project = await update_project(db, project_id, payload.user_id.strip(), title=payload.title.strip() if payload.title else None)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
+@router.post("/{project_id}/brief", response_model=ProjectResponse)
+async def save_brief(
+    project_id: str,
+    payload: BriefUpdateRequest,
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> dict:
+    try:
+        project = await update_brief(
+            db,
+            project_id,
+            payload.user_id.strip(),
+            filename=payload.filename.strip() if payload.filename else None,
+            text=payload.text,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
+@router.post("/{project_id}/agents/brand/insights", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
+async def add_brand_insight(
+    project_id: str,
+    payload: BrandInsightCreateRequest,
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> dict:
+    try:
+        project = await create_brand_insight(
+            db,
+            project_id,
+            payload.user_id.strip(),
+            category=payload.category,
+            title=payload.title,
+            content=payload.content,
+            reason=payload.reason,
+            evidence=payload.evidence,
+            confidence=payload.confidence,
+            status=payload.status,
+            created_by=payload.created_by,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
+@router.patch("/{project_id}/agents/brand/insights/{insight_id}", response_model=ProjectResponse)
+async def edit_brand_insight(
+    project_id: str,
+    insight_id: str,
+    payload: BrandInsightUpdateRequest,
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> dict:
+    changes = payload.model_dump(exclude={"user_id"}, exclude_none=True)
+    try:
+        project = await update_brand_insight(db, project_id, payload.user_id.strip(), insight_id, changes)
+    except ValueError as exc:
+        raise HTTPException(status_code=404 if str(exc) == "Brand insight not found" else 400, detail=str(exc)) from exc
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
+@router.delete("/{project_id}/agents/brand/insights/{insight_id}", response_model=ProjectResponse)
+async def remove_brand_insight(
+    project_id: str,
+    insight_id: str,
+    user_id: str = Query(min_length=1),
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> dict:
+    try:
+        project = await delete_brand_insight(db, project_id, user_id.strip(), insight_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
     return project
