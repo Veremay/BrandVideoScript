@@ -93,12 +93,16 @@ llm-wiki/
 
 ### 4.4 Agentic Search 行为（逻辑）
 
-非单次固定查询，而是由 **Brand Research 子步骤**（可用 8B 规划 + 工具调用循环，或固定 2–3 步模板）完成：
+非单次固定查询，由 **Brand Research 子步骤** 完成：
 
-1. **Query 规划：** 从 `brief.text` / `brief.summary` 提取品牌实体、品类、campaign 关键词。
-2. **Wiki 检索：** 在 `llm-wiki/brands/` 下匹配品牌；对 `handbook.md` 做关键词 / 向量检索（MVP 可用标题分段 + 关键词匹配）。
-3. **Web 检索：** 调用 Tavily `search`（及必要时 `extract` 单页），限制域名或条数，避免上下文爆炸。
-4. **结果归并：** 去重、截断、附 `source_url` / `wiki_path`，写入 `project.brand_research`（见 §5）。
+1. **品牌实体抽取（8B LLM，task_type=`brand_extract_entity`，非 thinking）**：从 `brief.text` 提取 `brand_name / product / category`，写入 `brand_research.entity`；校验失败降级为启发式（markdown 加粗 / `品牌名：X` / 文件名清洗）。
+2. **Wiki 检索：** 在 `llm-wiki/brands/` 下匹配品牌；对 `handbook.md` 做标题分段 + 关键词匹配。
+3. **Web 检索：** 用 entity 拼成 2–4 条**自然语言** query（如「{brand} 品牌调性 内容风格」「{brand} {category} 产品定位 用户口碑」），调用 Tavily：
+   - `search_depth=advanced`、`country=china`、`score >= 0.3` 过滤
+   - 多 query 结果按 URL dedupe，保留最高分
+4. **结果归并：** 截断、附 `score` / `url` / `wiki_path`，写入 `project.brand_research`（见 §5）。
+
+> ⚠️ 原设计的 query 关键词堆砌（`{filename} 品牌 brief 调性 合作 视频 要求`）会被 Tavily 退化为「含 brief 一词的随机网页」，且文件名 stem 把品牌名和类型粘连。实际实现已替换为上述实体驱动的多 query 方案。
 
 ### 4.5 配置与环境变量（规划）
 
@@ -138,7 +142,7 @@ MVP 若未配置 `TAVILY_API_KEY`，应降级为仅 llm-wiki + Brief，并在 UI
         "title": "...",
         "url": "https://...",
         "snippet": "...",
-        "fetched_at": "..."
+        "score": 0.62
       }
     ],
     "wiki_snippets": [
@@ -150,11 +154,33 @@ MVP 若未配置 `TAVILY_API_KEY`，应降级为仅 llm-wiki + Brief，并在 UI
       }
     ],
     "research_summary": "供 LLM 使用的 200–500 字归纳",
+    "entity": {
+      "brand_name": "观夏",
+      "product": "陶瓷香挂",
+      "category": "香氛",
+      "source": "llm | heuristic_fallback"
+    },
+    "trace_run_id": "run_xxx",
+    "traces": [
+      { "kind": "brief_uploaded | pipeline_started | tool_call | tool_result | llm_request | llm_response | pipeline_completed | pipeline_failed",
+        "source": "brand_brief_pipeline | brief_api | agent_stream:brand",
+        "data": { "...": "依事件类型而异" },
+        "ts": "..." }
+    ],
+    "error_message": null,
     "updated_at": "..."
   },
   "brand_insights": []
 }
 ```
+
+字段说明：
+
+| 字段 | 写入方 | 用途 |
+|------|--------|------|
+| `entity` | 8B LLM 实体抽取（fallback 启发式） | Brand Agent prompt 直接引用「品牌 / 品类 / 主推产品」；同时驱动 Tavily 多 query |
+| `trace_run_id` / `traces` | `TraceRecorder` | 端到端可观测：`brief_uploaded` → `tool_call/result` → `llm_request/response` → `pipeline_completed/failed`；前端可基于此展示进度时间线 |
+| `error_message` | 流水线 except 分支 | 失败时显式承载异常名（`ReadTimeout` 等空 message 异常用 `_describe_exception` 兜底） |
 
 ### 5.2 Brand Agent 调用时的上下文分层
 
@@ -183,15 +209,25 @@ MVP 若未配置 `TAVILY_API_KEY`，应降级为仅 llm-wiki + Brief，并在 UI
 
 ---
 
-## 6. API 与触发（规划）
+## 6. API 与触发
 
 | 步骤 | 接口 / 行为 |
 |------|-------------|
-| 上传 | `POST /api/projects/{id}/brief`（multipart，仅 .md/.txt） |
-| 解析 | 同步或短异步：写入 `brief.text`，`parse_status=parsed` |
-| 自动流水线 | 解析成功后 **服务端自动** 调用内部 `BrandBriefPipeline`（不必要求前端再 POST） |
-| 进度 | 可选：`GET` 轮询 `brand_research.status` 或对品牌 Agent 通道发 SSE `event: progress` |
-| 结构化结果 | 流水线结束写入 `brand_insights`；`POST .../agents/brand/analyze-brief` 保留为 **手动重跑** 入口 |
+| 上传 | `POST /api/projects/{id}/brief`（仅 .md/.txt） |
+| 解析 | 同步写入 `brief.text`，`parse_status=parsed` |
+| 自动流水线 | 解析成功后 **服务端自动** 调用内部 `BrandBriefPipeline`（FastAPI BackgroundTasks）|
+| 进度可观测 | `brand_research.status` + `brand_research.traces`（已实现）；前端轮询 project 即可 |
+| 结构化结果 | 流水线结束写入 `brand_insights`；`POST .../agents/brand/analyze-brief` 保留为手动重跑入口 |
+
+### 6.1 Brand Agent 对话中的洞察沉淀（实际实现）
+
+Brand Agent 在流式回答末尾按需追加 `<brand_insight_proposals>{...}</brand_insight_proposals>` 标记块（prompt 协议见 `backend/app/prompts/brand.md`）。后端 `agent_stream` 做三件事：
+
+1. 流式吐字时检测 marker 开始，剥离不向前端发送（避免 raw JSON 闪烁）
+2. 流结束后解析 JSON 并 `create_brand_insight(created_by="agent", status="new")` 自动落库
+3. 通过 SSE 发 `event: artifact` 带 `persisted_count` + `trace_run_id`，前端据此 `fetchProject` 实时刷新 pinned 区
+
+解析器容忍 LLM 常见错误：`insight` ↔ `insights` 拼写、缺失/拼错的闭合标签。
 
 ---
 

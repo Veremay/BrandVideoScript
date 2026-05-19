@@ -5,7 +5,7 @@
 本方案基于 `prd.md`，面向一个轻量化 MVP 实现。目标不是一次性搭建完整平台，而是优先完成核心产品闭环：
 
 1. 用户输入自定义 `user_id` 进入系统。
-2. 用户上传品牌 brief（`.md` / `.txt`，无粘贴入口）。
+2. 用户上传品牌 brief（`.md` / `.txt`）。
 3. 用户在表格化 Script Editor 中编辑视频脚本。
 4. 用户通过品牌方 Agent、观众 Agent、专家 Agent 获取反馈。
 5. 专家 Agent 生成可预览的 cell-level 修改建议。
@@ -127,7 +127,7 @@ expert_suggestions
   "user_id": "custom_user_id",
   "title": "项目名称",
   "brief": {
-    "filename": "campaign-brief.md",
+    "filename": "brief.md",
     "text": "brief 原文",
     "summary": "brief 摘要",
     "parse_status": "pending | parsing | parsed | failed",
@@ -141,6 +141,15 @@ expert_suggestions
     "web_snippets": [],
     "wiki_snippets": [],
     "research_summary": "检索归纳，供 Brand Agent 使用",
+    "entity": { "brand_name": "", "product": "", "category": "", "source": "llm | heuristic_fallback" },
+    "trace_run_id": "run_xxx",
+    "traces": [
+      { "kind": "brief_uploaded | pipeline_started | tool_call | tool_result | llm_request | llm_response | pipeline_completed | pipeline_failed",
+        "source": "...",
+        "data": {},
+        "ts": "datetime" }
+    ],
+    "error_message": null,
     "updated_at": "datetime"
   },
   "current_script": {
@@ -725,9 +734,10 @@ brand_research.wiki_snippets（Top-K）
 输入：
 
 ```text
+brand_entity（品牌名 / 品类 / 主推产品，源自 brand_research.entity）
 brief summary
-brand_research（摘要 + 必要片段）
-brand_insights
+brand_research（research_summary + Top-K snippets，带 score / 来源）
+brand_insights（按 显式/隐式/反馈 分组，含 evidence + confidence + created_by）
 user message
 quotes
 related script rows
@@ -739,15 +749,18 @@ conversation summary
 
 ```text
 streaming assistant text
-updated brand_insights（可选）
+optional <brand_insight_proposals> JSON block at end of turn
 ```
 
 写入：
 
-1. `agent_messages`
-2. `project.brand_insights`（初始流水线或对话更新）
-3. `project.brand_research`（仅流水线 / 手动重跑时更新）
+1. `agent_messages`（assistant content **已剥离 proposal marker**）
+2. `project.brand_insights` ← 自动 `create_brand_insight(created_by="agent", status="new")` 解析自 proposal block
+3. `project.brand_research`（仅 BrandBriefPipeline / 手动重跑时更新）
 4. `project.stale.expert = true`
+
+> Proposal block 协议（详见 `backend/app/prompts/brand.md` §结构化新洞察的输出协议）：
+> 模型在自然语言回答后追加 `<brand_insight_proposals>{"items":[...]}</brand_insight_proposals>`；后端用容错正则解析（`insight`/`insights` 拼写、闭合标签缺失均可），从流式输出中实时屏蔽该块、从持久化消息中剥离、并将 items 写入 `brand_insights`。
 
 ### 8.2 Audience Agent
 
@@ -826,14 +839,21 @@ event: token
 data: {"content":"这段脚本"}
 
 event: artifact
-data: {"brand_insights":[...]}
+data: {
+  "type": "brand_insight_proposals",
+  "items": [ { "category": "implicit_requirement", "title": "...", "content": "...", "confidence": "medium", "evidence": [...] } ],
+  "persisted_count": 1,
+  "trace_run_id": "run_xxx"
+}
 
 event: done
-data: {"message_id":"msg_001"}
+data: { "message_id": "msg_001", "proposal_count": 1, "persisted_count": 1 }
 
 event: error
-data: {"message":"LLM 调用失败"}
+data: { "message": "LLM 调用失败" }
 ```
+
+前端在 `done` 收到 `persisted_count > 0` 时应 `fetchProject` 刷新，使 pinned 区立即反映新洞察。
 
 前端处理流程：
 

@@ -145,20 +145,24 @@ BrandVideo/
 ### Phase 3 — Brief + 品牌方 Agent
 
 > 设计细则：`docs/superpowers/specs/2026-05-19-phase-3-brand-agentic-search-design.md`
+> 实施记录：`docs/superpowers/plans/2026-05-19-phase-3-brand.md`
 
-| ID | 任务 |
-|----|------|
-| 3.1 | Brief：**仅上传** `.md` / `.txt` → `project.brief`；**删除** Topbar「粘贴 Brief」 |
-| 3.2 | 文本读取 + `parse_status`；生成 `brief.summary`（8B） |
-| 3.3 | **Agentic Search：** Tavily API + `llm-wiki/brands/{slug}/` 手册检索 → `project.brand_research` |
-| 3.4 | Brief 解析完成后 **自动** 跑品牌流水线：检索归并 → Brand Agent 初始分析（32B）→ 显式/隐式 `brand_insights` |
-| 3.5 | Brand Agent 流式对话 + quote；上下文含 brief 摘要 + `brand_research` + insights |
-| 3.6 | BrandInsight CRUD + pinned 三 tab 可编辑；`evidence.source_type` 支持 `web`、`brand_wiki` |
-| 3.7 | 初始化 `llm-wiki/` 目录与示例品牌手册；`.env` 文档化 `TAVILY_API_KEY` |
+| ID | 任务 | 状态 |
+|----|------|------|
+| 3.1 | Brief：**仅上传** `.md` / `.txt` → `project.brief`；**删除** Topbar「粘贴 Brief」 | ✅ |
+| 3.2 | 文本读取 + `parse_status`；生成 `brief.summary`（首段截取） | ✅ |
+| 3.3 | **Agentic Search：** Tavily API + `llm-wiki/brands/{slug}/` 手册检索 → `project.brand_research` | ✅ |
+| 3.4 | Brief 解析完成后 **自动** 跑品牌流水线：检索归并 → Brand Agent 初始分析（32B）→ 显式/隐式 `brand_insights` | ✅ |
+| 3.5 | Brand Agent 流式对话 + quote；上下文含 `brand_entity` + brief 摘要 + `brand_research` + 已沉淀 `brand_insights`（格式化） | ✅ |
+| 3.6 | BrandInsight CRUD + pinned 三 tab 可编辑；`evidence.source_type` 支持 `web`、`brand_wiki` | ✅ |
+| 3.7 | 初始化 `llm-wiki/` 目录与示例品牌手册；`.env` 文档化 `TAVILY_API_KEY` | ✅ |
+| 3.8 | **可观测性 & 实体抽取**：`TraceRecorder` 写 `brand_research.traces`（brief_uploaded / tool_call / llm_request / llm_response / pipeline_*）；8B 实体抽取驱动 Tavily 多 query（advanced + country=china + score 过滤） | ✅ |
+| 3.9 | **Brand Agent 反向沉淀洞察**：对话产出 `<brand_insight_proposals>` → 后端剥离 + 自动 `create_brand_insight(created_by=agent, status=new)` → SSE `artifact` 触发前端实时刷新 pinned 区 | ✅ |
+| 3.10 | LLM 客户端可配置超时（`SILICONFLOW_CHAT_TIMEOUT=180`、`SILICONFLOW_STREAM_TIMEOUT=300`），异常用 `_describe_exception` 兜底（避免 `ReadTimeout` 空消息吞错） | ✅ |
 
 **验收：** PRD §15.3；§15.2.4–5（品牌侧）；设计文档 §7。
 
-**MVP 明确不做：** PDF/DOC/DOCX/PPT 解析；Brief 粘贴入口。
+**MVP 明确不做：** PDF/DOC/DOCX/PPT 解析；Brief 粘贴入口；trace 的前端时间线 UI（仅暴露在 DB / 日志，前端 pinned 区基于刷新的 project state 已实时反映新洞察）。
 
 ---
 

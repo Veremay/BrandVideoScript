@@ -9,8 +9,22 @@ from app.models.script import now_iso
 from app.repositories.projects import build_brand_insight, filter_insights_preserve_user_and_feedback, get_project
 from app.services.brand_wiki import extract_wiki_snippets, find_brand_slug_from_wiki
 from app.services.llm_client import LLMClient, _describe_exception
-from app.services.tavily_search import tavily_search
+from app.services.tavily_search import tavily_search_many
 from app.services.trace import TraceRecorder
+
+BRAND_EXTRACT_INSTRUCTION = """你是品牌合作 brief 的实体抽取助手。
+从给定 Brief 正文中提取**主品牌名**（合作方品牌，不是创作者 / 平台名）。
+
+只输出一个 JSON 对象，禁止 Markdown / 注释 / 多余字段：
+{"brand_name":"短名称","product":"产品/系列名（可选，没有就空字符串）","category":"产品大类，如 香氛/护肤/数码/服装/咖啡 等，没有就空字符串"}
+
+规则：
+- brand_name 必须是 Brief 中真实出现的实体；优先取 markdown 加粗 `**X**`、`X × Y`、「品牌名：X」等强信号
+- 若 Brief 同时含英文与中文名（如「观夏 To Summer」），brand_name 用中文主名
+- 严禁输出 "brief"、"campaign"、"合作"、文件名片段
+- 严禁编造任何 Brief 未出现的品牌
+"""
+
 
 INSIGHTS_JSON_INSTRUCTION = """你是品牌合作 brief 分析师。根据 Brief 正文、内部品牌手册片段、公开检索摘要，输出显式需求与隐式需求。
 只输出一个 JSON 对象，不要 Markdown，不要解释。格式严格如下：
@@ -32,6 +46,154 @@ def _wiki_root() -> Path:
     if settings.brand_wiki_root.strip():
         return Path(settings.brand_wiki_root).expanduser().resolve()
     return default_llm_wiki_root()
+
+
+_FILENAME_NOISE_RE = re.compile(
+    r"(brief|brand[\s\-_]?brief|合作brief|合作简报|brand|campaign|稿件|稿子|品牌简报)",
+    flags=re.IGNORECASE,
+)
+
+
+def _clean_filename_stem(filename: str | None) -> str:
+    if not filename:
+        return ""
+    stem = Path(filename).stem
+    cleaned = _FILENAME_NOISE_RE.sub("", stem)
+    cleaned = re.sub(r"[\s\-_·.×x✕]+", "", cleaned).strip()
+    return cleaned
+
+
+def _parse_brand_entity_payload(raw: str) -> dict[str, str]:
+    text = raw.strip()
+    fence = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
+    if fence:
+        text = fence.group(1).strip()
+    data = json.loads(text)
+    if not isinstance(data, dict):
+        return {}
+    out: dict[str, str] = {}
+    for key in ("brand_name", "product", "category"):
+        value = data.get(key)
+        if isinstance(value, str):
+            out[key] = value.strip()
+    return out
+
+
+def _looks_like_valid_brand(name: str) -> bool:
+    name = (name or "").strip()
+    if not name or len(name) > 40:
+        return False
+    lower = name.lower()
+    blocklist = {"brief", "brand", "campaign", "合作", "未知", "n/a", "none", "null", ""}
+    if lower in blocklist:
+        return False
+    return bool(re.search(r"[\u4e00-\u9fffA-Za-z]", name))
+
+
+async def _llm_extract_brand_entity(
+    *,
+    brief_text: str,
+    filename: str | None,
+    trace: TraceRecorder | None = None,
+) -> dict[str, str]:
+    """Cheap 8B call to pull brand_name / product / category from the brief. Empty dict on failure."""
+    head = brief_text[:2000]
+    user_content = (
+        f"## 文件名\n{filename or '(无)'}\n\n"
+        f"## Brief 正文（截断 2000 字）\n{head}\n"
+    )
+    client = LLMClient()
+    try:
+        result = await client.chat(
+            messages=[
+                {"role": "system", "content": BRAND_EXTRACT_INSTRUCTION},
+                {"role": "user", "content": user_content},
+            ],
+            task_type="brand_extract_entity",
+            stream=False,
+            complexity="normal",
+            mock=False,
+            trace=trace,
+        )
+    except Exception:
+        return {}
+
+    if result.get("mock"):
+        return {}
+
+    try:
+        choices = result.get("choices") or []
+        message = choices[0].get("message") or {}
+        raw_content = str(message.get("content") or "").strip()
+    except (IndexError, KeyError, TypeError):
+        return {}
+
+    if not raw_content:
+        return {}
+
+    try:
+        return _parse_brand_entity_payload(raw_content)
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return {}
+
+
+def _extract_brand_name(brief_text: str, filename: str | None) -> str:
+    """Best-effort brand entity extraction; runs before LLM to ground search queries."""
+    head = brief_text[:1500]
+
+    for pattern in (
+        r"\*\*([\u4e00-\u9fffA-Za-z][\u4e00-\u9fffA-Za-z0-9\s·\-]{1,30})\s+(?:To|For|×|x)\s+[^*]{1,40}\*\*",
+        r"品牌名[称]?[：:]\s*\*?\*?([\u4e00-\u9fffA-Za-z][\u4e00-\u9fffA-Za-z0-9\s·\-]{1,30})\*?\*?",
+        r"\*\*([\u4e00-\u9fffA-Za-z][\u4e00-\u9fffA-Za-z0-9\s·\-]{1,20})\s+(?:To\s+Summer|官方)",
+        r"\*\*([\u4e00-\u9fff]{2,8})\*\*",
+    ):
+        m = re.search(pattern, head)
+        if m:
+            return m.group(1).strip()
+
+    cleaned = _clean_filename_stem(filename)
+    if cleaned:
+        return cleaned
+
+    for line in head.splitlines():
+        line = line.strip().lstrip("#").strip()
+        if not line or len(line) > 80:
+            continue
+        cn_match = re.search(r"([\u4e00-\u9fff]{2,8})", line)
+        if cn_match and any(kw in line for kw in ("品牌", "合作", "推广", "campaign", "brief")):
+            return cn_match.group(1)
+
+    cn_match = re.search(r"[\u4e00-\u9fff]{2,8}", head)
+    if cn_match:
+        return cn_match.group(0)
+    return "brand"
+
+
+def _build_search_queries(
+    brand_name: str,
+    brief_text: str,
+    *,
+    product: str = "",
+    category: str = "",
+) -> list[str]:
+    head = " ".join(brief_text.split())[:400].lower()
+    product_hint = (product or "").strip()
+    category_hint = (category or "").strip()
+    if not category_hint:
+        for kw in ("香薰", "香氛", "护肤", "美妆", "饮料", "咖啡", "手机", "汽车", "服装", "鞋", "运动", "数码", "家电", "母婴"):
+            if kw in head:
+                category_hint = kw
+                break
+
+    queries = [
+        f"{brand_name} 品牌调性 内容风格",
+        f"{brand_name} 创作者合作 视频内容",
+    ]
+    if category_hint:
+        queries.append(f"{brand_name} {category_hint} 产品定位 用户口碑")
+    if product_hint and product_hint not in queries[0]:
+        queries.append(f"{brand_name} {product_hint} 用户评价")
+    return queries[:4]
 
 
 def _build_research_summary(brief_text: str, wiki_snippets: list[dict], web_snippets: list[dict]) -> str:
@@ -204,6 +366,7 @@ def _brand_research_payload(
     web_snippets: list[dict],
     wiki_snippets: list[dict],
     research_summary: str,
+    entity: dict[str, str] | None = None,
     error_message: str | None = None,
 ) -> dict[str, Any]:
     base = {
@@ -214,6 +377,7 @@ def _brand_research_payload(
         "web_snippets": web_snippets,
         "wiki_snippets": wiki_snippets,
         "research_summary": research_summary,
+        "entity": entity or {},
         "error_message": error_message,
         "updated_at": now_iso(),
     }
@@ -265,19 +429,59 @@ async def run_brand_brief_pipeline(db: Any, project_id: str, user_id: str) -> No
             },
         )
 
+        trace.tool_call("brand_entity_extract", {"filename": filename, "brief_chars": len(brief_text)})
+        entity = await _llm_extract_brand_entity(brief_text=brief_text, filename=filename, trace=trace)
+        llm_brand = entity.get("brand_name", "")
+        if _looks_like_valid_brand(llm_brand):
+            brand_name = llm_brand
+            entity_source = "llm"
+        else:
+            brand_name = _extract_brand_name(brief_text, filename)
+            entity_source = "heuristic_fallback"
+        product = entity.get("product", "")
+        category = entity.get("category", "")
+        trace.tool_result(
+            "brand_entity_extract",
+            {
+                "brand_name": brand_name,
+                "product": product,
+                "category": category,
+                "source": entity_source,
+            },
+        )
+
         queries: list[str] = []
         web_snippets: list[dict[str, Any]] = []
         if settings.tavily_api_key:
-            q = f"{Path(filename).stem if filename else 'brand'} 品牌 brief 调性 合作 视频 要求"
-            queries.append(q)
-            trace.tool_call("tavily_search", {"query": q, "max_results": 5})
+            queries = _build_search_queries(brand_name, brief_text, product=product, category=category)
+            trace.tool_call(
+                "tavily_search",
+                {
+                    "brand_name": brand_name,
+                    "queries": queries,
+                    "search_depth": "advanced",
+                    "country": "china",
+                    "min_score": 0.3,
+                },
+            )
             try:
-                web_snippets = await tavily_search(api_key=settings.tavily_api_key, query=q, max_results=5)
+                web_snippets = await tavily_search_many(
+                    api_key=settings.tavily_api_key,
+                    queries=queries,
+                    max_results_per_query=4,
+                    search_depth="advanced",
+                    country="china",
+                    min_score=0.3,
+                )
+                web_snippets = web_snippets[:6]
                 trace.tool_result(
                     "tavily_search",
                     {
                         "result_count": len(web_snippets),
-                        "titles": [s.get("title") for s in web_snippets[:5]],
+                        "titles": [
+                            {"title": s.get("title"), "score": s.get("score")}
+                            for s in web_snippets[:6]
+                        ],
                     },
                 )
             except Exception as exc:
@@ -292,6 +496,12 @@ async def run_brand_brief_pipeline(db: Any, project_id: str, user_id: str) -> No
 
         research_summary = _build_research_summary(brief_text, wiki_snippets, web_snippets)
         wiki_for_store = [{k: v for k, v in s.items() if k != "score"} for s in wiki_snippets]
+        entity_payload = {
+            "brand_name": brand_name,
+            "product": product,
+            "category": category,
+            "source": entity_source,
+        }
 
         await db.projects.update_one(
             {"_id": project_id, "user_id": user_id},
@@ -306,6 +516,7 @@ async def run_brand_brief_pipeline(db: Any, project_id: str, user_id: str) -> No
                         web_snippets=web_snippets,
                         wiki_snippets=wiki_for_store,
                         research_summary=research_summary,
+                        entity=entity_payload,
                     ),
                     "updated_at": now_iso(),
                 }
@@ -356,6 +567,7 @@ async def run_brand_brief_pipeline(db: Any, project_id: str, user_id: str) -> No
                         web_snippets=web_snippets,
                         wiki_snippets=wiki_for_store,
                         research_summary=research_summary,
+                        entity=entity_payload,
                     ),
                     "stale.brand": False,
                     "stale.expert": True,
