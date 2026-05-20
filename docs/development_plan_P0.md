@@ -280,11 +280,11 @@ BrandVideo/
 
 ### 8.5 Phase 5 — 专家（PRD §15.5）
 
-- [ ] 多方案 + 理由/trade-off
-- [ ] Diff 预览 + 逐段应用
-- [ ] 仅应用已接受 hunk
-- [ ] apply 后脚本更新 + snapshot
-- [ ] 可回退 snapshot
+- [x] 多方案 + 理由/trade-off
+- [x] Diff 预览 + 逐段应用
+- [x] 仅应用已接受 hunk
+- [x] apply 后脚本更新 + snapshot
+- [x] 可回退 snapshot
 
 ---
 

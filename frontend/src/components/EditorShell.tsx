@@ -1178,6 +1178,7 @@ function DiffOverlayContainer() {
   const suggestion = project.expert_suggestions.find((item) => item.suggestion_id === expert.activeSuggestionId);
   if (!suggestion) return null;
 
+  const suggestionId = suggestion.suggestion_id;
   const columnLabel = useColumnLabelLookup(project.current_script);
   const acceptedIds = suggestion.hunks.filter((hunk) => expert.hunkState[hunk.hunk_id] === true).map((hunk) => hunk.hunk_id);
   const rejectedIds = suggestion.hunks.filter((hunk) => expert.hunkState[hunk.hunk_id] === false).map((hunk) => hunk.hunk_id);
@@ -1191,7 +1192,7 @@ function DiffOverlayContainer() {
     }
     setSubmitting(true);
     try {
-      const result = await applyExpertSuggestion(project._id, project.user_id, suggestion.suggestion_id, {
+      const result = await applyExpertSuggestion(project._id, project.user_id, suggestionId, {
         accepted_hunk_ids: acceptedIds,
         rejected_hunk_ids: rejectedIds
       });
