@@ -168,6 +168,65 @@ export type AudienceAnalysis = {
   updated_at?: string;
 };
 
+export type ExpertDirection = "brand_first" | "audience_natural" | "balanced" | "creator_expression" | "custom";
+export type ExpertSuggestionStatus = "draft" | "applied" | "partially_applied" | "dismissed";
+
+export type ExpertHunk = {
+  hunk_id: string;
+  row_id: string;
+  column_id: string;
+  old: string;
+  new: string;
+  reason: string;
+};
+
+export type ExpertSuggestion = {
+  suggestion_id: string;
+  title: string;
+  direction: ExpertDirection;
+  description: string;
+  target_problem: string;
+  rationale: string;
+  brand_tradeoff: string;
+  audience_tradeoff: string;
+  creator_tradeoff: string;
+  risk: string;
+  explanation_to_brand: string;
+  hunks: ExpertHunk[];
+  based_on_brand_insight_ids: string[];
+  based_on_audience_analysis_id: string | null;
+  status: ExpertSuggestionStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ScriptSnapshotReason =
+  | "manual_save"
+  | "before_expert_apply"
+  | "after_expert_apply"
+  | "before_restore"
+  | "import";
+
+export type ScriptSnapshotSummary = {
+  _id: string;
+  project_id: string;
+  user_id: string;
+  reason: ScriptSnapshotReason;
+  suggestion_id: string | null;
+  applied_hunk_ids: string[];
+  created_at: string;
+};
+
+export type ExpertApplyResult = {
+  project: Project;
+  applied_hunk_ids: string[];
+  skipped_hunk_ids: string[];
+  conflict_hunk_ids: string[];
+  before_snapshot_id: string | null;
+  after_snapshot_id: string | null;
+  applied_hunk_count: number;
+};
+
 export type Project = {
   _id: string;
   user_id: string;
@@ -179,7 +238,7 @@ export type Project = {
   personas: Persona[];
   active_persona_id: string | null;
   audience_analysis: AudienceAnalysis;
-  expert_suggestions: Array<Record<string, unknown>>;
+  expert_suggestions: ExpertSuggestion[];
   stale: Record<AgentType, boolean>;
   created_at: string;
   updated_at: string;

@@ -6,9 +6,13 @@ import type {
   BrandInsightCategory,
   BrandInsightConfidence,
   BrandInsightStatus,
+  ExpertApplyResult,
+  ExpertSuggestion,
+  ExpertSuggestionStatus,
   PersonaAdSensitivity,
   Project,
-  Script
+  Script,
+  ScriptSnapshotSummary
 } from "@/lib/types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
@@ -225,6 +229,55 @@ export async function fetchAgentMessages(projectId: string, userId: string, agen
   return data.messages;
 }
 
+export async function applyExpertSuggestion(
+  projectId: string,
+  userId: string,
+  suggestionId: string,
+  payload: { accepted_hunk_ids: string[]; rejected_hunk_ids: string[] }
+): Promise<ExpertApplyResult> {
+  return request(`/projects/${projectId}/expert-suggestions/${suggestionId}/apply`, {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId, ...payload })
+  });
+}
+
+export async function updateExpertSuggestionStatus(
+  projectId: string,
+  userId: string,
+  suggestionId: string,
+  status: ExpertSuggestionStatus
+): Promise<Project> {
+  return request(`/projects/${projectId}/expert-suggestions/${suggestionId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ user_id: userId, status })
+  });
+}
+
+export async function listScriptSnapshots(projectId: string, userId: string): Promise<ScriptSnapshotSummary[]> {
+  const data = await request<{ snapshots: ScriptSnapshotSummary[] }>(
+    `/projects/${projectId}/script/snapshots?user_id=${encodeURIComponent(userId)}`
+  );
+  return data.snapshots;
+}
+
+export async function saveScriptSnapshot(projectId: string, userId: string): Promise<ScriptSnapshotSummary> {
+  return request(`/projects/${projectId}/script/snapshots`, {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId, reason: "manual_save" })
+  });
+}
+
+export async function restoreScriptSnapshot(
+  projectId: string,
+  userId: string,
+  snapshotId: string
+): Promise<Project> {
+  return request(`/projects/${projectId}/script/snapshots/${snapshotId}/restore`, {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId })
+  });
+}
+
 export type BrandInsightProposalItem = {
   category: BrandInsightCategory;
   title: string;
@@ -250,13 +303,24 @@ export type AudienceAnalysisArtifact = {
   trace_run_id?: string;
 };
 
-export type AgentStreamArtifact = BrandInsightProposalsArtifact | AudienceAnalysisArtifact;
+export type ExpertSuggestionsArtifact = {
+  type: "expert_suggestions";
+  items: ExpertSuggestion[];
+  persisted_count?: number;
+  trace_run_id?: string;
+};
+
+export type AgentStreamArtifact =
+  | BrandInsightProposalsArtifact
+  | AudienceAnalysisArtifact
+  | ExpertSuggestionsArtifact;
 
 export type AgentStreamDoneInfo = {
   messageId: string;
   proposalCount: number;
   persistedCount: number;
   analysisPersisted: boolean;
+  suggestionsPersistedCount: number;
 };
 
 type StreamHandlers = {
@@ -312,6 +376,13 @@ export async function streamAgentMessage(
             persisted: parsed.persisted,
             trace_run_id: parsed.trace_run_id
           });
+        } else if (parsed.type === "expert_suggestions") {
+          handlers.onArtifact?.({
+            type: "expert_suggestions",
+            items: (parsed.items ?? []) as ExpertSuggestion[],
+            persisted_count: parsed.persisted_count,
+            trace_run_id: parsed.trace_run_id
+          });
         } else {
           handlers.onArtifact?.({
             type: "brand_insight_proposals",
@@ -326,7 +397,8 @@ export async function streamAgentMessage(
           messageId: parsed.message_id ?? "",
           proposalCount: parsed.proposal_count ?? 0,
           persistedCount: parsed.persisted_count ?? 0,
-          analysisPersisted: parsed.analysis_persisted ?? false
+          analysisPersisted: parsed.analysis_persisted ?? false,
+          suggestionsPersistedCount: parsed.suggestions_persisted_count ?? 0
         });
       }
       if (event === "error") handlers.onError(parsed.message ?? "Agent stream failed");

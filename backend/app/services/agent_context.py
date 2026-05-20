@@ -197,17 +197,147 @@ def format_audience_analysis_existing(project: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
+def format_audience_analysis_detail(project: dict[str, Any]) -> str:
+    """Detailed audience snapshot for Expert Agent: scores + liked/rejected rows + suggestions."""
+    analysis = project.get("audience_analysis") or {}
+    if not isinstance(analysis, dict) or not analysis.get("updated_at"):
+        return "（暂无观众分析。请引导用户先到观众 Agent 跑一轮分析。）"
+
+    parts: list[str] = []
+    persona_name = (analysis.get("persona_name") or "").strip() or "（persona 名称缺失）"
+    parts.append(f"- persona：{persona_name}")
+    parts.append(f"- 基于脚本快照：{analysis.get('based_on_script_updated_at') or '未知'}")
+    summary = (analysis.get("summary") or "").strip()
+    if summary:
+        parts.append(f"- 摘要：{summary}")
+    for label, key in (
+        ("自然度", "naturalness_score"),
+        ("可信度", "credibility_score"),
+        ("广告感", "ad_sensitivity_score"),
+    ):
+        score = analysis.get(key)
+        if isinstance(score, int):
+            parts.append(f"- {label}：{score}/5")
+
+    def _rows_block(label: str, key: str) -> None:
+        items = [r for r in (analysis.get(key) or []) if isinstance(r, dict) and r.get("row_id")]
+        if not items:
+            return
+        parts.append(f"- {label}：")
+        for entry in items[:6]:
+            row_id = entry.get("row_id") or ""
+            reason = (entry.get("reason") or "").strip()
+            parts.append(f"  - {row_id}：{reason}" if reason else f"  - {row_id}")
+
+    _rows_block("观众喜欢的片段", "liked_parts")
+    _rows_block("观众反感的片段", "rejected_parts")
+
+    risks = [r for r in (analysis.get("key_risks") or []) if isinstance(r, str) and r.strip()]
+    if risks:
+        parts.append("- 关键风险：")
+        for risk in risks[:6]:
+            parts.append(f"  - {risk}")
+
+    suggestions = [s for s in (analysis.get("suggestions") or []) if isinstance(s, str) and s.strip()]
+    if suggestions:
+        parts.append("- 已有建议：")
+        for suggestion in suggestions[:6]:
+            parts.append(f"  - {suggestion}")
+
+    return "\n".join(parts)
+
+
+def build_script_cell_lookup(script: dict[str, Any]) -> tuple[dict[tuple[str, str], str], dict[str, dict[str, Any]]]:
+    """Return ((row_id, column_id) → current value) and (column_id → metadata) maps for parser usage."""
+    cells: dict[tuple[str, str], str] = {}
+    for row in script.get("rows", []) or []:
+        row_id = str(row.get("row_id") or "")
+        if not row_id:
+            continue
+        for cell in row.get("cells", []) or []:
+            column_id = str(cell.get("column_id") or "")
+            if not column_id:
+                continue
+            value = cell.get("value")
+            cells[(row_id, column_id)] = "" if value is None else str(value)
+
+    columns: dict[str, dict[str, Any]] = {}
+    for column in script.get("columns", []) or []:
+        column_id = str(column.get("column_id") or "")
+        if not column_id:
+            continue
+        columns[column_id] = {
+            "label": column.get("label") or column_id,
+            "type": column.get("type") or "text",
+            "key": column.get("key") or column_id,
+        }
+    return cells, columns
+
+
+def format_script_cells(script: dict[str, Any], *, max_chars: int = 240) -> str:
+    """Row/column anchored cell listing. Expert Agent uses row_id/column_id as anchors for hunks."""
+    columns_meta: dict[str, dict[str, Any]] = {}
+    for column in script.get("columns", []) or []:
+        column_id = column.get("column_id")
+        if not column_id:
+            continue
+        columns_meta[column_id] = column
+
+    ordered_columns = sorted(columns_meta.values(), key=lambda col: col.get("order", 0))
+    rows = sorted(
+        (row for row in (script.get("rows", []) or []) if isinstance(row, dict)),
+        key=lambda row: row.get("order", 0),
+    )
+
+    lines: list[str] = []
+    for row in rows:
+        row_id = row.get("row_id")
+        if not row_id:
+            continue
+        cells_by_column = {cell.get("column_id"): cell.get("value", "") for cell in row.get("cells", []) or []}
+        for column in ordered_columns:
+            column_id = column.get("column_id")
+            if not column_id:
+                continue
+            value_raw = cells_by_column.get(column_id, "")
+            value = "" if value_raw is None else str(value_raw)
+            displayed = value
+            if len(displayed) > max_chars:
+                displayed = displayed[:max_chars] + "…"
+            displayed = displayed.replace("\n", "\\n")
+            label = column.get("label") or column.get("key") or column_id
+            column_type = column.get("type") or "text"
+            lines.append(f"- {row_id} / {column_id}「{label}」({column_type}): {displayed}")
+
+    return "\n".join(lines) if lines else "（当前脚本为空。）"
+
+
+def list_brand_insight_ids(project: dict[str, Any]) -> list[str]:
+    return [str(item.get("insight_id")) for item in (project.get("brand_insights") or []) if item.get("insight_id")]
+
+
+def latest_audience_analysis_id(project: dict[str, Any]) -> str | None:
+    analysis = project.get("audience_analysis") or {}
+    if not isinstance(analysis, dict):
+        return None
+    analysis_id = analysis.get("analysis_id")
+    return str(analysis_id) if analysis_id else None
+
+
 def build_prompt_variables(project: dict[str, Any], recent_messages: list[dict[str, Any]], quotes: list[dict[str, Any]]) -> dict[str, str]:
     research_summary, research_snippets = format_brand_research(project)
     persona_name = get_active_persona_name(project)
+    current_script = project.get("current_script", {}) or {}
     return {
         "brief_summary": project.get("brief", {}).get("summary") or "无。",
-        "script_summary": summarize_script(project.get("current_script", {})),
+        "script_summary": summarize_script(current_script),
+        "script_cells": format_script_cells(current_script),
         "recent_messages": format_recent_messages(recent_messages),
         "quotes": format_quotes(quotes),
         "active_persona": format_active_persona(project),
         "persona_name": persona_name,
         "audience_analysis_existing": format_audience_analysis_existing(project),
+        "audience_analysis_detail": format_audience_analysis_detail(project),
         "brand_entity": format_brand_entity(project),
         "brand_insights": format_brand_insights(project),
         "audience_analysis": str(project.get("audience_analysis") or {}),

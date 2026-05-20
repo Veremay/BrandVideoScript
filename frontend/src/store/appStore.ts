@@ -3,7 +3,15 @@
 import { create } from "zustand";
 
 import { insertColumn, insertRow, removeColumn, removeRow, renameColumn, updateCellValue } from "@/lib/scriptEditor";
-import type { AgentMessage, AgentType, BrandInsightCategory, Project, SaveStatus, Script } from "@/lib/types";
+import type {
+  AgentMessage,
+  AgentType,
+  BrandInsightCategory,
+  Project,
+  SaveStatus,
+  Script,
+  ScriptSnapshotSummary
+} from "@/lib/types";
 
 export type PersonaModalState = {
   mode: "create" | "edit";
@@ -46,6 +54,14 @@ type AppState = {
     diffOverlayOpen: boolean;
     hunkState: Record<string, true | false | null>;
     streaming: boolean;
+    conflicts: string[];
+    lastApplyToast?: { tone: "success" | "warning" | "error"; message: string };
+  };
+  snapshots: {
+    open: boolean;
+    items: ScriptSnapshotSummary[];
+    loading: boolean;
+    error?: string;
   };
   agentChats: Record<AgentType, AgentChatState>;
   setUserId: (userId?: string) => void;
@@ -70,6 +86,17 @@ type AppState = {
   appendAssistantToken: (agent: AgentType, messageId: string, token: string) => void;
   setAgentStreaming: (agent: AgentType, streaming: boolean) => void;
   setAgentError: (agent: AgentType, error?: string) => void;
+  openDiffOverlay: (suggestionId: string) => void;
+  closeDiffOverlay: () => void;
+  setHunkState: (hunkId: string, value: true | false | null) => void;
+  setAllHunks: (hunkIds: string[], value: true | false | null) => void;
+  resetHunkState: () => void;
+  setExpertConflicts: (hunkIds: string[]) => void;
+  setExpertApplyToast: (toast?: { tone: "success" | "warning" | "error"; message: string }) => void;
+  setSnapshotsOpen: (open: boolean) => void;
+  setSnapshots: (items: ScriptSnapshotSummary[]) => void;
+  setSnapshotsLoading: (loading: boolean) => void;
+  setSnapshotsError: (error?: string) => void;
 };
 
 export const useAppStore = create<AppState>((set) => ({
@@ -94,7 +121,13 @@ export const useAppStore = create<AppState>((set) => ({
   expert: {
     diffOverlayOpen: false,
     hunkState: {},
-    streaming: false
+    streaming: false,
+    conflicts: []
+  },
+  snapshots: {
+    open: false,
+    items: [],
+    loading: false
   },
   agentChats: {
     brand: { messages: [], streaming: false },
@@ -242,5 +275,54 @@ export const useAppStore = create<AppState>((set) => ({
         ...state.agentChats,
         [agent]: { ...state.agentChats[agent], error }
       }
-    }))
+    })),
+  openDiffOverlay: (suggestionId) =>
+    set((state) => ({
+      expert: {
+        ...state.expert,
+        diffOverlayOpen: true,
+        activeSuggestionId: suggestionId,
+        hunkState: {},
+        conflicts: [],
+        lastApplyToast: undefined
+      }
+    })),
+  closeDiffOverlay: () =>
+    set((state) => ({
+      expert: {
+        ...state.expert,
+        diffOverlayOpen: false,
+        hunkState: {},
+        conflicts: []
+      }
+    })),
+  setHunkState: (hunkId, value) =>
+    set((state) => ({
+      expert: {
+        ...state.expert,
+        hunkState: { ...state.expert.hunkState, [hunkId]: value }
+      }
+    })),
+  setAllHunks: (hunkIds, value) =>
+    set((state) => {
+      const next = { ...state.expert.hunkState };
+      for (const hunkId of hunkIds) {
+        next[hunkId] = value;
+      }
+      return { expert: { ...state.expert, hunkState: next } };
+    }),
+  resetHunkState: () =>
+    set((state) => ({ expert: { ...state.expert, hunkState: {}, conflicts: [] } })),
+  setExpertConflicts: (hunkIds) =>
+    set((state) => ({ expert: { ...state.expert, conflicts: hunkIds } })),
+  setExpertApplyToast: (toast) =>
+    set((state) => ({ expert: { ...state.expert, lastApplyToast: toast } })),
+  setSnapshotsOpen: (open) =>
+    set((state) => ({ snapshots: { ...state.snapshots, open } })),
+  setSnapshots: (items) =>
+    set((state) => ({ snapshots: { ...state.snapshots, items } })),
+  setSnapshotsLoading: (loading) =>
+    set((state) => ({ snapshots: { ...state.snapshots, loading } })),
+  setSnapshotsError: (error) =>
+    set((state) => ({ snapshots: { ...state.snapshots, error } }))
 }));

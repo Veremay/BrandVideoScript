@@ -266,6 +266,143 @@ class AgentStreamTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(events[0].startswith("event: error"))
         save_analysis.assert_not_awaited()
 
+    async def _collect_expert(
+        self,
+        chunks: list[str],
+        *,
+        project: dict | None = None,
+    ) -> tuple[list[str], AsyncMock]:
+        from app.services.agent_stream import stream_agent_response
+
+        fake_stream = _FakeStream(chunks)
+        save_suggestions_mock = AsyncMock(return_value=_expert_project_stub())
+        stub_project = project if project is not None else _expert_project_stub()
+        with (
+            patch("app.services.agent_stream.get_project", new=AsyncMock(return_value=stub_project)),
+            patch("app.services.agent_stream.list_agent_messages", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_stream.create_agent_message",
+                new=AsyncMock(return_value={"_id": "msg_expert"}),
+            ),
+            patch(
+                "app.services.agent_stream.save_expert_suggestions",
+                new=save_suggestions_mock,
+            ),
+            patch("app.services.agent_stream.PromptLoader") as MockLoader,
+            patch("app.services.agent_stream.LLMClient") as MockClient,
+        ):
+            MockLoader.return_value.render.return_value = "system"
+            MockClient.return_value.stream_chat = fake_stream
+            events = [
+                event
+                async for event in stream_agent_response(
+                    AsyncMock(),
+                    project_id="p1",
+                    user_id="u1",
+                    agent_type="expert",
+                    content="给我两个修改方向",
+                    quotes=[],
+                )
+            ]
+        return events, save_suggestions_mock
+
+    async def test_expert_agent_persists_suggestions_artifact(self):
+        chunks = [
+            "本轮聚焦中段广告感，",
+            "提供 1 个方案。\n\n",
+            "<expert_suggestions>",
+            '{"items":[{"title":"强化真实感","direction":"balanced",',
+            '"description":"用具体细节替换抽象表达","target_problem":"广告感偏强",',
+            '"rationale":"audience score 4","brand_tradeoff":"卖点不变",',
+            '"audience_tradeoff":"提升可信度","creator_tradeoff":"需要补充细节",',
+            '"risk":"细节若不真实易被识别","explanation_to_brand":"用具体细节解释卖点",',
+            '"hunks":[{"row_id":"row_1","column_id":"col_scene",',
+            '"old":"原始画面","new":"上班通勤场景下的画面","reason":"用具体场景"}]}]}',
+            "</expert_suggestions>",
+        ]
+        events, save_suggestions = await self._collect_expert(chunks)
+
+        token_text = "".join(
+            json.loads(e.split("data: ", 1)[1])["content"]
+            for e in events
+            if e.startswith("event: token")
+        )
+        self.assertIn("中段广告感", token_text)
+        self.assertNotIn("expert_suggestions", token_text)
+        self.assertNotIn("brand_tradeoff", token_text)
+
+        artifact_event = next(e for e in events if e.startswith("event: artifact"))
+        artifact_payload = json.loads(artifact_event.split("data: ", 1)[1])
+        self.assertEqual(artifact_payload["type"], "expert_suggestions")
+        self.assertEqual(artifact_payload["persisted_count"], 1)
+        items = artifact_payload["items"]
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["title"], "强化真实感")
+        self.assertEqual(items[0]["hunks"][0]["row_id"], "row_1")
+        self.assertTrue(items[0]["hunks"][0]["hunk_id"].startswith("hunk_"))
+
+        save_suggestions.assert_awaited_once()
+        call_kwargs = save_suggestions.await_args.kwargs
+        self.assertEqual(call_kwargs["based_on_brand_insight_ids"], [])
+        self.assertIsNone(call_kwargs["based_on_audience_analysis_id"])
+
+        done_event = next(e for e in events if e.startswith("event: done"))
+        done_payload = json.loads(done_event.split("data: ", 1)[1])
+        self.assertEqual(done_payload["suggestions_persisted_count"], 1)
+        self.assertEqual(done_payload["message_id"], "msg_expert")
+
+    async def test_expert_agent_drops_hunk_with_mismatched_old(self):
+        chunks = [
+            "正文内容。\n\n",
+            "<expert_suggestions>",
+            '{"items":[{"title":"无效方案","direction":"balanced","description":"d",',
+            '"target_problem":"t","rationale":"r","brand_tradeoff":"b",',
+            '"audience_tradeoff":"a","creator_tradeoff":"c","risk":"risk",',
+            '"explanation_to_brand":"exp",',
+            '"hunks":[{"row_id":"row_1","column_id":"col_scene",',
+            '"old":"完全不一致的旧文","new":"新文","reason":"x"}]}]}',
+            "</expert_suggestions>",
+        ]
+        events, save_suggestions = await self._collect_expert(chunks)
+        self.assertFalse(any(e.startswith("event: artifact") for e in events))
+        save_suggestions.assert_not_awaited()
+        done_event = next(e for e in events if e.startswith("event: done"))
+        done_payload = json.loads(done_event.split("data: ", 1)[1])
+        self.assertEqual(done_payload["suggestions_persisted_count"], 0)
+
+    async def test_expert_agent_without_marker_skips_persist(self):
+        chunks = ["我先帮你分析一下问题，", "等你确认后再生成方案。"]
+        events, save_suggestions = await self._collect_expert(chunks)
+        self.assertFalse(any(e.startswith("event: artifact") for e in events))
+        save_suggestions.assert_not_awaited()
+
+
+def _expert_project_stub() -> dict:
+    project = _project_stub()
+    project["current_script"] = {
+        "columns": [
+            {"column_id": "col_duration", "label": "时长", "type": "duration", "multiline": False, "order": 0},
+            {"column_id": "col_scene", "label": "画面", "type": "textarea", "multiline": True, "order": 1},
+            {"column_id": "col_notes", "label": "备注", "type": "text", "multiline": False, "order": 2},
+        ],
+        "rows": [
+            {
+                "row_id": "row_1",
+                "order": 0,
+                "cells": [
+                    {"column_id": "col_duration", "value": "0-5"},
+                    {"column_id": "col_scene", "value": "原始画面"},
+                    {"column_id": "col_notes", "value": "原始备注"},
+                ],
+            },
+        ],
+        "updated_at": "2026-05-19T00:00:00+00:00",
+    }
+    project["expert_suggestions"] = []
+    project["brand_insights"] = []
+    project["audience_analysis"] = {}
+    return project
+
 
 if __name__ == "__main__":
     unittest.main()

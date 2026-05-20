@@ -2,20 +2,27 @@ from collections.abc import AsyncIterator
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app.models.script import new_id
 from app.repositories.agent_messages import create_agent_message, list_agent_messages
 from app.repositories.projects import (
     build_audience_analysis,
+    build_expert_suggestion,
     create_brand_insight,
     get_project,
     save_audience_analysis,
+    save_expert_suggestions,
 )
 from app.services.agent_context import (
     build_agent_chat_messages,
     build_prompt_variables,
+    build_script_cell_lookup,
     get_active_persona,
+    latest_audience_analysis_id,
+    list_brand_insight_ids,
 )
 from app.services import audience_analysis_proposals as audience_marker
 from app.services import brand_insight_proposals as brand_marker
+from app.services import expert_suggestion_proposals as expert_marker
 from app.services.llm_client import LLMClient
 from app.services.prompt_loader import PromptLoader
 from app.services.sse import encode_sse
@@ -25,12 +32,16 @@ from app.services.trace import TraceRecorder
 TASK_TYPES = {
     "brand": "brand_chat",
     "audience": "audience_chat",
-    "expert": "expert_chat",
+    "expert": "expert_generate_suggestions",
 }
 
 # Hold the longest possible literal marker prefix so partial artefact markers never
 # reach the frontend before we can suppress them.
-_HOLD_TAIL = max(brand_marker.MAX_MARKER_LEN, audience_marker.MAX_MARKER_LEN)
+_HOLD_TAIL = max(
+    brand_marker.MAX_MARKER_LEN,
+    audience_marker.MAX_MARKER_LEN,
+    expert_marker.MAX_MARKER_LEN,
+)
 
 
 def _find_marker_start_for(agent_type: str, text: str) -> int:
@@ -38,6 +49,8 @@ def _find_marker_start_for(agent_type: str, text: str) -> int:
         return brand_marker.find_marker_start(text)
     if agent_type == "audience":
         return audience_marker.find_marker_start(text)
+    if agent_type == "expert":
+        return expert_marker.find_marker_start(text)
     return -1
 
 
@@ -213,6 +226,90 @@ async def stream_agent_response(
                 },
             )
         done_payload["analysis_persisted"] = analysis_persisted
+
+    elif agent_type == "expert":
+        current_script = project.get("current_script", {}) or {}
+        allowed_cells, columns_meta = build_script_cell_lookup(current_script)
+        forbidden_columns = {
+            column_id
+            for column_id, meta in columns_meta.items()
+            if (meta.get("type") or "").lower() == "duration"
+        }
+
+        suggestion_items = (
+            expert_marker.parse_suggestion_items(
+                full,
+                allowed_cells=allowed_cells,
+                forbidden_columns=forbidden_columns,
+            )
+            if marker_idx >= 0
+            else []
+        )
+        assistant_content = (
+            expert_marker.strip_proposal_block(full).strip() if marker_idx >= 0 else full.strip()
+        )
+
+        suggestions: list[dict] = []
+        persisted_count = 0
+        for item in suggestion_items:
+            seen_cells: set[tuple[str, str]] = set()
+            hunks: list[dict] = []
+            for hunk in item["hunks"]:
+                cell_key = (hunk["row_id"], hunk["column_id"])
+                if cell_key in seen_cells:
+                    continue
+                seen_cells.add(cell_key)
+                hunks.append(
+                    {
+                        "hunk_id": new_id("hunk"),
+                        "row_id": hunk["row_id"],
+                        "column_id": hunk["column_id"],
+                        "old": hunk["old"],
+                        "new": hunk["new"],
+                        "reason": hunk.get("reason", ""),
+                    }
+                )
+            if not hunks:
+                continue
+            try:
+                suggestion = build_expert_suggestion(
+                    title=item["title"],
+                    direction=item["direction"],
+                    description=item.get("description", ""),
+                    target_problem=item.get("target_problem", ""),
+                    rationale=item.get("rationale", ""),
+                    brand_tradeoff=item.get("brand_tradeoff", ""),
+                    audience_tradeoff=item.get("audience_tradeoff", ""),
+                    creator_tradeoff=item.get("creator_tradeoff", ""),
+                    risk=item.get("risk", ""),
+                    explanation_to_brand=item.get("explanation_to_brand", ""),
+                    hunks=hunks,
+                )
+            except ValueError:
+                continue
+            suggestions.append(suggestion)
+
+        if suggestions:
+            await save_expert_suggestions(
+                db,
+                project_id,
+                user_id,
+                suggestions,
+                based_on_brand_insight_ids=list_brand_insight_ids(project),
+                based_on_audience_analysis_id=latest_audience_analysis_id(project),
+            )
+            persisted_count = len(suggestions)
+
+            yield encode_sse(
+                "artifact",
+                {
+                    "type": "expert_suggestions",
+                    "items": suggestions,
+                    "persisted_count": persisted_count,
+                    "trace_run_id": trace.run_id,
+                },
+            )
+        done_payload["suggestions_persisted_count"] = persisted_count
 
     else:
         assistant_content = full.strip()

@@ -4,17 +4,21 @@ import { useEffect, useRef, useState } from "react";
 
 import { ScriptGrid } from "@/components/ScriptGrid";
 import {
+  applyExpertSuggestion,
   createBrandInsight,
   createPersona,
   deleteBrandInsight,
   deletePersona,
   fetchAgentMessages,
   fetchProject,
+  listScriptSnapshots,
+  restoreScriptSnapshot,
   saveBrief,
   saveScript,
   setActivePersona,
   streamAgentMessage,
   updateBrandInsight,
+  updateExpertSuggestionStatus,
   updatePersona,
   type PersonaInput
 } from "@/lib/api";
@@ -27,9 +31,14 @@ import type {
   BrandInsightCategory,
   BrandInsightConfidence,
   BrandInsightStatus,
+  ExpertDirection,
+  ExpertHunk,
+  ExpertSuggestion,
   Persona,
   PersonaAdSensitivity,
-  Project
+  Project,
+  Script,
+  ScriptSnapshotSummary
 } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
 
@@ -84,12 +93,16 @@ export function EditorShell() {
     layout,
     project,
     script,
+    expert,
     setAgentColumnWidth,
     setBrandPinnedTab,
     setProject,
     setSaveStatus,
     setUserId,
-    openPanel
+    openPanel,
+    openDiffOverlay,
+    setSnapshotsOpen,
+    setExpertApplyToast
   } = useAppStore();
   const hasHydrated = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -211,9 +224,26 @@ export function EditorShell() {
         <div className="topbar-sep" />
         <input className="topbar-project-input" value={project.title} readOnly aria-label="项目名称" />
         <div className="topbar-spacer" />
-        <button className="topbar-btn" type="button">
+        <button
+          className="topbar-btn"
+          onClick={() => {
+            const candidate = pickLatestPreviewableSuggestion(project);
+            if (!candidate) {
+              setExpertApplyToast({ tone: "warning", message: "暂无可预览的专家方案，请先让专家 Agent 生成方案。" });
+              window.setTimeout(() => setExpertApplyToast(undefined), 4000);
+              return;
+            }
+            openPanel("expert");
+            openDiffOverlay(candidate.suggestion_id);
+          }}
+          type="button"
+        >
           <IconEye />
           预览修改稿
+        </button>
+        <button className="topbar-btn" onClick={() => setSnapshotsOpen(true)} type="button">
+          <IconHistory />
+          版本
         </button>
         <div className={`status-pill status-${statusClass(editor.saveStatus)}`}>● {statusLabel(editor.saveStatus)}</div>
         <button className="topbar-btn" onClick={handleLogout} type="button">
@@ -265,8 +295,21 @@ export function EditorShell() {
         })}
       </aside>
       <PersonaModalContainer />
+      <DiffOverlayContainer />
+      <SnapshotsDrawer />
+      {expert.lastApplyToast ? (
+        <div className={`apply-toast apply-toast-${expert.lastApplyToast.tone}`} role="status">
+          {expert.lastApplyToast.message}
+        </div>
+      ) : null}
     </main>
   );
+}
+
+function pickLatestPreviewableSuggestion(project: Project): ExpertSuggestion | null {
+  const drafts = project.expert_suggestions.filter((item) => item.status === "draft" || item.status === "partially_applied");
+  if (drafts.length === 0) return null;
+  return [...drafts].sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1))[0];
 }
 
 function AgentBody({ agent, selectedText }: { agent: AgentType; selectedText?: string }) {
@@ -336,29 +379,11 @@ function AgentBody({ agent, selectedText }: { agent: AgentType; selectedText?: s
     return <AudiencePanel project={project} selectedText={selectedText} />;
   }
 
-  return (
-    <div className="panel-body">
-      <div className="chat-area compact">
-        <div className="msg msg-agent">已综合品牌方与观众反馈，生成两个修改方向，预览后可进入 Diff 确认。</div>
-      </div>
-      <div className="proposals">
-        <div className="proposal-card">
-          <div className="proposal-top">
-            <span className="proposal-title">方向一：强化真实感</span>
-            <span className="proposal-rec">推荐</span>
-          </div>
-          <div className="proposal-desc">把抽象表达改成账单、路况、缺点等具体细节，提高可信度。</div>
-          <div className="proposal-actions">
-            <button className="prop-btn prop-btn-primary" type="button">
-              <IconEye />
-              预览修改
-            </button>
-          </div>
-        </div>
-      </div>
-      <AgentChat agent="expert" selectedText={selectedText} placeholder="向专家 Agent 提问..." />
-    </div>
-  );
+  if (agent === "expert" && project) {
+    return <ExpertPanel project={project} selectedText={selectedText} />;
+  }
+
+  return null;
 }
 
 function PinnedItem({ insight, mark }: { insight: BrandInsight; mark: string }) {
@@ -532,10 +557,14 @@ function AgentChat({ agent, selectedText, placeholder }: { agent: AgentType; sel
             if (artifact.type === "audience_analysis" && artifact.persisted) {
               shouldRefresh = true;
             }
+            if (artifact.type === "expert_suggestions" && (artifact.persisted_count ?? 0) > 0) {
+              shouldRefresh = true;
+            }
           },
-          onDone: async ({ persistedCount, analysisPersisted }) => {
+          onDone: async ({ persistedCount, analysisPersisted, suggestionsPersistedCount }) => {
             setAgentStreaming(agent, false);
-            const needsRefresh = shouldRefresh || persistedCount > 0 || analysisPersisted;
+            const needsRefresh =
+              shouldRefresh || persistedCount > 0 || analysisPersisted || suggestionsPersistedCount > 0;
             const [messages, refreshed] = await Promise.all([
               fetchAgentMessages(project._id, project.user_id, agent),
               needsRefresh ? fetchProject(project._id, project.user_id) : Promise.resolve(null)
@@ -974,6 +1003,455 @@ function PersonaModal({
   );
 }
 
+function ExpertPanel({ project, selectedText }: { project: Project; selectedText?: string }) {
+  const { openDiffOverlay, setProject, setExpertApplyToast } = useAppStore();
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const sorted = [...project.expert_suggestions].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+
+  async function handleDismiss(suggestion: ExpertSuggestion) {
+    try {
+      const updated = await updateExpertSuggestionStatus(project._id, project.user_id, suggestion.suggestion_id, "dismissed");
+      setProject(updated);
+    } catch (error) {
+      setExpertApplyToast({
+        tone: "error",
+        message: `忽略方案失败：${error instanceof Error ? error.message : String(error)}`
+      });
+    }
+  }
+
+  return (
+    <div className="panel-body">
+      {sorted.length ? (
+        <div className="expert-cards">
+          {sorted.map((suggestion) => (
+            <ExpertProposalCard
+              key={suggestion.suggestion_id}
+              suggestion={suggestion}
+              project={project}
+              expanded={expandedId === suggestion.suggestion_id}
+              onToggleExpand={() => setExpandedId((id) => (id === suggestion.suggestion_id ? null : suggestion.suggestion_id))}
+              onPreview={() => openDiffOverlay(suggestion.suggestion_id)}
+              onDismiss={() => handleDismiss(suggestion)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="expert-empty">
+          {project.stale.expert
+            ? "品牌 / 观众的输入有更新。向专家 Agent 发起对话以生成新的多方案。"
+            : "向专家 Agent 描述需求或选中文本提问，专家会生成多个 cell-level 修改方案。"}
+        </div>
+      )}
+      <AgentChat agent="expert" selectedText={selectedText} placeholder="向专家 Agent 提问，生成多方向修改建议..." />
+    </div>
+  );
+}
+
+const DIRECTION_LABEL: Record<ExpertDirection, string> = {
+  brand_first: "品牌优先",
+  audience_natural: "观众自然",
+  balanced: "平衡取舍",
+  creator_expression: "创作者表达",
+  custom: "自定义"
+};
+
+function ExpertProposalCard({
+  suggestion,
+  project,
+  expanded,
+  onToggleExpand,
+  onPreview,
+  onDismiss
+}: {
+  suggestion: ExpertSuggestion;
+  project: Project;
+  expanded: boolean;
+  onToggleExpand: () => void;
+  onPreview: () => void;
+  onDismiss: () => void;
+}) {
+  const isActionable = suggestion.status === "draft" || suggestion.status === "partially_applied";
+  return (
+    <article className={`expert-card expert-direction-${suggestion.direction} status-${suggestion.status}`}>
+      <header className="expert-card-top">
+        <span className={`expert-direction-chip dir-${suggestion.direction}`}>
+          {DIRECTION_LABEL[suggestion.direction] ?? "自定义"}
+        </span>
+        <span className="expert-card-title">{suggestion.title}</span>
+        <span className={`expert-card-status status-${suggestion.status}`}>{expertStatusLabel(suggestion.status)}</span>
+      </header>
+      {suggestion.description ? <p className="expert-card-desc">{suggestion.description}</p> : null}
+      <div className="expert-card-actions">
+        <button className="prop-btn prop-btn-primary" onClick={onPreview} type="button" disabled={!isActionable}>
+          <IconEye />
+          {suggestion.status === "applied" ? "重新预览" : "预览修改"}
+        </button>
+        <button className="prop-btn" onClick={onToggleExpand} type="button">
+          {expanded ? "收起详情" : "展开详情"}
+        </button>
+        {isActionable ? (
+          <button className="prop-btn prop-btn-ghost" onClick={onDismiss} type="button" title="忽略此方案">
+            忽略
+          </button>
+        ) : null}
+      </div>
+      {expanded ? <ExpertProposalDetails suggestion={suggestion} project={project} /> : null}
+    </article>
+  );
+}
+
+function ExpertProposalDetails({ suggestion, project }: { suggestion: ExpertSuggestion; project: Project }) {
+  const columnsLabel = useColumnLabelLookup(project.current_script);
+  return (
+    <div className="expert-card-details">
+      {suggestion.target_problem ? (
+        <DetailRow label="解决问题" value={suggestion.target_problem} />
+      ) : null}
+      {suggestion.rationale ? <DetailRow label="推理理由" value={suggestion.rationale} /> : null}
+      {(suggestion.brand_tradeoff || suggestion.audience_tradeoff || suggestion.creator_tradeoff) ? (
+        <div className="expert-tradeoff-grid">
+          <TradeoffCell label="品牌" value={suggestion.brand_tradeoff} />
+          <TradeoffCell label="观众" value={suggestion.audience_tradeoff} />
+          <TradeoffCell label="创作者" value={suggestion.creator_tradeoff} />
+        </div>
+      ) : null}
+      {suggestion.risk ? <DetailRow label="风险" value={suggestion.risk} /> : null}
+      {suggestion.explanation_to_brand ? (
+        <DetailRow label="对品牌的解释话术" value={suggestion.explanation_to_brand} />
+      ) : null}
+      <div className="expert-hunks-summary">
+        <span className="expert-block-title">cell-level 修改（{suggestion.hunks.length} 个 hunk）</span>
+        <ul>
+          {suggestion.hunks.map((hunk) => (
+            <li key={hunk.hunk_id}>
+              <code>{hunk.row_id}</code> · {columnsLabel(hunk.column_id)}
+              {hunk.reason ? <span className="expert-hunk-reason"> · {hunk.reason}</span> : null}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="expert-detail-row">
+      <span className="expert-block-title">{label}</span>
+      <p>{value}</p>
+    </div>
+  );
+}
+
+function TradeoffCell({ label, value }: { label: string; value: string }) {
+  if (!value) return <div className="expert-tradeoff-cell expert-tradeoff-cell-empty">{label}：暂无</div>;
+  return (
+    <div className="expert-tradeoff-cell">
+      <span className="expert-tradeoff-label">{label}</span>
+      <p>{value}</p>
+    </div>
+  );
+}
+
+function expertStatusLabel(status: ExpertSuggestion["status"]) {
+  if (status === "applied") return "已应用";
+  if (status === "partially_applied") return "部分应用";
+  if (status === "dismissed") return "已忽略";
+  return "待预览";
+}
+
+function useColumnLabelLookup(script: Script): (columnId: string) => string {
+  const map = new Map<string, string>();
+  for (const column of script.columns) {
+    map.set(column.column_id, column.label);
+  }
+  return (columnId: string) => map.get(columnId) ?? columnId;
+}
+
+function DiffOverlayContainer() {
+  const { expert, project, closeDiffOverlay, setProject, setHunkState, setAllHunks, resetHunkState, setExpertConflicts, setExpertApplyToast } = useAppStore();
+  const [submitting, setSubmitting] = useState(false);
+
+  if (!project || !expert.diffOverlayOpen || !expert.activeSuggestionId) return null;
+  const suggestion = project.expert_suggestions.find((item) => item.suggestion_id === expert.activeSuggestionId);
+  if (!suggestion) return null;
+
+  const columnLabel = useColumnLabelLookup(project.current_script);
+  const acceptedIds = suggestion.hunks.filter((hunk) => expert.hunkState[hunk.hunk_id] === true).map((hunk) => hunk.hunk_id);
+  const rejectedIds = suggestion.hunks.filter((hunk) => expert.hunkState[hunk.hunk_id] === false).map((hunk) => hunk.hunk_id);
+
+  async function handleApply() {
+    if (!project) return;
+    if (acceptedIds.length === 0) {
+      setExpertApplyToast({ tone: "warning", message: "至少标记一个 hunk 为「应用」后再写入编辑器。" });
+      window.setTimeout(() => setExpertApplyToast(undefined), 4000);
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const result = await applyExpertSuggestion(project._id, project.user_id, suggestion.suggestion_id, {
+        accepted_hunk_ids: acceptedIds,
+        rejected_hunk_ids: rejectedIds
+      });
+      setProject(result.project);
+
+      if (result.applied_hunk_count === 0) {
+        setExpertConflicts(result.conflict_hunk_ids);
+        setExpertApplyToast({
+          tone: "error",
+          message: "所有 hunk 与当前脚本不一致，建议重新生成方案。"
+        });
+        return;
+      }
+      if (result.conflict_hunk_ids.length > 0) {
+        setExpertConflicts(result.conflict_hunk_ids);
+        setExpertApplyToast({
+          tone: "warning",
+          message: `已应用 ${result.applied_hunk_count} 个 hunk，${result.conflict_hunk_ids.length} 个与脚本不一致已跳过。`
+        });
+      } else {
+        setExpertApplyToast({
+          tone: "success",
+          message: `已写入 ${result.applied_hunk_count} 个 hunk 到脚本。`
+        });
+      }
+      window.setTimeout(() => setExpertApplyToast(undefined), 5000);
+      closeDiffOverlay();
+    } catch (error) {
+      setExpertApplyToast({
+        tone: "error",
+        message: `应用失败：${error instanceof Error ? error.message : String(error)}`
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const allHunkIds = suggestion.hunks.map((h) => h.hunk_id);
+
+  return (
+    <div className="diff-overlay-backdrop" role="dialog" aria-modal="true">
+      <div className="diff-overlay">
+        <header className="diff-overlay-header">
+          <div>
+            <span className={`expert-direction-chip dir-${suggestion.direction}`}>{DIRECTION_LABEL[suggestion.direction] ?? "自定义"}</span>
+            <strong className="diff-overlay-title">{suggestion.title}</strong>
+            <span className="diff-overlay-meta">{suggestion.hunks.length} 个 hunk · {acceptedIds.length} 已应用 / {rejectedIds.length} 已拒绝</span>
+          </div>
+          <button className="diff-overlay-close" onClick={closeDiffOverlay} type="button" aria-label="关闭">
+            ×
+          </button>
+        </header>
+        <div className="diff-overlay-actions">
+          <button className="prop-btn" onClick={() => setAllHunks(allHunkIds, true)} type="button">全部应用</button>
+          <button className="prop-btn" onClick={() => setAllHunks(allHunkIds, false)} type="button">全部不应用</button>
+          <button className="prop-btn prop-btn-ghost" onClick={resetHunkState} type="button">重置</button>
+          <div className="diff-overlay-spacer" />
+          <button
+            className="prop-btn prop-btn-primary"
+            onClick={handleApply}
+            type="button"
+            disabled={submitting}
+          >
+            {submitting ? "写入中..." : `写入编辑器（${acceptedIds.length}）`}
+          </button>
+        </div>
+        <div className="diff-overlay-body">
+          {suggestion.hunks.map((hunk, index) => (
+            <HunkCard
+              key={hunk.hunk_id}
+              index={index}
+              hunk={hunk}
+              columnLabel={columnLabel(hunk.column_id)}
+              state={expert.hunkState[hunk.hunk_id] ?? null}
+              conflict={expert.conflicts.includes(hunk.hunk_id)}
+              onAccept={() => setHunkState(hunk.hunk_id, true)}
+              onReject={() => setHunkState(hunk.hunk_id, false)}
+              onClear={() => setHunkState(hunk.hunk_id, null)}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HunkCard({
+  index,
+  hunk,
+  columnLabel,
+  state,
+  conflict,
+  onAccept,
+  onReject,
+  onClear
+}: {
+  index: number;
+  hunk: ExpertHunk;
+  columnLabel: string;
+  state: true | false | null;
+  conflict: boolean;
+  onAccept: () => void;
+  onReject: () => void;
+  onClear: () => void;
+}) {
+  const stateClass = state === true ? "is-accepted" : state === false ? "is-rejected" : "is-pending";
+  return (
+    <div className={`hunk-card ${stateClass} ${conflict ? "is-conflict" : ""}`}>
+      <header className="hunk-card-header">
+        <span className="hunk-card-index">#{String(index + 1).padStart(2, "0")}</span>
+        <code>{hunk.row_id}</code>
+        <span className="hunk-card-column">{columnLabel}</span>
+        <span className={`hunk-card-state state-${stateClass}`}>{hunkStateLabel(state)}</span>
+        {conflict ? <span className="hunk-card-conflict">脚本已变化</span> : null}
+      </header>
+      <div className="hunk-card-diff">
+        <div className="hunk-old">
+          <span className="hunk-side-label">原</span>
+          <pre>{hunk.old || "（空）"}</pre>
+        </div>
+        <div className="hunk-new">
+          <span className="hunk-side-label">新</span>
+          <pre>{hunk.new || "（空）"}</pre>
+        </div>
+      </div>
+      {hunk.reason ? <p className="hunk-reason">说明：{hunk.reason}</p> : null}
+      <div className="hunk-card-actions">
+        <button
+          className={`prop-btn ${state === true ? "prop-btn-primary" : ""}`}
+          onClick={state === true ? onClear : onAccept}
+          type="button"
+        >
+          ✓ 应用
+        </button>
+        <button
+          className={`prop-btn ${state === false ? "prop-btn-warning" : ""}`}
+          onClick={state === false ? onClear : onReject}
+          type="button"
+        >
+          ✗ 不应用
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function hunkStateLabel(state: true | false | null) {
+  if (state === true) return "应用";
+  if (state === false) return "不应用";
+  return "未决定";
+}
+
+function SnapshotsDrawer() {
+  const {
+    project,
+    snapshots,
+    setSnapshots,
+    setSnapshotsError,
+    setSnapshotsLoading,
+    setSnapshotsOpen,
+    setProject,
+    setExpertApplyToast
+  } = useAppStore();
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!snapshots.open || !project) return;
+    setSnapshotsLoading(true);
+    setSnapshotsError(undefined);
+    listScriptSnapshots(project._id, project.user_id)
+      .then((items) => setSnapshots(items))
+      .catch((error) => setSnapshotsError(error instanceof Error ? error.message : String(error)))
+      .finally(() => setSnapshotsLoading(false));
+  }, [snapshots.open, project, setSnapshots, setSnapshotsError, setSnapshotsLoading]);
+
+  if (!snapshots.open || !project) return null;
+
+  async function handleRestore(snapshotId: string) {
+    if (!project) return;
+    if (!window.confirm("回退到此版本会覆盖当前脚本（系统会先保存当前版本）。是否继续？")) return;
+    setRestoringId(snapshotId);
+    try {
+      const updated = await restoreScriptSnapshot(project._id, project.user_id, snapshotId);
+      setProject(updated);
+      setSnapshotsOpen(false);
+      setExpertApplyToast({ tone: "success", message: "脚本已回退到该版本。" });
+      window.setTimeout(() => setExpertApplyToast(undefined), 5000);
+    } catch (error) {
+      setExpertApplyToast({
+        tone: "error",
+        message: `回退失败：${error instanceof Error ? error.message : String(error)}`
+      });
+    } finally {
+      setRestoringId(null);
+    }
+  }
+
+  return (
+    <div className="snapshot-drawer-backdrop" role="dialog" aria-modal="true" onClick={() => setSnapshotsOpen(false)}>
+      <aside className="snapshot-drawer" onClick={(event) => event.stopPropagation()}>
+        <header className="snapshot-drawer-header">
+          <h2>版本历史</h2>
+          <button className="persona-modal-close" onClick={() => setSnapshotsOpen(false)} type="button" aria-label="关闭">
+            ×
+          </button>
+        </header>
+        <div className="snapshot-drawer-body">
+          {snapshots.loading ? <div className="snapshot-empty">加载中...</div> : null}
+          {snapshots.error ? <div className="snapshot-error">{snapshots.error}</div> : null}
+          {!snapshots.loading && !snapshots.error && snapshots.items.length === 0 ? (
+            <div className="snapshot-empty">暂无版本快照。专家方案应用或手动保存后会出现在这里。</div>
+          ) : null}
+          {snapshots.items.map((snapshot) => (
+            <SnapshotRow
+              key={snapshot._id}
+              snapshot={snapshot}
+              restoring={restoringId === snapshot._id}
+              onRestore={() => handleRestore(snapshot._id)}
+            />
+          ))}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function SnapshotRow({
+  snapshot,
+  restoring,
+  onRestore
+}: {
+  snapshot: ScriptSnapshotSummary;
+  restoring: boolean;
+  onRestore: () => void;
+}) {
+  return (
+    <div className="snapshot-item">
+      <div className="snapshot-item-main">
+        <span className={`snapshot-reason snapshot-reason-${snapshot.reason}`}>{snapshotReasonLabel(snapshot.reason)}</span>
+        <span className="snapshot-time">{snapshot.created_at}</span>
+      </div>
+      {snapshot.applied_hunk_ids.length ? (
+        <div className="snapshot-item-meta">应用了 {snapshot.applied_hunk_ids.length} 个 hunk</div>
+      ) : null}
+      <button className="prop-btn" disabled={restoring} onClick={onRestore} type="button">
+        {restoring ? "回退中..." : "回退到此版本"}
+      </button>
+    </div>
+  );
+}
+
+function snapshotReasonLabel(reason: ScriptSnapshotSummary["reason"]) {
+  if (reason === "manual_save") return "手动保存";
+  if (reason === "before_expert_apply") return "应用前";
+  if (reason === "after_expert_apply") return "应用后";
+  if (reason === "before_restore") return "回退前";
+  if (reason === "import") return "导入";
+  return reason;
+}
+
 function LegacyAgentChat({ agent, selectedText, placeholder }: { agent: AgentType; selectedText?: string; placeholder: string }) {
   const { project, setProject } = useAppStore();
   const [message, setMessage] = useState("");
@@ -1100,6 +1578,16 @@ function IconBack() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M19 12H5" />
       <path d="M12 19l-7-7 7-7" />
+    </svg>
+  );
+}
+
+function IconHistory() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M3 12a9 9 0 1 0 3-6.7" />
+      <polyline points="3 4 3 10 9 10" />
+      <polyline points="12 7 12 12 16 14" />
     </svg>
   );
 }

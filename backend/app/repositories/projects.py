@@ -1,9 +1,11 @@
 import secrets
+from copy import deepcopy
 from datetime import datetime, timedelta
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.script import default_script, new_id, now_iso
+from app.repositories.script_snapshots import create_snapshot, get_snapshot
 from app.services.trace import TraceRecorder
 from app.models.script_ops import add_column, add_row, delete_column, delete_row, rename_column, update_cell
 
@@ -13,6 +15,15 @@ BRAND_INSIGHT_STATUS = {"new", "confirmed", "pending", "ignored"}
 
 PERSONA_AD_SENSITIVITY = {"low", "medium", "high"}
 PERSONA_DATA_SOURCES = {"manual", "system_generated", "imported_data"}
+
+EXPERT_DIRECTIONS = {
+    "brand_first",
+    "audience_natural",
+    "balanced",
+    "creator_expression",
+    "custom",
+}
+EXPERT_SUGGESTION_STATUS = {"draft", "applied", "partially_applied", "dismissed"}
 
 PERSONA_OPTIONAL_TEXT_FIELDS = (
     "gender",
@@ -776,3 +787,328 @@ async def _write_script(db: AsyncIOMotorDatabase, project_id: str, user_id: str,
         },
     )
     return await get_project(db, project_id, user_id)
+
+
+def _validate_expert_direction(direction: str) -> str:
+    return direction if direction in EXPERT_DIRECTIONS else "custom"
+
+
+def build_expert_hunk(
+    *,
+    row_id: str,
+    column_id: str,
+    old: str,
+    new: str,
+    reason: str = "",
+) -> dict:
+    row_id = (row_id or "").strip()
+    column_id = (column_id or "").strip()
+    if not row_id or not column_id:
+        raise ValueError("Hunk must include row_id and column_id")
+    if old is None or new is None:
+        raise ValueError("Hunk must include old/new strings")
+    return {
+        "hunk_id": new_id("hunk"),
+        "row_id": row_id,
+        "column_id": column_id,
+        "old": str(old),
+        "new": str(new),
+        "reason": (reason or "").strip()[:280],
+    }
+
+
+def build_expert_suggestion(
+    *,
+    title: str,
+    direction: str,
+    description: str,
+    target_problem: str,
+    rationale: str,
+    brand_tradeoff: str,
+    audience_tradeoff: str,
+    creator_tradeoff: str,
+    risk: str,
+    explanation_to_brand: str,
+    hunks: list[dict],
+    based_on_brand_insight_ids: list[str] | None = None,
+    based_on_audience_analysis_id: str | None = None,
+) -> dict:
+    title = (title or "").strip()
+    if not title:
+        raise ValueError("Expert suggestion must include a title")
+    if not hunks:
+        raise ValueError("Expert suggestion must include at least one hunk")
+
+    now = now_iso()
+    return {
+        "suggestion_id": new_id("suggestion"),
+        "title": title[:120],
+        "direction": _validate_expert_direction(direction),
+        "description": (description or "").strip()[:600],
+        "target_problem": (target_problem or "").strip()[:400],
+        "rationale": (rationale or "").strip()[:800],
+        "brand_tradeoff": (brand_tradeoff or "").strip()[:600],
+        "audience_tradeoff": (audience_tradeoff or "").strip()[:600],
+        "creator_tradeoff": (creator_tradeoff or "").strip()[:600],
+        "risk": (risk or "").strip()[:400],
+        "explanation_to_brand": (explanation_to_brand or "").strip()[:800],
+        "hunks": list(hunks),
+        "based_on_brand_insight_ids": list(based_on_brand_insight_ids or []),
+        "based_on_audience_analysis_id": based_on_audience_analysis_id,
+        "status": "draft",
+        "created_at": now,
+        "updated_at": now,
+    }
+
+
+async def save_expert_suggestions(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    suggestions: list[dict],
+    *,
+    based_on_brand_insight_ids: list[str] | None = None,
+    based_on_audience_analysis_id: str | None = None,
+) -> dict | None:
+    if not suggestions:
+        return await get_project(db, project_id, user_id)
+
+    project = await get_project(db, project_id, user_id)
+    if project is None:
+        return None
+
+    enriched: list[dict] = []
+    for suggestion in suggestions:
+        enriched_item = {
+            **suggestion,
+            "based_on_brand_insight_ids": list(based_on_brand_insight_ids or []),
+            "based_on_audience_analysis_id": based_on_audience_analysis_id,
+        }
+        enriched.append(enriched_item)
+
+    next_suggestions = [*project.get("expert_suggestions", []), *enriched]
+
+    await db.projects.update_one(
+        {"_id": project_id, "user_id": user_id},
+        {
+            "$set": {
+                "expert_suggestions": next_suggestions,
+                "stale.expert": False,
+                "updated_at": now_iso(),
+            }
+        },
+    )
+    return await get_project(db, project_id, user_id)
+
+
+async def update_expert_suggestion_status(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    suggestion_id: str,
+    *,
+    status: str,
+) -> dict | None:
+    if status not in EXPERT_SUGGESTION_STATUS:
+        raise ValueError("Invalid suggestion status")
+
+    project = await get_project(db, project_id, user_id)
+    if project is None:
+        return None
+
+    found = False
+    next_suggestions: list[dict] = []
+    for suggestion in project.get("expert_suggestions", []):
+        if suggestion.get("suggestion_id") == suggestion_id:
+            found = True
+            updated = {**suggestion, "status": status, "updated_at": now_iso()}
+            next_suggestions.append(updated)
+        else:
+            next_suggestions.append(suggestion)
+
+    if not found:
+        raise ValueError("Expert suggestion not found")
+
+    await db.projects.update_one(
+        {"_id": project_id, "user_id": user_id},
+        {
+            "$set": {
+                "expert_suggestions": next_suggestions,
+                "updated_at": now_iso(),
+            }
+        },
+    )
+    return await get_project(db, project_id, user_id)
+
+
+def _cell_value(script: dict, row_id: str, column_id: str) -> str | None:
+    for row in script.get("rows", []):
+        if row.get("row_id") != row_id:
+            continue
+        for cell in row.get("cells", []):
+            if cell.get("column_id") == column_id:
+                value = cell.get("value")
+                return "" if value is None else str(value)
+        return None
+    return None
+
+
+async def apply_expert_suggestion(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    suggestion_id: str,
+    *,
+    accepted_hunk_ids: list[str],
+    rejected_hunk_ids: list[str] | None = None,
+) -> dict:
+    """Apply accepted hunks against current_script with snapshot bookkeeping.
+
+    Returns dict with keys: project, applied_hunk_ids, skipped_hunk_ids,
+    conflict_hunk_ids, before_snapshot_id, after_snapshot_id, applied_hunk_count.
+    Raises ValueError when the suggestion is missing.
+    """
+    project = await get_project(db, project_id, user_id)
+    if project is None:
+        raise ValueError("Project not found")
+
+    suggestion = next(
+        (s for s in project.get("expert_suggestions", []) if s.get("suggestion_id") == suggestion_id),
+        None,
+    )
+    if suggestion is None:
+        raise ValueError("Expert suggestion not found")
+
+    accepted_set = {hid for hid in accepted_hunk_ids if isinstance(hid, str)}
+    rejected_set = {hid for hid in (rejected_hunk_ids or []) if isinstance(hid, str)}
+    hunks = suggestion.get("hunks", [])
+    hunk_index = {hunk.get("hunk_id"): hunk for hunk in hunks if hunk.get("hunk_id")}
+
+    skipped_ids: list[str] = [hid for hid in accepted_set if hid not in hunk_index]
+    conflict_ids: list[str] = []
+    to_apply: list[dict] = []
+
+    current_script = project.get("current_script", {}) or {}
+    for hunk_id, hunk in hunk_index.items():
+        if hunk_id not in accepted_set:
+            continue
+        cell_value = _cell_value(current_script, hunk.get("row_id", ""), hunk.get("column_id", ""))
+        if cell_value is None or cell_value != hunk.get("old"):
+            conflict_ids.append(hunk_id)
+            continue
+        to_apply.append(hunk)
+
+    result_template = {
+        "project": project,
+        "applied_hunk_ids": [],
+        "skipped_hunk_ids": skipped_ids,
+        "conflict_hunk_ids": conflict_ids,
+        "before_snapshot_id": None,
+        "after_snapshot_id": None,
+        "applied_hunk_count": 0,
+    }
+
+    if not to_apply:
+        return result_template
+
+    before_snapshot = await create_snapshot(
+        db,
+        project_id=project_id,
+        user_id=user_id,
+        reason="before_expert_apply",
+        script=current_script,
+        suggestion_id=suggestion_id,
+    )
+
+    next_script = deepcopy(current_script)
+    applied_ids: list[str] = []
+    for hunk in to_apply:
+        try:
+            next_script = update_cell(
+                next_script,
+                hunk["row_id"],
+                hunk["column_id"],
+                hunk["new"],
+            )
+            applied_ids.append(hunk["hunk_id"])
+        except ValueError:
+            conflict_ids.append(hunk["hunk_id"])
+
+    if not applied_ids:
+        return {
+            **result_template,
+            "before_snapshot_id": before_snapshot["_id"],
+            "conflict_hunk_ids": conflict_ids,
+        }
+
+    next_script["updated_at"] = now_iso()
+
+    after_snapshot = await create_snapshot(
+        db,
+        project_id=project_id,
+        user_id=user_id,
+        reason="after_expert_apply",
+        script=next_script,
+        suggestion_id=suggestion_id,
+        applied_hunk_ids=applied_ids,
+    )
+
+    accepted_total = sum(1 for hunk_id in accepted_set if hunk_id in hunk_index)
+    if applied_ids and len(applied_ids) == accepted_total and len(applied_ids) == len(hunks) and not conflict_ids:
+        new_status = "applied"
+    else:
+        new_status = "partially_applied"
+
+    next_suggestions: list[dict] = []
+    for item in project.get("expert_suggestions", []):
+        if item.get("suggestion_id") == suggestion_id:
+            next_suggestions.append({**item, "status": new_status, "updated_at": now_iso()})
+        else:
+            next_suggestions.append(item)
+
+    await db.projects.update_one(
+        {"_id": project_id, "user_id": user_id},
+        {
+            "$set": {
+                "current_script": next_script,
+                "expert_suggestions": next_suggestions,
+                "stale.expert": False,
+                "updated_at": now_iso(),
+            }
+        },
+    )
+
+    refreshed = await get_project(db, project_id, user_id)
+    return {
+        "project": refreshed,
+        "applied_hunk_ids": applied_ids,
+        "skipped_hunk_ids": skipped_ids,
+        "conflict_hunk_ids": conflict_ids,
+        "before_snapshot_id": before_snapshot["_id"],
+        "after_snapshot_id": after_snapshot["_id"],
+        "applied_hunk_count": len(applied_ids),
+    }
+
+
+async def restore_script_snapshot(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    snapshot_id: str,
+) -> dict | None:
+    project = await get_project(db, project_id, user_id)
+    if project is None:
+        return None
+    snapshot = await get_snapshot(db, project_id=project_id, user_id=user_id, snapshot_id=snapshot_id)
+    if snapshot is None:
+        raise ValueError("Snapshot not found")
+
+    await create_snapshot(
+        db,
+        project_id=project_id,
+        user_id=user_id,
+        reason="before_restore",
+        script=project.get("current_script", {}) or {},
+    )
+
+    return await _write_script(db, project_id, user_id, deepcopy(snapshot["script"]))

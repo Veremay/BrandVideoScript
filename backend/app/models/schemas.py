@@ -131,6 +131,52 @@ class ProjectResponse(BaseModel):
     updated_at: str
 
 
+class ExpertSuggestionApplyRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    accepted_hunk_ids: list[str] = Field(default_factory=list)
+    rejected_hunk_ids: list[str] = Field(default_factory=list)
+
+
+class ExpertSuggestionStatusRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    status: Literal["draft", "applied", "partially_applied", "dismissed"]
+
+
+class ExpertSuggestionApplyResponse(BaseModel):
+    project: ProjectResponse
+    applied_hunk_ids: list[str]
+    skipped_hunk_ids: list[str]
+    conflict_hunk_ids: list[str]
+    before_snapshot_id: str | None
+    after_snapshot_id: str | None
+    applied_hunk_count: int
+
+
+class SnapshotCreateRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    reason: Literal["manual_save", "import"] = "manual_save"
+
+
+class SnapshotRestoreRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+
+
+class ScriptSnapshotSummary(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str = Field(alias="_id")
+    project_id: str
+    user_id: str
+    reason: str
+    suggestion_id: str | None = None
+    applied_hunk_ids: list[str] = Field(default_factory=list)
+    created_at: str
+
+
+class ScriptSnapshotsResponse(BaseModel):
+    snapshots: list[ScriptSnapshotSummary]
+
+
 class ProjectListResponse(BaseModel):
     projects: list[ProjectResponse]
 

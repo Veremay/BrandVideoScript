@@ -7,6 +7,9 @@ from app.models.schemas import (
     BriefUpdateRequest,
     BrandInsightCreateRequest,
     BrandInsightUpdateRequest,
+    ExpertSuggestionApplyRequest,
+    ExpertSuggestionApplyResponse,
+    ExpertSuggestionStatusRequest,
     PersonaCreateRequest,
     PersonaUpdateRequest,
     ProjectCreateRequest,
@@ -15,12 +18,16 @@ from app.models.schemas import (
     ScriptCellPatchRequest,
     ScriptColumnCreateRequest,
     ScriptColumnUpdateRequest,
+    ScriptSnapshotsResponse,
     ProjectUpdateRequest,
     ScriptPatchRequest,
     ScriptRowCreateRequest,
+    SnapshotCreateRequest,
+    SnapshotRestoreRequest,
 )
 from app.services.brand_brief_pipeline import run_brand_brief_pipeline
 from app.repositories.projects import (
+    apply_expert_suggestion,
     create_brand_insight,
     create_persona,
     create_script_column,
@@ -35,13 +42,16 @@ from app.repositories.projects import (
     patch_script_cell,
     remove_script_column,
     remove_script_row,
+    restore_script_snapshot,
     set_active_persona,
     update_brand_insight,
     update_brief,
+    update_expert_suggestion_status,
     update_persona,
     update_script_column,
     update_project,
 )
+from app.repositories.script_snapshots import create_snapshot, list_snapshots
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -380,6 +390,114 @@ async def delete_script_column(
         project = await remove_script_column(db, project_id, user_id.strip(), column_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
+@router.post(
+    "/{project_id}/expert-suggestions/{suggestion_id}/apply",
+    response_model=ExpertSuggestionApplyResponse,
+)
+async def apply_expert_suggestion_route(
+    project_id: str,
+    suggestion_id: str,
+    payload: ExpertSuggestionApplyRequest,
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> dict:
+    try:
+        result = await apply_expert_suggestion(
+            db,
+            project_id,
+            payload.user_id.strip(),
+            suggestion_id,
+            accepted_hunk_ids=payload.accepted_hunk_ids,
+            rejected_hunk_ids=payload.rejected_hunk_ids,
+        )
+    except ValueError as exc:
+        message = str(exc)
+        status_code = 404 if "not found" in message.lower() else 400
+        raise HTTPException(status_code=status_code, detail=message) from exc
+    return result
+
+
+@router.patch("/{project_id}/expert-suggestions/{suggestion_id}", response_model=ProjectResponse)
+async def update_expert_suggestion_route(
+    project_id: str,
+    suggestion_id: str,
+    payload: ExpertSuggestionStatusRequest,
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> dict:
+    try:
+        project = await update_expert_suggestion_status(
+            db,
+            project_id,
+            payload.user_id.strip(),
+            suggestion_id,
+            status=payload.status,
+        )
+    except ValueError as exc:
+        message = str(exc)
+        status_code = 404 if "not found" in message.lower() else 400
+        raise HTTPException(status_code=status_code, detail=message) from exc
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
+@router.get("/{project_id}/script/snapshots", response_model=ScriptSnapshotsResponse)
+async def list_script_snapshots(
+    project_id: str,
+    user_id: str = Query(min_length=1),
+    limit: int = Query(default=20, ge=1, le=100),
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> dict:
+    project = await get_project(db, project_id, user_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"snapshots": await list_snapshots(db, project_id=project_id, user_id=user_id, limit=limit)}
+
+
+@router.post("/{project_id}/script/snapshots", status_code=status.HTTP_201_CREATED)
+async def save_manual_snapshot(
+    project_id: str,
+    payload: SnapshotCreateRequest,
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> dict:
+    project = await get_project(db, project_id, payload.user_id.strip())
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    snapshot = await create_snapshot(
+        db,
+        project_id=project_id,
+        user_id=payload.user_id.strip(),
+        reason=payload.reason,
+        script=project.get("current_script", {}) or {},
+    )
+    return {
+        "_id": snapshot["_id"],
+        "project_id": snapshot["project_id"],
+        "user_id": snapshot["user_id"],
+        "reason": snapshot["reason"],
+        "suggestion_id": snapshot.get("suggestion_id"),
+        "applied_hunk_ids": snapshot.get("applied_hunk_ids", []),
+        "created_at": snapshot["created_at"],
+    }
+
+
+@router.post("/{project_id}/script/snapshots/{snapshot_id}/restore", response_model=ProjectResponse)
+async def restore_snapshot_route(
+    project_id: str,
+    snapshot_id: str,
+    payload: SnapshotRestoreRequest,
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> dict:
+    try:
+        project = await restore_script_snapshot(db, project_id, payload.user_id.strip(), snapshot_id)
+    except ValueError as exc:
+        message = str(exc)
+        status_code = 404 if "not found" in message.lower() else 400
+        raise HTTPException(status_code=status_code, detail=message) from exc
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
     return project
