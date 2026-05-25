@@ -3,11 +3,23 @@
 import { MouseEvent, PointerEvent, useMemo, useState } from "react";
 
 import { analyzeDurations } from "@/lib/scriptEditor";
-import type { Script } from "@/lib/types";
+import type { Script, ScriptColumn } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
 
 const MIN_COLUMN_WIDTH = 88;
 const MIN_ROW_HEIGHT = 38;
+
+const COLUMN_HEADER_LABELS: Record<string, string> = {
+  duration: "Duration",
+  scene: "Visual",
+  format: "Format / Script",
+  notes: "Remarks",
+  feedback: "Feedback"
+};
+
+function columnHeaderLabel(column: ScriptColumn) {
+  return COLUMN_HEADER_LABELS[column.key] ?? column.label;
+}
 
 export function ScriptGrid({ script }: { script: Script }) {
   const {
@@ -137,6 +149,10 @@ export function ScriptGrid({ script }: { script: Script }) {
     window.addEventListener("pointerup", handleUp);
   }
 
+  function handleAddSceneBlock() {
+    insertRowAfter(rows.at(-1)?.row_id);
+  }
+
   return (
     <div className="editor-wrap">
       <div className="script-timeline-wrap" aria-label="脚本阶段时长">
@@ -169,124 +185,126 @@ export function ScriptGrid({ script }: { script: Script }) {
         ) : null}
       </div>
 
-      <div className="editor-main-surface">
-        <div className="editor-view-table-wrap">
-          <div className="editor-sheet">
-            <div className="editor-sheet-table-panel">
-              <table className="editor-data-table">
-                <thead>
-                  <tr>
-                    <th className="editor-th-num col-num">
-                      #
+      <div className="script-table-container">
+        <div className="script-table-panel">
+          <table className="editor-data-table">
+            <thead>
+              <tr>
+                <th className="editor-th-num col-num">
+                  #
+                  <button
+                    className="editor-col-insert-hit editor-col-insert-first"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleAddColumn(undefined);
+                    }}
+                    type="button"
+                    title="在首列前插入列"
+                  >
+                    +
+                  </button>
+                </th>
+                {columns.map((column, columnIndex) => (
+                  <th
+                    className={`editor-th-data col-${column.key} ${selectedColumnId === column.column_id ? "col-selected" : ""}`}
+                    key={column.column_id}
+                    onClick={() => {
+                      setSelectedColumnId(column.column_id);
+                      setSelectedRowId(null);
+                    }}
+                    style={{ width: columnWidths[column.column_id] }}
+                  >
+                    <span className="editor-th-label" onDoubleClick={() => handleRenameColumn(column.column_id, column.label)}>
+                      {columnHeaderLabel(column)}
+                    </span>
+                    <button
+                      className="editor-col-insert-hit"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        handleAddColumn(columns[columnIndex - 1]?.column_id);
+                      }}
+                      type="button"
+                      title="在左侧插入列"
+                    >
+                      +
+                    </button>
+                    {columnIndex === columns.length - 1 ? (
                       <button
-                        className="editor-col-insert-hit editor-col-insert-first"
+                        className="editor-col-insert-hit editor-col-insert-last"
                         onClick={(event) => {
                           event.stopPropagation();
-                          handleAddColumn(undefined);
+                          handleAddColumn(column.column_id);
                         }}
                         type="button"
-                        title="在首列前插入列"
+                        title="在最后追加列"
                       >
                         +
                       </button>
-                    </th>
-                    {columns.map((column, columnIndex) => (
-                      <th
-                        className={`editor-th-data col-${column.key} ${selectedColumnId === column.column_id ? "col-selected" : ""}`}
-                        key={column.column_id}
-                        onClick={() => {
-                          setSelectedColumnId(column.column_id);
-                          setSelectedRowId(null);
-                        }}
-                        style={{ width: columnWidths[column.column_id] }}
-                      >
-                        <span className="editor-th-label" onDoubleClick={() => handleRenameColumn(column.column_id, column.label)}>
-                          {column.label}
-                        </span>
-                        <button
-                          className="editor-col-insert-hit"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            handleAddColumn(columns[columnIndex - 1]?.column_id);
-                          }}
-                          type="button"
-                          title="在左侧插入列"
-                        >
-                          +
-                        </button>
-                        {columnIndex === columns.length - 1 ? (
-                          <button
-                            className="editor-col-insert-hit editor-col-insert-last"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              handleAddColumn(column.column_id);
-                            }}
-                            type="button"
-                            title="在最后追加列"
-                          >
-                            +
-                          </button>
-                        ) : null}
-                        <span className="editor-col-resize-hit" onPointerDown={(event) => startColumnResize(event, column.column_id)} />
-                        <button
-                          className="editor-col-del"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            handleDeleteColumn(column.column_id);
-                          }}
-                          type="button"
-                        >
-                          删除列
-                        </button>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="editor-row-insert-band editor-row-insert-first">
-                    <td className="editor-row-insert-cell" colSpan={columns.length + 1}>
-                      <span className="editor-row-insert-line" />
-                      <button className="editor-row-insert-btn" onClick={() => insertRowAfter(undefined)} type="button">
-                        +
-                        <span className="editor-row-insert-tip">在首行前插入行</span>
-                      </button>
-                    </td>
-                  </tr>
-                  {rows.map((row, rowIndex) => (
-                    <RowBlock
-                      columns={columns}
-                      columnWidths={columnWidths}
-                      hasIssue={issueByRowId.has(row.row_id)}
-                      index={rowIndex}
-                      issueTitle={issueByRowId.get(row.row_id)?.join(" / ")}
-                      key={row.row_id}
-                      onAddRow={() => insertRowAfter(row.row_id)}
-                      onDeleteRow={() => handleDeleteRow(row.row_id)}
-                      onResizeRow={(event) => startRowResize(event, row.row_id)}
-                      onSelection={handleSelection}
-                      onSelectRow={() => {
-                        setSelectedRowId(row.row_id);
-                        setSelectedColumnId(null);
+                    ) : null}
+                    <span className="editor-col-resize-hit" onPointerDown={(event) => startColumnResize(event, column.column_id)} />
+                    <button
+                      className="editor-col-del"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        handleDeleteColumn(column.column_id);
                       }}
-                      row={row}
-                      rowHeight={rowHeights[row.row_id]}
-                      selected={selectedRowId === row.row_id}
-                      updateCell={updateCell}
-                    />
-                  ))}
-                  <tr className="editor-row-insert-band">
-                    <td className="editor-row-insert-cell" colSpan={columns.length + 1}>
-                      <span className="editor-row-insert-line" />
-                      <button className="editor-row-insert-btn" onClick={() => insertRowAfter(rows.at(-1)?.row_id)} type="button">
-                        +
-                        <span className="editor-row-insert-tip">插入行</span>
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+                      type="button"
+                    >
+                      删除列
+                    </button>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="editor-row-insert-band editor-row-insert-first">
+                <td className="editor-row-insert-cell" colSpan={columns.length + 1}>
+                  <span className="editor-row-insert-line" />
+                  <button className="editor-row-insert-btn" onClick={() => insertRowAfter(undefined)} type="button">
+                    +
+                    <span className="editor-row-insert-tip">在首行前插入行</span>
+                  </button>
+                </td>
+              </tr>
+              {rows.map((row, rowIndex) => (
+                <RowBlock
+                  columns={columns}
+                  columnWidths={columnWidths}
+                  hasIssue={issueByRowId.has(row.row_id)}
+                  index={rowIndex}
+                  issueTitle={issueByRowId.get(row.row_id)?.join(" / ")}
+                  key={row.row_id}
+                  onAddRow={() => insertRowAfter(row.row_id)}
+                  onDeleteRow={() => handleDeleteRow(row.row_id)}
+                  onResizeRow={(event) => startRowResize(event, row.row_id)}
+                  onSelection={handleSelection}
+                  onSelectRow={() => {
+                    setSelectedRowId(row.row_id);
+                    setSelectedColumnId(null);
+                  }}
+                  row={row}
+                  rowHeight={rowHeights[row.row_id]}
+                  selected={selectedRowId === row.row_id}
+                  updateCell={updateCell}
+                />
+              ))}
+              <tr className="editor-row-insert-band">
+                <td className="editor-row-insert-cell" colSpan={columns.length + 1}>
+                  <span className="editor-row-insert-line" />
+                  <button className="editor-row-insert-btn" onClick={() => insertRowAfter(rows.at(-1)?.row_id)} type="button">
+                    +
+                    <span className="editor-row-insert-tip">插入行</span>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div className="script-table-footer">
+          <button className="add-scene-block-btn" onClick={handleAddSceneBlock} type="button">
+            <IconAddScene />
+            Add New Scene Block
+          </button>
         </div>
       </div>
 
@@ -332,12 +350,16 @@ function RowBlock({
   selected: boolean;
   updateCell: (rowId: string, columnId: string, value: string) => void;
 }) {
+  const rowMark = String(index + 1).padStart(2, "0");
+
   return (
     <>
-      <tr className={`editor-row ${hasIssue ? "row-has-issue" : ""} ${selected ? "row-selected" : ""}`} style={{ height: rowHeight }}>
+      <tr className={`editor-row ${index % 2 === 1 ? "row-alt" : ""} ${hasIssue ? "row-has-issue" : ""} ${selected ? "row-selected" : ""}`} style={{ height: rowHeight }}>
         <td className="editor-td-num" title={issueTitle}>
-          <button className="editor-row-num-btn" onClick={onSelectRow} type="button">{index + 1}</button>
-          <button className="editor-row-del editor-row-del-left" onClick={onDeleteRow} type="button">删</button>
+          <button className="editor-row-num-btn" onClick={onSelectRow} type="button">{rowMark}</button>
+          <button className="editor-row-del editor-row-del-left" onClick={onDeleteRow} type="button" title="删除行">
+            <IconTrash />
+          </button>
         </td>
         {columns.map((column) => {
           const value = row.cells.find((cell) => cell.column_id === column.column_id)?.value ?? "";
@@ -351,11 +373,15 @@ function RowBlock({
           };
 
           return (
-            <td key={column.column_id} style={{ width: columnWidths[column.column_id] }}>
-              {column.multiline ? (
-                <textarea className="editor-table-cell" {...commonProps} />
+            <td className={`editor-td-data col-${column.key}`} key={column.column_id} style={{ width: columnWidths[column.column_id] }}>
+              {column.type === "duration" ? (
+                <div className="editor-duration-wrap">
+                  <input className={`editor-table-input editor-duration-input ${hasIssue ? "is-invalid" : ""}`} {...commonProps} />
+                </div>
+              ) : column.multiline ? (
+                <textarea className={`editor-table-cell cell-${column.key}`} {...commonProps} />
               ) : (
-                <input className={`editor-table-input ${column.type === "duration" && hasIssue ? "is-invalid" : ""}`} {...commonProps} />
+                <input className={`editor-table-input cell-${column.key}`} {...commonProps} />
               )}
             </td>
           );
@@ -376,7 +402,7 @@ function RowBlock({
 }
 
 function segmentColor(index: number) {
-  const colors = ["var(--brand-blue)", "var(--brand-green)", "var(--brand-purple)", "var(--accent)"];
+  const colors = ["#006591", "#3ecf8e", "#a78bfa", "#f0c040"];
   return colors[index % colors.length];
 }
 
@@ -384,4 +410,23 @@ function formatClock(seconds: number) {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+}
+
+function IconAddScene() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <rect height="18" rx="2" width="14" x="5" y="3" />
+      <line x1="12" x2="12" y1="8" y2="16" />
+      <line x1="8" x2="16" y1="12" y2="12" />
+    </svg>
+  );
+}
+
+function IconTrash() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
+  );
 }

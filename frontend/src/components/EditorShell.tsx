@@ -38,16 +38,23 @@ export function EditorShell() {
     layout,
     project,
     script,
-    setAgentColumnWidth,
     setBrandPinnedTab,
     setProject,
     setSaveStatus,
     setUserId,
+    setActivePanel,
     openPanel
   } = useAppStore();
   const hasHydrated = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const activePanel = layout.activePanel ?? "brand";
+  const [agentDrawerOpen, setAgentDrawerOpen] = useState(false);
+  const activePanel = layout.activePanel;
+
+  useEffect(() => {
+    if (layout.activePanel) {
+      setAgentDrawerOpen(true);
+    }
+  }, [layout.activePanel]);
 
   useEffect(() => {
     if (!project || !script) return;
@@ -83,26 +90,20 @@ export function EditorShell() {
     setProject(null);
   }
 
-  function handleSplitterPointerDown(event: React.PointerEvent<HTMLDivElement>) {
-    event.currentTarget.setPointerCapture(event.pointerId);
-    const startX = event.clientX;
-    const startWidth = layout.agentsColWidth;
-
-    function handleMove(moveEvent: PointerEvent) {
-      setAgentColumnWidth(startWidth - (moveEvent.clientX - startX));
+  function handleFabClick() {
+    if (agentDrawerOpen) {
+      setAgentDrawerOpen(false);
+      return;
     }
-
-    function handleUp() {
-      window.removeEventListener("pointermove", handleMove);
-      window.removeEventListener("pointerup", handleUp);
-      document.body.style.removeProperty("cursor");
-      document.body.style.removeProperty("user-select");
+    setAgentDrawerOpen(true);
+    if (!layout.activePanel) {
+      setActivePanel("brand");
     }
+  }
 
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    window.addEventListener("pointermove", handleMove);
-    window.addEventListener("pointerup", handleUp);
+  function handlePersonasClick() {
+    setAgentDrawerOpen(true);
+    setActivePanel("audience");
   }
 
   async function persistBrief(text: string, filename?: string) {
@@ -110,7 +111,8 @@ export function EditorShell() {
     const savedProject = await saveBrief(project._id, project.user_id, text, filename);
     setProject(savedProject);
     setBrandPinnedTab("explicit_requirement");
-    openPanel("brand");
+    setAgentDrawerOpen(true);
+    setActivePanel("brand");
   }
 
   async function handleBriefFile(event: React.ChangeEvent<HTMLInputElement>) {
@@ -127,87 +129,104 @@ export function EditorShell() {
     await persistBrief(await file.text(), file.name);
   }
 
-  async function handlePasteBrief() {
-    const text = window.prompt("粘贴品牌 Brief 文本");
-    if (text?.trim()) {
-      await persistBrief(text, "pasted-brief.txt");
-    }
-  }
-
   if (!project || !script) return null;
 
   return (
-    <main className="app" style={{ "--agents-col-width": `${layout.agentsColWidth}px` } as React.CSSProperties}>
-      <header className="topbar">
-        <button className="topbar-btn" onClick={handleBack} type="button">
-          <IconBack />
-          项目
-        </button>
-        <span className="logo">Creator Studio</span>
-        <input ref={fileInputRef} accept=".md,.txt,text/markdown,text/plain" hidden onChange={handleBriefFile} type="file" />
-        <button className="topbar-btn" onClick={() => fileInputRef.current?.click()} type="button">
-          <IconUpload />
-          上传 Brief
-        </button>
-        <button className="topbar-btn" onClick={handlePasteBrief} type="button">
-          粘贴 Brief
-        </button>
-        <span className="topbar-brief-hint">{project.brief.filename ?? "MD / TXT"}</span>
-        <div className="topbar-sep" />
-        <input className="topbar-project-input" value={project.title} readOnly aria-label="项目名称" />
-        <div className="topbar-spacer" />
-        <button className="topbar-btn" type="button">
-          <IconEye />
-          预览修改稿
-        </button>
-        <div className={`status-pill status-${statusClass(editor.saveStatus)}`}>● {statusLabel(editor.saveStatus)}</div>
-        <button className="topbar-btn" onClick={handleLogout} type="button">
-          退出
-        </button>
-      </header>
-
-      <section className="editor-col">
-        <div className="editor-toolbar">
-          <span className="editor-toolbar-label">脚本编辑器</span>
-          <div className="editor-toolbar-spacer" />
-          <button className="tool-btn" type="button">
-            <IconEdit />
-            格式化
+    <main className="app-figma">
+      <header className="figma-topnav">
+        <div className="figma-topnav-left">
+          <button className="figma-nav-btn figma-nav-back" onClick={handleBack} type="button">
+            <IconBack />
+            Back
           </button>
-          <button className="tool-btn" type="button">
-            <IconCheck />
-            字数统计
+          <span className="figma-brand-logo">BrandVideo</span>
+          <div className="figma-view-toggle" role="tablist" aria-label="视图切换">
+            <button className="figma-view-tab active" type="button" aria-selected="true">
+              <IconEditorList />
+              Editor
+            </button>
+            <button className="figma-view-tab" disabled title="即将推出" type="button" aria-selected="false">
+              <IconMap />
+              Map
+            </button>
+          </div>
+        </div>
+
+        <div className="figma-topnav-right">
+          <input ref={fileInputRef} accept=".md,.txt,text/markdown,text/plain" hidden onChange={handleBriefFile} type="file" />
+          <button className="figma-nav-btn figma-nav-outline" onClick={() => fileInputRef.current?.click()} type="button">
+            <IconUpload />
+            Upload Brief
+          </button>
+          {project.brief.filename ? <span className="figma-brief-tag">{project.brief.filename}</span> : null}
+          <button className="figma-nav-btn figma-nav-outline" onClick={handlePersonasClick} type="button">
+            <IconPersonas />
+            Personas
+          </button>
+          <button className="figma-icon-btn" type="button" aria-label="通知">
+            <IconBell />
+          </button>
+          <button className="figma-icon-btn" onClick={handleLogout} title="退出登录" type="button" aria-label="设置">
+            <IconSettings />
+          </button>
+          <button className="figma-nav-btn figma-nav-outline figma-nav-share" type="button">
+            Share
+          </button>
+          <div className={`figma-save-pill status-${statusClass(editor.saveStatus)}`}>{statusLabel(editor.saveStatus)}</div>
+          <button className="figma-nav-btn figma-nav-primary" type="button">
+            Export
+          </button>
+          <button className="figma-avatar-btn" onClick={handleLogout} title={project.title} type="button" aria-label="用户">
+            <span className="figma-avatar-fallback">{project.title.slice(0, 1).toUpperCase()}</span>
           </button>
         </div>
-        <ScriptGrid script={script} />
+      </header>
+
+      <section className="figma-main">
+        <div className="editor-workspace">
+          <div className="editor-page-header">
+            <h1 className="editor-page-title">Script Editor</h1>
+            <p className="editor-page-subtitle">{project.title}</p>
+          </div>
+          <ScriptGrid script={script} />
+        </div>
       </section>
 
-      <div
-        className="col-splitter"
-        onPointerDown={handleSplitterPointerDown}
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="拖动调整脚本编辑器与 Agent 面板宽度"
-      />
+      <button className="figma-fab" onClick={handleFabClick} type="button" aria-label="打开 Agent 对话">
+        <IconLightning />
+      </button>
 
-      <aside className="agents-col">
-        {AGENTS.map((agent) => (
-          <section
-            className={`agent-panel panel-${agent.tone} ${activePanel === agent.type ? "expanded" : "collapsed"}`}
-            key={agent.type}
-          >
-            <button className="panel-header" onClick={() => openPanel(agent.type)} type="button">
-              <span className={`panel-dot dot-${agent.tone}`} />
-              <span className={`panel-name name-${agent.tone}`}>{agent.title}</span>
-              <span className={`panel-badge ${agent.type === "brand" ? "badge-done" : agent.type === "audience" ? "badge-wait" : "badge-new"}`}>
-                {agent.badge}
-              </span>
-              <IconChevron />
-            </button>
-            {activePanel === agent.type ? <AgentBody agent={agent.type} selectedText={editor.selectedText} /> : null}
-          </section>
-        ))}
-      </aside>
+      {agentDrawerOpen ? (
+        <>
+          <button className="figma-drawer-backdrop" onClick={() => setAgentDrawerOpen(false)} type="button" aria-label="关闭 Agent 面板" />
+          <aside className="figma-agent-drawer">
+            <div className="figma-drawer-header">
+              <span className="figma-drawer-title">Agents</span>
+              <button className="figma-drawer-close" onClick={() => setAgentDrawerOpen(false)} type="button" aria-label="关闭">
+                ×
+              </button>
+            </div>
+            <div className="figma-agent-stack">
+              {AGENTS.map((agent) => (
+                <section
+                  className={`agent-panel panel-${agent.tone} ${activePanel === agent.type ? "expanded" : "collapsed"}`}
+                  key={agent.type}
+                >
+                  <button className="panel-header" onClick={() => openPanel(agent.type)} type="button">
+                    <span className={`panel-dot dot-${agent.tone}`} />
+                    <span className={`panel-name name-${agent.tone}`}>{agent.title}</span>
+                    <span className={`panel-badge ${agent.type === "brand" ? "badge-done" : agent.type === "audience" ? "badge-wait" : "badge-new"}`}>
+                      {agent.badge}
+                    </span>
+                    <IconChevron />
+                  </button>
+                  {activePanel === agent.type ? <AgentBody agent={agent.type} selectedText={editor.selectedText} /> : null}
+                </section>
+              ))}
+            </div>
+          </aside>
+        </>
+      ) : null}
     </main>
   );
 }
@@ -463,10 +482,10 @@ function statusClass(status: string) {
 }
 
 function statusLabel(status: string) {
-  if (status === "editing") return "编辑中";
-  if (status === "saving") return "保存中";
-  if (status === "failed") return "保存失败";
-  return "已保存";
+  if (status === "editing") return "Editing";
+  if (status === "saving") return "Saving";
+  if (status === "failed") return "Failed";
+  return "Saved";
 }
 
 function confidenceLabel(confidence: BrandInsightConfidence) {
@@ -484,7 +503,7 @@ function statusLabelInsight(status: BrandInsightStatus) {
 
 function IconUpload() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
       <polyline points="17 8 12 3 7 8" />
       <line x1="12" y1="3" x2="12" y2="15" />
@@ -494,34 +513,16 @@ function IconUpload() {
 
 function IconEye() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
       <circle cx="12" cy="12" r="3" />
     </svg>
   );
 }
 
-function IconEdit() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-    </svg>
-  );
-}
-
-function IconCheck() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <polyline points="9 11 12 14 22 4" />
-      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-    </svg>
-  );
-}
-
 function IconChevron() {
   return (
-    <svg className="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg className="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
       <polyline points="6 9 12 15 18 9" />
     </svg>
   );
@@ -529,9 +530,71 @@ function IconChevron() {
 
 function IconBack() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
       <path d="M19 12H5" />
       <path d="M12 19l-7-7 7-7" />
+    </svg>
+  );
+}
+
+function IconEditorList() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <line x1="8" x2="21" y1="6" y2="6" />
+      <line x1="8" x2="21" y1="12" y2="12" />
+      <line x1="8" x2="21" y1="18" y2="18" />
+      <line x1="3" x2="3.01" y1="6" y2="6" />
+      <line x1="3" x2="3.01" y1="12" y2="12" />
+      <line x1="3" x2="3.01" y1="18" y2="18" />
+    </svg>
+  );
+}
+
+function IconMap() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <circle cx="12" cy="12" r="3" />
+      <circle cx="5" cy="7" r="2" />
+      <circle cx="19" cy="7" r="2" />
+      <circle cx="7" cy="19" r="2" />
+      <line x1="12" x2="5" y1="12" y2="7" />
+      <line x1="12" x2="19" y1="12" y2="7" />
+      <line x1="12" x2="7" y1="12" y2="19" />
+    </svg>
+  );
+}
+
+function IconPersonas() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  );
+}
+
+function IconBell() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </svg>
+  );
+}
+
+function IconSettings() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
+}
+
+function IconLightning() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
     </svg>
   );
 }

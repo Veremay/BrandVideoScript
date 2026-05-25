@@ -109,3 +109,24 @@ class LLMChatRequest(BaseModel):
     stream: bool = False
     response_format: dict[str, Any] | None = None
     complexity: Literal["normal", "high"] = "normal"
+
+
+class TavilySearchRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=400)
+    max_results: int = Field(default=5, ge=1, le=20)
+    search_depth: Literal["basic", "advanced", "fast", "ultra-fast"] = "basic"
+    topic: Literal["general", "news", "finance"] | None = None
+    time_range: Literal["day", "week", "month", "year"] | None = None
+    include_domains: list[str] | None = None
+    exclude_domains: list[str] | None = None
+    include_answer: bool | Literal["basic", "advanced"] = False
+    include_raw_content: bool | Literal["markdown", "text"] = False
+    mock: bool = False
+
+
+class TavilyExtractRequest(BaseModel):
+    urls: list[str] = Field(min_length=1, max_length=20)
+    extract_depth: Literal["basic", "advanced"] = "basic"
+    format: Literal["markdown", "text"] = "markdown"
+    query: str | None = Field(default=None, max_length=400)
+    mock: bool = False

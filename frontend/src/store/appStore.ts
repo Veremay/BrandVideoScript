@@ -44,6 +44,7 @@ type AppState = {
   updateCell: (rowId: string, columnId: string, value: string) => void;
   setSaveStatus: (saveStatus: SaveStatus) => void;
   openPanel: (agent: AgentType | null) => void;
+  setActivePanel: (agent: AgentType | null) => void;
   insertRowAfter: (rowId?: string) => void;
   deleteRow: (rowId: string) => void;
   insertColumnAfter: (columnId?: string, label?: string, multiline?: boolean) => void;
@@ -105,6 +106,10 @@ export const useAppStore = create<AppState>((set) => ({
   openPanel: (agent) =>
     set((state) => ({
       layout: { ...state.layout, activePanel: state.layout.activePanel === agent ? null : agent }
+    })),
+  setActivePanel: (agent) =>
+    set((state) => ({
+      layout: { ...state.layout, activePanel: agent }
     })),
   insertRowAfter: (rowId) =>
     set((state) => {

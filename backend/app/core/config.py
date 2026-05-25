@@ -13,8 +13,9 @@ class Settings(BaseSettings):
     siliconflow_base_url: str = "https://api.siliconflow.cn/v1"
     siliconflow_default_model: str = "Qwen/Qwen3-8B"
     siliconflow_advanced_model: str = "Qwen/Qwen3-32B"
+    tavily_api_key: str = ""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 
 @lru_cache

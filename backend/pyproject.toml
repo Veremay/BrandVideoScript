@@ -10,8 +10,13 @@ dependencies = [
     "pydantic-settings==2.7.1",
     "redis==5.2.1",
     "httpx==0.28.1",
+    "tavily-python>=0.7.24",
 ]
 
 [tool.uv]
 package = false
+
+[[tool.uv.index]]
+url = "https://mirrors.aliyun.com/pypi/simple/"
+default = true
 
