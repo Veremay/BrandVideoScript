@@ -425,6 +425,550 @@ textarea {
   overflow: hidden;
 }
 
+.map-workspace {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  background-color: #faf8ff;
+}
+
+.map-flow {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+}
+
+.map-flow .react-flow__background {
+  background-color: #faf8ff;
+}
+
+.map-flow .react-flow__edge-path {
+  stroke: #7ed4fd;
+  stroke-width: 2;
+}
+
+.map-flow .react-flow__edge.selected .react-flow__edge-path {
+  stroke: #006591;
+  stroke-width: 3;
+}
+
+.map-flow .react-flow__edge.selected .react-flow__edge-interaction {
+  stroke-width: 16;
+}
+
+.map-flow .react-flow__connection-path {
+  stroke: #7ed4fd;
+  stroke-width: 2;
+}
+
+.map-flow .react-flow__node {
+  background: transparent;
+  border: none;
+  padding: 0;
+  box-shadow: none;
+}
+
+.map-flow .react-flow__node.selected .map-node {
+  box-shadow: 0 20px 40px rgba(14, 165, 233, 0.16), 0 0 0 2px rgba(0, 101, 145, 0.2);
+}
+
+.map-node-handle {
+  width: 10px;
+  height: 10px;
+  border: 2px solid #7ed4fd;
+  background: #fff;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.map-flow .react-flow__node:hover .map-node-handle,
+.map-flow .react-flow__node.selected .map-node-handle,
+.map-flow .react-flow__handle.connecting,
+.map-flow .react-flow__handle.connectingfrom,
+.map-flow .react-flow__handle.connectingto,
+.map-flow .react-flow__handle.valid {
+  opacity: 1;
+}
+
+.map-node-handle-target {
+  left: -4px;
+}
+
+.map-node-handle-source {
+  right: -4px;
+}
+
+.map-node {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 20px 40px rgba(14, 165, 233, 0.08);
+  z-index: 2;
+  overflow: visible;
+}
+
+.map-node-issue {
+  border-color: #ba1a1a;
+}
+
+.map-node-position {
+  border-color: #006591;
+}
+
+.map-node-argument {
+  border-color: #7ed4fd;
+}
+
+.map-node-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.map-node-label {
+  font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  line-height: 15px;
+  text-transform: uppercase;
+}
+
+.map-node-issue .map-node-label {
+  color: #ba1a1a;
+}
+
+.map-node-position .map-node-label {
+  color: #006591;
+}
+
+.map-node-argument .map-node-label {
+  color: #006686;
+}
+
+.map-node-menu-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.map-node-menu {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--figma-text-secondary);
+}
+
+.map-node-menu:hover {
+  background: rgba(0, 101, 145, 0.08);
+}
+
+.map-node-menu svg {
+  display: block;
+  width: 3px;
+  height: 10px;
+  flex-shrink: 0;
+}
+
+.map-node-menu-confirm {
+  color: #006591;
+}
+
+.map-node-menu-confirm:hover {
+  background: rgba(0, 101, 145, 0.12);
+}
+
+.map-node-menu-confirm svg {
+  width: 12px;
+  height: 10px;
+}
+
+.map-node-editing {
+  box-shadow: 0 0 0 2px rgba(0, 101, 145, 0.18), 0 20px 40px rgba(14, 165, 233, 0.12);
+}
+
+.map-node-title-input,
+.map-node-content-input {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
+  color: var(--figma-text);
+  outline: none;
+  resize: vertical;
+}
+
+.map-node-title-input {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.map-node-content-input {
+  min-height: 60px;
+  font-size: 12px;
+  line-height: 19.5px;
+  color: var(--figma-text-secondary);
+}
+
+.map-node-title-input:focus,
+.map-node-content-input:focus {
+  outline: none;
+}
+
+.map-node-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 96px;
+  padding: 4px;
+  border: 1px solid var(--figma-border);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+}
+
+.map-node-dropdown-item {
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--figma-text-secondary);
+  font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  text-align: left;
+}
+
+.map-node-dropdown-item:hover {
+  background: rgba(0, 101, 145, 0.08);
+  color: var(--figma-text);
+}
+
+.map-node-dropdown-item-danger {
+  color: #ba1a1a;
+}
+
+.map-node-dropdown-item-danger:hover {
+  background: rgba(186, 26, 26, 0.08);
+  color: #ba1a1a;
+}
+
+.map-node-title {
+  font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  color: var(--figma-text);
+}
+
+.map-node-content {
+  font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
+  font-size: 12px;
+  line-height: 19.5px;
+  color: var(--figma-text-secondary);
+}
+
+.map-node-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 4px;
+  color: #006591;
+  font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 15px;
+}
+
+.map-node-footer svg {
+  width: 10px;
+  height: 10px;
+}
+
+.map-node-ref {
+  padding: 5px 9px;
+  border: 1px solid rgba(0, 101, 145, 0.05);
+  border-radius: 8px;
+  background: #eaedff;
+}
+
+.map-node-ref code {
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 15px;
+  color: #006591;
+}
+
+.map-overlay {
+  position: absolute;
+  top: 25px;
+  left: 32px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  pointer-events: none;
+}
+
+.map-legend,
+.map-controls-wrap,
+.map-controls {
+  pointer-events: auto;
+}
+
+.map-legend {
+  width: 192px;
+  padding: 17px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 20px 40px rgba(14, 165, 233, 0.08);
+}
+
+.map-legend-title {
+  padding-bottom: 9px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid rgba(0, 101, 145, 0.1);
+  font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.35px;
+  line-height: 20px;
+  color: var(--figma-text);
+}
+
+.map-legend-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  list-style: none;
+}
+
+.map-legend-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  color: var(--figma-text-secondary);
+}
+
+.map-legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.map-legend-dot.dot-issue {
+  background: #ba1a1a;
+  box-shadow: 0 0 0 4px rgba(186, 26, 26, 0.1);
+}
+
+.map-legend-dot.dot-position {
+  background: #006591;
+  box-shadow: 0 0 0 4px rgba(0, 101, 145, 0.1);
+}
+
+.map-legend-dot.dot-argument {
+  background: #7ed4fd;
+  box-shadow: 0 0 0 4px rgba(126, 212, 253, 0.2);
+}
+
+.map-controls-wrap {
+  position: relative;
+}
+
+.map-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 48px;
+  padding: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 20px 40px rgba(14, 165, 233, 0.08);
+}
+
+.map-control-btn-add.active {
+  background: rgba(0, 101, 145, 0.12);
+}
+
+.map-add-node-menu {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 10px);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  padding: 6px;
+  border: 1px solid var(--figma-border);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
+}
+
+.map-add-node-menu-title {
+  padding: 6px 10px 8px;
+  border-bottom: 1px solid rgba(0, 101, 145, 0.1);
+  margin-bottom: 4px;
+  font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--figma-text-secondary);
+}
+
+.map-add-node-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--figma-text);
+  font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  text-align: left;
+}
+
+.map-add-node-menu-item:hover {
+  background: rgba(0, 101, 145, 0.08);
+}
+
+.map-control-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--figma-primary);
+}
+
+.map-control-btn:hover {
+  background: rgba(0, 101, 145, 0.08);
+}
+
+.map-control-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.map-control-divider {
+  width: 24px;
+  height: 1px;
+  margin: 4px 0;
+  background: rgba(0, 101, 145, 0.1);
+}
+
+.map-context-menu {
+  position: fixed;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  padding: 6px;
+  border: 1px solid var(--figma-border);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
+  transform: translate(4px, 4px);
+}
+
+.map-context-menu-title {
+  padding: 6px 10px 8px;
+  border-bottom: 1px solid rgba(0, 101, 145, 0.1);
+  margin-bottom: 4px;
+  font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--figma-text-secondary);
+}
+
+.map-context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--figma-text);
+  font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  text-align: left;
+}
+
+.map-context-menu-item:hover {
+  background: rgba(0, 101, 145, 0.08);
+}
+
+.map-context-menu-item-danger {
+  color: #ba1a1a;
+}
+
+.map-context-menu-item-danger:hover {
+  background: rgba(186, 26, 26, 0.08);
+  color: #ba1a1a;
+}
+
+.map-context-menu-hint,
+.map-legend-hint {
+  padding: 8px 10px 4px;
+  font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--figma-text-secondary);
+}
+
+.map-legend-hint {
+  padding: 12px 0 0;
+  border-top: 1px solid rgba(0, 101, 145, 0.1);
+  margin-top: 12px;
+}
+
 .figma-fab {
   position: fixed;
   right: 32px;

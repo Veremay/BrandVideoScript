@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 
 import { ScriptGrid } from "@/components/ScriptGrid";
@@ -12,6 +13,11 @@ import {
 } from "@/lib/api";
 import type { AgentType, BrandInsight, BrandInsightCategory, BrandInsightConfidence, BrandInsightStatus } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
+
+const MapView = dynamic(() => import("@/components/MapView").then((mod) => mod.MapView), {
+  ssr: false,
+  loading: () => <main className="centerStage">Loading Map...</main>
+});
 
 const SAVE_DELAY_MS = 700;
 
@@ -48,6 +54,7 @@ export function EditorShell() {
   const hasHydrated = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [agentDrawerOpen, setAgentDrawerOpen] = useState(false);
+  const [activeView, setActiveView] = useState<"editor" | "map">("editor");
   const activePanel = layout.activePanel;
 
   useEffect(() => {
@@ -140,12 +147,22 @@ export function EditorShell() {
             Back
           </button>
           <span className="figma-brand-logo">BrandVideo</span>
-          <div className="figma-view-toggle" role="tablist" aria-label="视图切换">
-            <button className="figma-view-tab active" type="button" aria-selected="true">
+          <div className="figma-view-toggle" role="tablist" aria-label="Switch view">
+            <button
+              className={`figma-view-tab ${activeView === "editor" ? "active" : ""}`}
+              onClick={() => setActiveView("editor")}
+              type="button"
+              aria-selected={activeView === "editor"}
+            >
               <IconEditorList />
               Editor
             </button>
-            <button className="figma-view-tab" disabled title="即将推出" type="button" aria-selected="false">
+            <button
+              className={`figma-view-tab ${activeView === "map" ? "active" : ""}`}
+              onClick={() => setActiveView("map")}
+              type="button"
+              aria-selected={activeView === "map"}
+            >
               <IconMap />
               Map
             </button>
@@ -183,13 +200,17 @@ export function EditorShell() {
       </header>
 
       <section className="figma-main">
-        <div className="editor-workspace">
-          <div className="editor-page-header">
-            <h1 className="editor-page-title">Script Editor</h1>
-            <p className="editor-page-subtitle">{project.title}</p>
+        {activeView === "editor" ? (
+          <div className="editor-workspace">
+            <div className="editor-page-header">
+              <h1 className="editor-page-title">Script Editor</h1>
+              <p className="editor-page-subtitle">{project.title}</p>
+            </div>
+            <ScriptGrid script={script} />
           </div>
-          <ScriptGrid script={script} />
-        </div>
+        ) : (
+          <MapView />
+        )}
       </section>
 
       <button className="figma-fab" onClick={handleFabClick} type="button" aria-label="打开 Agent 对话">
