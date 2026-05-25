@@ -1,8 +1,11 @@
-# 数据结构修订版 + LangGraph State 设计
+# 数据结构 + LangGraph State 设计
+
+> 对齐 `docs/prd_new.md` §10、§13、§14。  
+> 旧版 `BrandInsight` / `AudienceAnalysis` / `ExpertSuggestion` / 三 Agent 前台模型已废弃，见文末迁移说明。
 
 ---
 
-## 一、修订后的数据结构
+## 一、业务数据结构
 
 ### 1. Project
 
@@ -14,19 +17,19 @@
   "brand_name": "string",
   "video_topic": "string",
   "platform": "xiaohongshu | douyin | bilibili | other",
-  "brief_file_id": "string",
-  "brief_text": "string",
+  "current_brief_file_id": "string",
   "current_script_version_id": "string",
+  "active_persona_id": "string",
   "created_at": "datetime",
   "updated_at": "datetime"
 }
 ```
 
-**修改说明：** 新增 `owner_id`，预留多用户归属，避免后续接入认证时补 migration。
+**说明：** `owner_id` 预留多用户归属；`current_script_version_id` 指向当前生效脚本版本，结构化 artifact 均绑定 `script_version_id`。
 
 ---
 
-### 2. BriefFile（新增独立实体）
+### 2. BriefFile
 
 ```json
 {
@@ -40,13 +43,13 @@
 }
 ```
 
-**修改说明：** 原 PRD 没有独立定义此结构，仅在 API 返回里出现。解析是异步的，需要独立实体追踪状态。
+**说明：** Brief 解析为异步流程，需独立实体追踪 `parse_status`。PRD 支持 PDF、DOC、DOCX、TXT、MD、PPT、PPTX；MVP 实现范围见 `development_plan_P0.md`。
 
 ---
 
 ### 3. ScriptVersion
 
-`cells` 从固定 key object 改为 column_id 关联的数组，支持动态列。
+`cells` 使用 `column_id` 关联数组，支持动态列；序号列 `#` 不进入 `columns`。
 
 ```json
 {
@@ -75,63 +78,71 @@
       ]
     }
   ],
-  "created_reason": "manual_edit | expert_suggestion_applied | import",
+  "created_reason": "manual_edit | revision_proposal_applied | import | rollback",
   "created_at": "datetime"
 }
 ```
 
-**修改说明：** 原 `cells: { duration: "0-5", scene: "..." }` 使用固定 key，与动态列（用户可增删列）冲突。改为数组后，通过 `column_id` 关联，列被删除时 cells 里对应条目一并清理，结构自洽。
+**默认业务列（PRD §4.1）：** `duration`、`scene`、`format`、`notes`。不包含「反馈建议」默认列。
 
 ---
 
-### 4. AgentMessage
+### 4. CoordinatorMessage
 
-`quote` 从单对象改为数组，支持多段引用。
+统一 Chat 消息，替代旧版按 `agent_type` 拆分的 `AgentMessage`。
 
 ```json
 {
   "message_id": "string",
   "project_id": "string",
-  "agent_type": "brand | audience | expert",
   "role": "user | assistant | system",
   "content": "string",
+  "requested_perspectives": ["brand | audience | expert | comprehensive"],
+  "active_persona_id": "string",
   "quotes": [
     {
       "text": "string",
       "row_id": "string",
       "column_id": "string",
+      "selection_start": 0,
+      "selection_end": 10,
       "script_version_id": "string"
     }
   ],
+  "related_node_ids": ["string"],
+  "generated_artifact_ids": ["string"],
   "created_at": "datetime"
 }
 ```
 
-**修改说明：** 用户可以多次选中文本插入 quote tag，单 object 无法满足。改为 `quotes` 数组。
+**说明：** `quotes` 为数组，支持多段引用；`generated_artifact_ids` 可关联本轮生成的 node / proposal / prep / reference id。
 
 ---
 
-### 5. BrandInsight
-
-补回 `updated_by` 字段。
+### 5. RationaleNode（IBIS）
 
 ```json
 {
-  "insight_id": "string",
+  "node_id": "string",
   "project_id": "string",
-  "category": "explicit_requirement | implicit_requirement | brand_feedback",
+  "node_type": "issue | position | argument | reference",
+  "title": "string",
   "content": "string",
-  "reason": "string",
-  "evidence": [
+  "source_type": "brand_brief | brand_feedback | brand_inferred | audience_persona | audience_simulation | creator_input | expert_analysis | system_detected | external_reference",
+  "source_perspective": "brand | audience | creator | expert | system",
+  "business_tags": ["brand_requirement | audience_feedback | conflict | revision_option | negotiation_point | evidence"],
+  "stance": "support | oppose | neutral | not_applicable",
+  "confidence": "high | medium | low",
+  "status": "open | in_review | resolved | needs_negotiation | deferred | dismissed",
+  "linked_script_refs": [
     {
-      "source_type": "brief | pr_feedback | script | chat",
-      "quote": "string",
       "row_id": "string",
-      "column_id": "string"
+      "column_id": "string",
+      "text_snapshot": "string",
+      "script_version_id": "string"
     }
   ],
-  "confidence": "high | medium | low",
-  "status": "new | confirmed | pending | ignored",
+  "related_reference_ids": ["string"],
   "created_by": "agent | user",
   "updated_by": "agent | user",
   "based_on_script_version_id": "string",
@@ -140,13 +151,40 @@
 }
 ```
 
-**修改说明：** Section 10.4 漏了 `updated_by`，从 Section 6.2 补回，后端追踪谁最后修改了 insight 所必需。
+**说明：** 节点**形状/图标**表示 IBIS 类型；**颜色**表示 Issue 来源（`source_type`），见 PRD §5.4。
 
 ---
 
-### 6. Persona
+### 6. RationaleEdge
 
-`age` 从 string 改为结构化范围。
+```json
+{
+  "edge_id": "string",
+  "project_id": "string",
+  "from_node_id": "string",
+  "to_node_id": "string",
+  "relation_type": "responds_to | supports | opposes | evidenced_by | derived_from | refines | conflicts_with | updates",
+  "created_by": "agent | user",
+  "created_at": "datetime"
+}
+```
+
+**方向约定（PRD §5.5）：**
+
+| relation_type   | 典型方向                    |
+| --------------- | ------------------------- |
+| responds_to     | Position → Issue          |
+| supports        | Argument → Position       |
+| opposes         | Argument → Position       |
+| evidenced_by    | Argument → Reference      |
+| derived_from    | Issue / Argument → Reference |
+| refines         | Issue → Issue             |
+| conflicts_with  | Position → Position       |
+| updates         | Node → Node               |
+
+---
+
+### 7. Persona
 
 ```json
 {
@@ -155,7 +193,7 @@
   "name": "string",
   "icon": "string",
   "gender": "string",
-  "age_range": "18-24 | 25-34 | 35-44 | 45+",
+  "age_range": "string",
   "preferences": "string",
   "behavior": "string",
   "platform_context": "string",
@@ -168,50 +206,80 @@
 }
 ```
 
-**修改说明：** 原 `age: string` 太宽泛（"25岁"、"年轻人"等都能填），会导致 LLM prompt 中的受众分析不稳定。改为枚举 `age_range`，既限制了输入，也方便在 prompt 中直接用于受众推断。
+**说明：** `age_range` 为**自由文本**（如「大学生」「30+新手妈妈」），不做枚举限制（PRD §7.4）。
 
 ---
 
-### 7. AudienceAnalysis（新增独立实体）
+### 8. ReferenceItem
 
 ```json
 {
-  "analysis_id": "string",
+  "reference_id": "string",
   "project_id": "string",
-  "persona_id": "string",
-  "based_on_script_version_id": "string",
-  "summary": "string",
-  "naturalness_score": 3,
-  "credibility_score": 3,
-  "ad_sensitivity_score": 3,
-  "key_risks": ["string"],
-  "liked_parts": [
-    { "row_id": "string", "reason": "string" }
+  "source_type": "brief | pr_feedback | script | persona | brand_material | case | platform_rule | creator_note | external_knowledge",
+  "title": "string",
+  "content": "string",
+  "quote": "string",
+  "url": "string",
+  "file_id": "string",
+  "related_node_ids": ["string"],
+  "related_script_refs": [
+    {
+      "row_id": "string",
+      "column_id": "string",
+      "text_snapshot": "string"
+    }
   ],
-  "rejected_parts": [
-    { "row_id": "string", "reason": "string" }
-  ],
-  "suggestions": ["string"],
   "created_at": "datetime"
 }
 ```
 
-**修改说明：** 原 PRD 分析结果只存在对话消息里。结构化分析结果应独立持久化，绑定 `script_version_id` + `persona_id`，方便专家 Agent 读取以及后续多版本对比。`liked_parts` / `rejected_parts` 补了 `row_id` 以便与脚本表格精准关联。
-
 ---
 
-### 8. ExpertSuggestion
-
-补回 `based_on_audience_insight_ids`，hunk 结构补全。
+### 9. NegotiationPreparation
 
 ```json
 {
-  "suggestion_id": "string",
+  "prep_id": "string",
+  "project_id": "string",
+  "title": "string",
+  "based_on_script_version_id": "string",
+  "related_issue_ids": ["string"],
+  "sections": [
+    {
+      "section_type": "likely_brand_question | creator_explanation | negotiable_point | confirm_with_brand | external_message",
+      "title": "string",
+      "content": "string",
+      "related_node_ids": ["string"],
+      "related_script_refs": [
+        {
+          "row_id": "string",
+          "column_id": "string",
+          "text_snapshot": "string"
+        }
+      ]
+    }
+  ],
+  "status": "draft | reviewed | exported",
+  "created_at": "datetime",
+  "updated_at": "datetime"
+}
+```
+
+---
+
+### 10. RevisionProposal
+
+替代旧版 `ExpertSuggestion`；由 Coordinator / 内部 Expert Perspective 生成。
+
+```json
+{
+  "proposal_id": "string",
   "project_id": "string",
   "title": "string",
   "direction": "brand_first | audience_natural | balanced | creator_expression | custom",
+  "target_issue_ids": ["string"],
   "description": "string",
-  "target_problem": "string",
   "rationale": "string",
   "brand_tradeoff": "string",
   "audience_tradeoff": "string",
@@ -228,49 +296,59 @@
       "added": "string"
     }
   ],
+  "related_node_ids": ["string"],
+  "related_reference_ids": ["string"],
   "based_on_script_version_id": "string",
-  "based_on_brand_insight_ids": ["string"],
-  "based_on_audience_analysis_ids": ["string"],
   "status": "draft | previewed | partially_applied | applied | dismissed",
   "created_at": "datetime"
 }
 ```
 
-**修改说明：** 原 Section 10.6 漏了 `based_on_audience_insight_ids`（且已改名为 `based_on_audience_analysis_ids` 对应新的独立实体）。这个字段是 stale 联动的依据：当关联的 audience analysis 更新后，系统才能精准标记哪些 suggestion 需要 stale。
+**Diff 规则：** hunk 绑定 `row_id` + `column_id`；禁止全文字符串重解析写回表格（PRD §9.4）。
+
+**Hunk 用户决策状态：** `null`（未决定）| `true`（应用）| `false`（不应用）。
 
 ---
 
-### 9. AgentStaleness
+### 11. ArtifactStaleness
 
-补全 audience 的 `stale_persona_changed` 枚举值。
+按前台 **artifact** 标记过期，不再按 brand / audience / expert 三 Agent 面板。
 
 ```json
 {
   "project_id": "string",
-  "brand": "up_to_date | stale_script_changed | generating | failed",
-  "audience": "up_to_date | stale_script_changed | stale_persona_changed | generating | failed",
-  "expert": "up_to_date | stale_script_changed | stale_brand_changed | stale_audience_changed | generating | failed",
+  "rationale_graph": "up_to_date | stale_script_changed | stale_brief_changed | stale_persona_changed | generating | failed",
+  "revision_proposals": "up_to_date | stale_script_changed | stale_graph_changed | stale_persona_changed | generating | failed",
+  "negotiation_preparation": "up_to_date | stale_script_changed | stale_graph_changed | generating | failed",
+  "references": "up_to_date | stale_brief_changed | stale_external_source_changed | generating | failed",
   "updated_at": "datetime"
 }
 ```
 
-**修改说明：** 原 PRD audience 缺少 `stale_persona_changed`。用户切换或编辑 persona 后，基于旧 persona 的分析结果就已过期，需要单独标记。
+**更新规则摘要（PRD §14）：**
+
+| 触发事件       | 影响字段 |
+| ------------ | ---- |
+| 脚本 cell 变更   | `rationale_graph`、`revision_proposals`、`negotiation_preparation` → `stale_script_changed` |
+| Brief 重新上传/解析 | `rationale_graph`、`references` → brief 相关；`revision_proposals`、`negotiation_preparation` → `stale_graph_changed` |
+| active persona 变更/编辑 | `rationale_graph`、`revision_proposals` → `stale_persona_changed` |
+| Node Graph 用户编辑 | `revision_proposals`、`negotiation_preparation` → `stale_graph_changed`；Reference 节点变更可能使 `references` stale |
 
 ---
 
-## 二、LangGraph State 设计
+## 二、LangGraph State 设计（Coordinator）
 
-### 设计原则
+### 设计原则（PRD §13.1）
 
-LangGraph 的 State 是整个图（Graph）中所有节点共享的上下文。这个系统有三个 Agent，核心原则是：
-
-- **每个 Agent 只读自己需要的字段，只写自己负责的字段**
-- **State 是快照 + 增量，不是聊天历史的堆叠**
-- **Agent 之间不直接调用对方，通过 State 中的字段传递输出**
+1. 前台只有 **Coordinator Chat**；Brand / Audience / Expert 为**内部视角节点**。
+2. 内部节点通过**结构化 artifacts** 传递，不互传大段自然语言。
+3. 每个内部节点只读必要上下文，避免污染。
+4. 重要结果写入**业务数据库**；LangGraph State 是一次运行上下文，不替代业务表。
+5. `thread_id` 使用 `project_id`。
 
 ---
 
-### GraphState 定义
+### CoordinatorState
 
 ```python
 from typing import Annotated, Literal, Optional
@@ -278,81 +356,12 @@ from langgraph.graph import add_messages
 from pydantic import BaseModel, Field
 
 
-# ── 脚本快照（只读，节点不得直接修改，需通过专门节点更新）──
-class CellSnapshot(BaseModel):
-    column_id: str
-    value: str
-
-class RowSnapshot(BaseModel):
-    row_id: str
-    order: int
-    cells: list[CellSnapshot]
-
-class ColumnDef(BaseModel):
-    column_id: str
-    key: str
-    label: str
-    type: str
-    multiline: bool
-
 class ScriptSnapshot(BaseModel):
     script_version_id: str
-    columns: list[ColumnDef]
-    rows: list[RowSnapshot]
+    columns: list[dict]
+    rows: list[dict]
 
 
-# ── 品牌方 Agent 输出 ──
-class BrandInsightItem(BaseModel):
-    insight_id: str
-    category: Literal["explicit_requirement", "implicit_requirement", "brand_feedback"]
-    content: str
-    reason: str
-    confidence: Literal["high", "medium", "low"]
-    status: Literal["new", "confirmed", "pending", "ignored"]
-    created_by: Literal["agent", "user"]
-    updated_by: Literal["agent", "user"]
-
-
-# ── 观众 Agent 输出 ──
-class AudienceAnalysisResult(BaseModel):
-    analysis_id: str
-    persona_id: str
-    summary: str
-    naturalness_score: int
-    credibility_score: int
-    ad_sensitivity_score: int
-    key_risks: list[str]
-    liked_parts: list[dict]
-    rejected_parts: list[dict]
-    suggestions: list[str]
-
-
-# ── 专家 Agent 输出 ──
-class HunkItem(BaseModel):
-    hunk_id: str
-    row_id: str
-    column_id: str
-    context: str
-    removed: str
-    added: str
-
-class ExpertSuggestionItem(BaseModel):
-    suggestion_id: str
-    title: str
-    direction: str
-    description: str
-    rationale: str
-    brand_tradeoff: str
-    audience_tradeoff: str
-    creator_tradeoff: str
-    risk: str
-    explanation_to_brand: str
-    hunks: list[HunkItem]
-    based_on_brand_insight_ids: list[str]
-    based_on_audience_analysis_ids: list[str]
-
-
-# ── Quote（用户从脚本中圈出的引用）──
 class QuoteItem(BaseModel):
     text: str
     row_id: str
@@ -360,353 +369,211 @@ class QuoteItem(BaseModel):
     script_version_id: str
 
 
-# ── 触发信号（控制哪个节点运行）──
 class TriggerSignal(BaseModel):
-    agent: Literal["brand", "audience", "expert"]
-    reason: Literal[
-        "brief_uploaded",
+    task_type: Literal[
+        "initialize_project",
         "user_message",
         "script_changed",
         "persona_changed",
-        "user_request_regenerate"
+        "generate_issue",
+        "generate_positions",
+        "generate_arguments",
+        "generate_revision_proposals",
+        "generate_negotiation_preparation",
+        "retrieve_references",
     ]
     user_message: Optional[str] = None
+    requested_perspectives: list[Literal["brand", "audience", "expert", "comprehensive"]] = Field(default_factory=list)
     quotes: list[QuoteItem] = Field(default_factory=list)
+    target_node_ids: list[str] = Field(default_factory=list)
     active_persona_id: Optional[str] = None
 
 
-# ── 主 State ──
-class CreatorStudioState(BaseModel):
-
-    # 项目基础
+class CoordinatorState(BaseModel):
     project_id: str
     brief_text: Optional[str] = None
-
-    # 脚本快照（每次涉及脚本的节点执行前，从 DB 拉取最新版本填入）
     script: Optional[ScriptSnapshot] = None
+    active_persona: Optional[dict] = None
 
-    # 触发信号（由 entry node 设置，各 Agent 节点根据此决定是否执行）
     trigger: Optional[TriggerSignal] = None
 
-    # 品牌方 Agent
-    brand_insights: list[BrandInsightItem] = Field(default_factory=list)
-    brand_messages: Annotated[list, add_messages] = Field(default_factory=list)
-    brand_stale: bool = False
+    # User-facing chat
+    coordinator_messages: Annotated[list, add_messages] = Field(default_factory=list)
 
-    # 观众 Agent
-    active_persona_id: Optional[str] = None
-    audience_analysis: Optional[AudienceAnalysisResult] = None
-    audience_messages: Annotated[list, add_messages] = Field(default_factory=list)
-    audience_stale: bool = False
+    # Structured artifacts（运行中累积，persist 节点写入 DB）
+    rationale_nodes: list[dict] = Field(default_factory=list)
+    rationale_edges: list[dict] = Field(default_factory=list)
+    references: list[dict] = Field(default_factory=list)
+    revision_proposals: list[dict] = Field(default_factory=list)
+    negotiation_preparation: Optional[dict] = None
 
-    # 专家 Agent
-    expert_suggestions: list[ExpertSuggestionItem] = Field(default_factory=list)
-    expert_messages: Annotated[list, add_messages] = Field(default_factory=list)
-    expert_stale: bool = False
+    # Internal perspective outputs（不直接暴露给前台）
+    brand_perspective_result: Optional[dict] = None
+    audience_perspective_result: Optional[dict] = None
+    expert_perspective_result: Optional[dict] = None
 
-    # 错误收集（各节点写入，不互相覆盖）
     errors: list[str] = Field(default_factory=list)
 ```
 
 ---
 
-### State 字段职责说明
+### State 字段职责
 
 | 字段 | 写入方 | 读取方 | 说明 |
-|---|---|---|---|
-| `script` | `load_script_node` | Brand / Audience / Expert | 每次图执行开始时拉取快照，只读 |
-| `brief_text` | `load_script_node` | Brand Agent | Brief 全文，Brand 分析的原始输入 |
-| `trigger` | 入口节点 | Router | 决定本次运行进入哪条分支 |
-| `brand_insights` | Brand Agent | Expert Agent | 结构化品牌需求，专家依赖此生成方案 |
-| `brand_messages` | Brand Agent | Brand Agent（多轮） | 使用 `add_messages` 自动追加，不覆盖 |
-| `brand_stale` | 入口节点 / Script 变更节点 | Brand Agent | 为 true 时提示 Brand 重新分析 |
-| `audience_analysis` | Audience Agent | Expert Agent | 受众评分，专家依赖此做 trade-off |
-| `audience_messages` | Audience Agent | Audience Agent（多轮） | 同上 |
-| `audience_stale` | 入口节点 / Persona 变更节点 | Audience Agent | persona 切换 / 脚本变更时置为 true |
-| `expert_suggestions` | Expert Agent | 前端 / Apply 节点 | 多方案卡片 |
-| `expert_stale` | Brand / Audience 更新后 | Expert Agent | brand_insights 或 audience_analysis 更新后置为 true |
+|------|--------|--------|------|
+| `script` | `entry_node` | 各 perspective / proposal 节点 | 执行开始时从 DB 拉取快照，只读 |
+| `brief_text` | `entry_node` | `brand_perspective_node` | Brief 全文或解析文本 |
+| `trigger` | 入口 | `task_router_node` | 决定任务类型与调用的内部视角 |
+| `brand_perspective_result` | `brand_perspective_node` | `expert_perspective_node`、`rationale_graph_writer_node` | 品牌需求、审片风险等结构化结论 |
+| `audience_perspective_result` | `audience_perspective_node` | `expert_perspective_node` | 基于 active persona 的模拟反馈 |
+| `expert_perspective_result` | `expert_perspective_node` | `revision_proposal_node` | 综合方案与 trade-off |
+| `rationale_nodes` / `rationale_edges` | `rationale_graph_writer_node` | 前端 Graph、`negotiation_writer_node` | IBIS 图增量 |
+| `revision_proposals` | `revision_proposal_node` | 前端 Diff | cell-level hunks |
+| `negotiation_preparation` | `negotiation_writer_node` | Output Panel | 协商准备 |
+| `coordinator_messages` | `response_composer_node` | Coordinator Chat 多轮 | `add_messages` 追加 |
 
 ---
 
-### 消息追加机制
+### 上下文隔离（PRD §13.5）
 
-`brand_messages` / `audience_messages` / `expert_messages` 使用 LangGraph 的 `add_messages` reducer：
-
-```python
-from langgraph.graph import add_messages
-from typing import Annotated
-
-brand_messages: Annotated[list, add_messages]
-```
-
-`add_messages` 会自动按 message_id 去重并追加，节点每次只需返回新消息，不需要手动管理历史。
+| 内部视角 | 可读 | 应避免 |
+|----------|------|--------|
+| Brand Perspective | brief、品牌资料、PR feedback、相关脚本片段 | 无关 persona 细节 |
+| Audience Perspective | script、active persona、平台语境 | 过多品牌内部推理 |
+| Expert Perspective | script、rationale graph、brand/audience perspective results、references | — |
+| Coordinator（composer） | 所有前台可见 artifacts | — |
 
 ---
 
-## 三、Graph 结构与节点设计
+## 三、推荐 Graph 节点（PRD §13.4）
 
-### 节点列表
-
-```
-entry_node          ← 接收外部触发，设置 trigger，拉取 script 快照
+```text
+entry_node              ← 拉取 project、brief、script、persona、graph 快照
     ↓
-router_node         ← 根据 trigger.agent 分发到对应 Agent 节点
+task_router_node        ← 根据 trigger.task_type 与 requested_perspectives 路由
     ↓
-brand_agent_node    ← 处理品牌 Agent 的分析和对话
-audience_agent_node ← 处理观众 Agent 的分析和对话
-expert_agent_node   ← 处理专家 Agent 的方案生成
+brand_perspective_node
+audience_perspective_node
+expert_perspective_node
+reference_retriever_node
     ↓
-persist_node        ← 将 State 中的输出写入数据库
+rationale_graph_writer_node
+revision_proposal_node
+negotiation_writer_node
     ↓
-stale_update_node   ← 根据本次哪个 Agent 输出了新内容，更新其他 Agent 的 stale 标记
+response_composer_node    ← 生成用户可见 Coordinator 回复
+    ↓
+persist_node              ← 写入 CoordinatorMessage、nodes、edges、references、proposals、prep
+    ↓
+stale_update_node         ← 更新 ArtifactStaleness
     ↓
 END
 ```
 
-### 代码示例
-
-```python
-from langgraph.graph import StateGraph, END
-
-def router_node(state: CreatorStudioState):
-    """根据 trigger 决定走哪条分支"""
-    return state.trigger.agent  # 返回 "brand" | "audience" | "expert"
-
-
-def brand_agent_node(state: CreatorStudioState) -> dict:
-    """品牌方 Agent 节点"""
-    messages = build_brand_prompt(
-        brief_text=state.brief_text,
-        script=state.script,
-        history=state.brand_messages,
-        trigger=state.trigger
-    )
-    response = call_llm(messages)  # 调用 LLM，流式或同步
-
-    new_insights = parse_insights(response)      # 解析结构化 insights
-    new_message = build_assistant_message(response)
-
-    return {
-        "brand_insights": new_insights,
-        "brand_messages": [new_message],         # add_messages 自动追加
-        "brand_stale": False,
-        "expert_stale": True,                    # 通知专家需要重新分析
-    }
-
-
-def audience_agent_node(state: CreatorStudioState) -> dict:
-    messages = build_audience_prompt(
-        script=state.script,
-        persona_id=state.active_persona_id,
-        history=state.audience_messages,
-        trigger=state.trigger
-    )
-    response = call_llm(messages)
-    analysis = parse_audience_analysis(response)
-    new_message = build_assistant_message(response)
-
-    return {
-        "audience_analysis": analysis,
-        "audience_messages": [new_message],
-        "audience_stale": False,
-        "expert_stale": True,                    # 通知专家需要重新分析
-    }
-
-
-def expert_agent_node(state: CreatorStudioState) -> dict:
-    messages = build_expert_prompt(
-        script=state.script,
-        brand_insights=state.brand_insights,     # 直接从 State 读取
-        audience_analysis=state.audience_analysis,  # 直接从 State 读取
-        history=state.expert_messages,
-        trigger=state.trigger
-    )
-    response = call_llm(messages)
-    suggestions = parse_suggestions(response)
-    new_message = build_assistant_message(response)
-
-    return {
-        "expert_suggestions": suggestions,
-        "expert_messages": [new_message],
-        "expert_stale": False,
-    }
-
-
-# ── 构建图 ──
-builder = StateGraph(CreatorStudioState)
-
-builder.add_node("entry", entry_node)
-builder.add_node("router", router_node)
-builder.add_node("brand_agent", brand_agent_node)
-builder.add_node("audience_agent", audience_agent_node)
-builder.add_node("expert_agent", expert_agent_node)
-builder.add_node("persist", persist_node)
-builder.add_node("stale_update", stale_update_node)
-
-builder.set_entry_point("entry")
-builder.add_edge("entry", "router")
-
-builder.add_conditional_edges("router", lambda s: s.trigger.agent, {
-    "brand": "brand_agent",
-    "audience": "audience_agent",
-    "expert": "expert_agent",
-})
-
-for agent_node in ["brand_agent", "audience_agent", "expert_agent"]:
-    builder.add_edge(agent_node, "persist")
-
-builder.add_edge("persist", "stale_update")
-builder.add_edge("stale_update", END)
-
-graph = builder.compile()
-```
+**编排说明：** 并非每次运行都执行全部节点；`task_router_node` 按 `task_type` 选择子图。例如 `user_message` 可能只走部分 perspective + composer；`generate_revision_proposals` 侧重 expert + revision_proposal。
 
 ---
 
-## 四、Agent 之间的消息传递方式
+## 四、内部视角与前台 artifact 的关系
 
-这个系统的 Agent 关系是**单向依赖链**，不是对等协商：
-
-```
-Brief
-  ↓
-Brand Agent  →  brand_insights
-                    ↓
-Audience Agent  →  audience_analysis
-                    ↓
-              Expert Agent（综合两者生成方案）
-```
-
-### 传递方式：通过 State 字段，而非直接调用
-
-**不要**让 Expert Agent 直接调用 Brand Agent 或 Audience Agent 的接口。正确做法是：
-
-- Brand Agent 执行完毕 → 将 `brand_insights` 写入 State
-- Audience Agent 执行完毕 → 将 `audience_analysis` 写入 State
-- Expert Agent 执行时 → 从 State 中读取 `brand_insights` 和 `audience_analysis`，构建 prompt
-
-这样每个 Agent 节点之间没有耦合，调度顺序由 Router 决定，测试和替换某个 Agent 都互不影响。
-
-### 跨对话轮次的上下文传递
-
-每个 Agent 有独立的 `messages` 历史列表。LLM 调用时，构建 prompt 的方式是：
-
-```python
-def build_expert_prompt(script, brand_insights, audience_analysis, history, trigger):
-    system_prompt = """你是一位专业的内容创作顾问..."""
-
-    # 1. 把品牌和观众分析结果注入 system 上下文
-    context = f"""
-## 当前品牌方需求
-{format_insights(brand_insights)}
-
-## 当前观众分析
-{format_analysis(audience_analysis)}
-
-## 当前脚本
-{format_script(script)}
-    """
-
-    # 2. 用历史消息做多轮对话
-    messages = [
-        {"role": "system", "content": system_prompt + context},
-        *history,  # 展开历史消息
-    ]
-
-    # 3. 追加本轮用户输入（含 quotes）
-    if trigger.user_message:
-        user_content = trigger.user_message
-        if trigger.quotes:
-            quoted = "\n".join([f"> {q.text}" for q in trigger.quotes])
-            user_content = f"{quoted}\n\n{user_content}"
-        messages.append({"role": "user", "content": user_content})
-
-    return messages
+```text
+Brief 解析
+    ↓
+Brand Perspective ──→ rationale_nodes（Issue / Reference 等）
+    ↓
+Audience Perspective（active persona）──→ Argument / Issue（观众视角）
+    ↓
+Expert Perspective + Rationale Graph ──→ RevisionProposal、Position、Argument
+    ↓
+Negotiation Writer ──→ NegotiationPreparation
+Reference Retriever ──→ ReferenceItem（Output Panel + Graph Reference 节点）
+    ↓
+Response Composer ──→ CoordinatorMessage（自然语言 + artifact 引用）
 ```
 
-### 跨 Agent 信号：通过 stale 标记，而非事件
-
-当 Brand Agent 更新了 `brand_insights`，**不需要立刻触发 Expert Agent**。正确的做法是：
-
-```python
-# brand_agent_node 返回时，顺手设置
-return {
-    "brand_insights": new_insights,
-    "brand_messages": [new_message],
-    "expert_stale": True,   # ← 这就是给 Expert 的"信号"
-}
-```
-
-前端读取 `expert_stale == True` 后，在专家面板显示「有新输入，点击重新生成」按钮。用户主动触发时，新的一轮图执行才会运行 Expert Agent 节点。这样避免了 Agent 自动串联带来的不可控费用和幻觉叠加。
+用户通过 **Coordinator Chat** 触发；结构化结果同步到 **Node Graph** 与 **Output Panel**，不经过三个独立 Agent 面板。
 
 ---
 
-## 五、外部触发示例
+## 五、持久化策略
 
-### 用户上传 Brief
+1. **业务表（推荐 PostgreSQL，见 PRD §18）**  
+   前端可查询：`CoordinatorMessage`、`RationaleNode`、`RationaleEdge`、`Persona`、`ReferenceItem`、`RevisionProposal`、`NegotiationPreparation`、`ScriptVersion`。
+
+2. **LangGraph checkpointer**  
+   仅用于运行恢复与调试；`thread_id = project_id`。
+
+3. **版本绑定**  
+   每条 message、node、reference、proposal、prep 应记录 `based_on_script_version_id`（或 `linked_script_refs[].script_version_id`）。
+
+4. **MVP 轻量实现**  
+   见 `technical_plan_lightweight.md`：MongoDB 嵌入 + 独立 collection 拆分策略，与完整规范化 schema 允许阶段性差异。
+
+---
+
+## 六、旧实体迁移对照
+
+| 旧实体 | 新实体 / 表达方式 |
+|--------|------------------|
+| `AgentMessage`（`agent_type`） | `CoordinatorMessage`（`requested_perspectives`） |
+| `BrandInsight` | `RationaleNode`（`node_type=issue/argument`，`source_type` 含 brand_*） |
+| `AudienceAnalysis` | `RationaleNode` + 内部 `audience_perspective_result`；不再单独前台 pinned 分析卡 |
+| `ExpertSuggestion` | `RevisionProposal` |
+| `AgentStaleness`（brand/audience/expert） | `ArtifactStaleness`（按 artifact） |
+| 三 Agent 独立 `messages` | 单一 `coordinator_messages` |
+| 前台 Brand/Audience/Expert 面板 | Coordinator Chat + Node Graph + Output Panel |
+
+---
+
+## 七、外部触发示例
+
+### Brief 上传后初始化项目
 
 ```python
-initial_state = CreatorStudioState(
+state = CoordinatorState(
     project_id="proj_001",
-    trigger=TriggerSignal(
-        agent="brand",
-        reason="brief_uploaded"
-    )
+    trigger=TriggerSignal(task_type="initialize_project"),
 )
-result = await graph.ainvoke(initial_state)
+result = await graph.ainvoke(state, config={"configurable": {"thread_id": "proj_001"}})
 ```
 
-### 用户在观众 Agent 发送消息
+### 用户带 quote 向 Coordinator 提问（指定观众视角）
 
 ```python
-state = CreatorStudioState(
+state = CoordinatorState(
     project_id="proj_001",
     trigger=TriggerSignal(
-        agent="audience",
-        reason="user_message",
-        user_message="这段台词观众会觉得太硬广吗？",
+        task_type="user_message",
+        user_message="这段台词会不会太硬广？",
+        requested_perspectives=["audience"],
         quotes=[QuoteItem(
             text="这款产品真的改变了我的生活",
             row_id="row_005",
             column_id="col_scene",
-            script_version_id="v_003"
+            script_version_id="sv_003",
         )],
-        active_persona_id="persona_001"
-    )
+        active_persona_id="persona_001",
+    ),
 )
-result = await graph.ainvoke(state)
 ```
 
-### 用户主动触发专家重新生成方案
+### 从 Issue 生成修改方案
 
 ```python
-state = CreatorStudioState(
+state = CoordinatorState(
     project_id="proj_001",
     trigger=TriggerSignal(
-        agent="expert",
-        reason="user_request_regenerate"
-    )
+        task_type="generate_revision_proposals",
+        target_node_ids=["node_issue_012"],
+        requested_perspectives=["comprehensive"],
+    ),
 )
-result = await graph.ainvoke(state)
 ```
 
 ---
 
-## 六、State 持久化策略
+## 八、相关文档
 
-LangGraph 支持内置的 checkpointer，推荐接入 PostgreSQL：
-
-```python
-from langgraph.checkpoint.postgres import PostgresSaver
-
-checkpointer = PostgresSaver.from_conn_string(DATABASE_URL)
-graph = builder.compile(checkpointer=checkpointer)
-
-# 每次调用时传入 thread_id（对应 project_id）
-config = {"configurable": {"thread_id": "proj_001"}}
-result = await graph.ainvoke(state, config=config)
-```
-
-这样每次图执行结束后，State 快照会自动持久化到 PostgreSQL，下次执行时可以从上一个 checkpoint 恢复。`thread_id` 直接用 `project_id` 即可，一个项目对应一条 State 历史线。
-
-不需要另外维护一套 State 持久化逻辑；只有 `brand_insights`、`audience_analysis`、`expert_suggestions` 这类需要被前端查询的结构化输出，才需要同时写入业务数据库。
+- 产品需求：`docs/prd_new.md`
+- MVP 开发计划：`docs/development_plan_P0.md`
+- 轻量技术方案：`docs/technical_plan_lightweight.md`
