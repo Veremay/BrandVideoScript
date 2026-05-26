@@ -3,17 +3,10 @@
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 
+import { GlacierAssistant } from "@/components/GlacierAssistant";
 import { PersonaPanel } from "@/components/PersonaPanel";
 import { ScriptGrid } from "@/components/ScriptGrid";
-import {
-  createBrandInsight,
-  deleteBrandInsight,
-  saveBrief,
-  saveScript,
-  updateBrandInsight
-} from "@/lib/api";
-import { getPersonaEmoji } from "@/lib/personaEmoji";
-import type { AgentType, BrandInsight, BrandInsightCategory, BrandInsightConfidence, BrandInsightStatus } from "@/lib/types";
+import { saveBrief, saveScript } from "@/lib/api";
 import { useAppStore } from "@/store/appStore";
 
 const MapView = dynamic(() => import("@/components/MapView").then((mod) => mod.MapView), {
@@ -22,23 +15,6 @@ const MapView = dynamic(() => import("@/components/MapView").then((mod) => mod.M
 });
 
 const SAVE_DELAY_MS = 700;
-
-const AGENTS: Array<{
-  type: AgentType;
-  title: string;
-  badge: string;
-  tone: "brand" | "audience" | "expert";
-}> = [
-  { type: "brand", title: "品牌方 Agent", badge: "分析完成", tone: "brand" },
-  { type: "audience", title: "观众 Agent", badge: "待触发", tone: "audience" },
-  { type: "expert", title: "专家 Agent", badge: "有新输入", tone: "expert" }
-];
-
-const BRAND_TABS: Array<{ category: BrandInsightCategory; label: string; addLabel: string }> = [
-  { category: "explicit_requirement", label: "显式需求", addLabel: "添加需求" },
-  { category: "implicit_requirement", label: "隐式需求", addLabel: "添加洞察" },
-  { category: "brand_feedback", label: "品牌反馈", addLabel: "添加反馈" }
-];
 
 export function EditorShell() {
   const {
@@ -51,14 +27,12 @@ export function EditorShell() {
     setSaveStatus,
     setUserId,
     setActivePanel,
-    openPanel,
     setPersonaPanelOpen
   } = useAppStore();
   const hasHydrated = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [agentDrawerOpen, setAgentDrawerOpen] = useState(false);
   const [activeView, setActiveView] = useState<"editor" | "map">("editor");
-  const activePanel = layout.activePanel;
 
   useEffect(() => {
     if (layout.activePanel) {
@@ -215,306 +189,26 @@ export function EditorShell() {
         )}
       </section>
 
-      <button className="figma-fab" onClick={handleFabClick} type="button" aria-label="打开 Agent 对话">
+      <button
+        className={`figma-fab ${agentDrawerOpen ? "figma-fab--open" : ""}`}
+        onClick={handleFabClick}
+        type="button"
+        aria-label={agentDrawerOpen ? "关闭 Glacier Assistant" : "打开 Glacier Assistant"}
+        aria-expanded={agentDrawerOpen}
+      >
         <IconLightning />
       </button>
 
-      {agentDrawerOpen ? (
-        <>
-          <button className="figma-drawer-backdrop" onClick={() => setAgentDrawerOpen(false)} type="button" aria-label="关闭 Agent 面板" />
-          <aside className="figma-agent-drawer">
-            <div className="figma-drawer-header">
-              <span className="figma-drawer-title">Agents</span>
-              <button className="figma-drawer-close" onClick={() => setAgentDrawerOpen(false)} type="button" aria-label="关闭">
-                ×
-              </button>
-            </div>
-            <div className="figma-agent-stack">
-              {AGENTS.map((agent) => (
-                <section
-                  className={`agent-panel panel-${agent.tone} ${activePanel === agent.type ? "expanded" : "collapsed"}`}
-                  key={agent.type}
-                >
-                  <button className="panel-header" onClick={() => openPanel(agent.type)} type="button">
-                    <span className={`panel-dot dot-${agent.tone}`} />
-                    <span className={`panel-name name-${agent.tone}`}>{agent.title}</span>
-                    <span className={`panel-badge ${agent.type === "brand" ? "badge-done" : agent.type === "audience" ? "badge-wait" : "badge-new"}`}>
-                      {agent.badge}
-                    </span>
-                    <IconChevron />
-                  </button>
-                  {activePanel === agent.type ? <AgentBody agent={agent.type} selectedText={editor.selectedText} /> : null}
-                </section>
-              ))}
-            </div>
-          </aside>
-        </>
-      ) : null}
+      <GlacierAssistant
+        open={agentDrawerOpen}
+        onClose={() => setAgentDrawerOpen(false)}
+        selectedText={editor.selectedText}
+        userInitial={project.title.slice(0, 1).toUpperCase()}
+      />
 
       <PersonaPanel onClose={() => setPersonaPanelOpen(false)} open={layout.personaPanelOpen} />
     </main>
   );
-}
-
-function AgentBody({ agent, selectedText }: { agent: AgentType; selectedText?: string }) {
-  const { brand, project, setBrandPinnedTab, setProject, setPersonaPanelOpen } = useAppStore();
-
-  if (agent === "brand" && project) {
-    const activeTab = brand.activePinnedTab;
-    const activeTabMeta = BRAND_TABS.find((tab) => tab.category === activeTab) ?? BRAND_TABS[0];
-    const insights = project.brand_insights.filter((insight) => insight.category === activeTab);
-
-    async function handleAddInsight() {
-      if (!project) return;
-      const savedProject = await createBrandInsight(project._id, project.user_id, {
-        category: activeTab,
-        title: activeTabMeta.label,
-        content: "新的品牌洞察",
-        reason: project.brief.summary ? `来自 Brief：${project.brief.summary}` : "用户手动新增。",
-        evidence: project.brief.text ? [{ source_type: "brief", quote: project.brief.summary || project.brief.text.slice(0, 120) }] : [],
-        confidence: "medium",
-        status: "new"
-      });
-      setProject(savedProject);
-    }
-
-    return (
-      <div className="panel-body">
-        <div className="pinned">
-          <div className="pinned-tabs">
-            {BRAND_TABS.map((tab) => (
-              <button
-                className={`ptab ${activeTab === tab.category ? "active-brand" : ""}`}
-                key={tab.category}
-                onClick={() => setBrandPinnedTab(tab.category)}
-                type="button"
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-          <div className="pinned-content show">
-            {project.brief.summary ? <div className="brief-summary">Brief: {project.brief.summary}</div> : null}
-            <div className="pinned-list">
-              {insights.length ? (
-                insights.map((insight, index) => <PinnedItem insight={insight} key={insight.insight_id} mark={String(index + 1).padStart(2, "0")} />)
-              ) : (
-                <div className="pinned-empty">暂无条目</div>
-              )}
-            </div>
-            <div className="pinned-add-row">
-              <button className="pinned-add-btn" onClick={handleAddInsight} type="button">
-                + {activeTabMeta.addLabel}
-              </button>
-            </div>
-          </div>
-        </div>
-        <AgentChat agent="brand" selectedText={selectedText} placeholder="向品牌方 Agent 提问或粘贴 PR feedback..." />
-      </div>
-    );
-  }
-
-  if (agent === "audience") {
-    const personas = project?.personas ?? [];
-    const activePersonaId = project?.active_persona_id ?? undefined;
-
-    return (
-      <div className="panel-body">
-        <div className="persona-bar">
-          <span className="persona-label">画像</span>
-          {personas.length ? (
-            personas.map((persona) => (
-              <button
-                className={`chip ${activePersonaId === persona.persona_id ? "active" : ""}`}
-                key={persona.persona_id}
-                onClick={() => setPersonaPanelOpen(true)}
-                type="button"
-              >
-                {getPersonaEmoji(persona)} {persona.name}
-              </button>
-            ))
-          ) : (
-            <span className="persona-empty-chip">暂无 persona</span>
-          )}
-          <button className="chip add-chip" onClick={() => setPersonaPanelOpen(true)} type="button">
-            +
-          </button>
-        </div>
-        <AgentChat agent="audience" selectedText={selectedText} placeholder="发送片段让观众评估..." />
-      </div>
-    );
-  }
-
-  return (
-    <div className="panel-body">
-      <div className="chat-area compact">
-        <div className="msg msg-agent">已综合品牌方与观众反馈，生成两个修改方向，预览后可进入 Diff 确认。</div>
-      </div>
-      <div className="proposals">
-        <div className="proposal-card">
-          <div className="proposal-top">
-            <span className="proposal-title">方向一：强化真实感</span>
-            <span className="proposal-rec">推荐</span>
-          </div>
-          <div className="proposal-desc">把抽象表达改成账单、路况、缺点等具体细节，提高可信度。</div>
-          <div className="proposal-actions">
-            <button className="prop-btn prop-btn-primary" type="button">
-              <IconEye />
-              预览修改
-            </button>
-          </div>
-        </div>
-      </div>
-      <AgentChat agent="expert" selectedText={selectedText} placeholder="向专家 Agent 提问..." />
-    </div>
-  );
-}
-
-function PinnedItem({ insight, mark }: { insight: BrandInsight; mark: string }) {
-  const { project, setProject } = useAppStore();
-  const [expanded, setExpanded] = useState(false);
-  const [draft, setDraft] = useState({
-    title: insight.title,
-    content: insight.content,
-    reason: insight.reason,
-    confidence: insight.confidence,
-    status: insight.status
-  });
-
-  useEffect(() => {
-    setDraft({
-      title: insight.title,
-      content: insight.content,
-      reason: insight.reason,
-      confidence: insight.confidence,
-      status: insight.status
-    });
-  }, [insight]);
-
-  if (!project) return null;
-
-  async function handleSave() {
-    if (!project) return;
-    const savedProject = await updateBrandInsight(project._id, project.user_id, insight.insight_id, draft);
-    setProject(savedProject);
-  }
-
-  async function handleDelete() {
-    if (!project) return;
-    const savedProject = await deleteBrandInsight(project._id, project.user_id, insight.insight_id);
-    setProject(savedProject);
-  }
-
-  return (
-    <div className={`pinned-item ${expanded ? "is-expanded" : ""}`}>
-      <button className="pinned-item-main" onClick={() => setExpanded((value) => !value)} type="button">
-        <span className="pinned-item-mark mark-blue">{mark}</span>
-        <span className="pinned-item-text">{insight.content}</span>
-        <span className={`insight-chip confidence-${insight.confidence}`}>{confidenceLabel(insight.confidence)}</span>
-        <span className={`insight-chip status-${insight.status}`}>{statusLabelInsight(insight.status)}</span>
-      </button>
-      {expanded ? (
-        <div className="insight-details">
-          <label>
-            标题
-            <input value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} />
-          </label>
-          <label>
-            内容
-            <textarea value={draft.content} onChange={(event) => setDraft({ ...draft, content: event.target.value })} />
-          </label>
-          <label>
-            Reason
-            <textarea value={draft.reason} onChange={(event) => setDraft({ ...draft, reason: event.target.value })} />
-          </label>
-          <div className="insight-select-row">
-            <label>
-              Confidence
-              <select
-                value={draft.confidence}
-                onChange={(event) => setDraft({ ...draft, confidence: event.target.value as BrandInsightConfidence })}
-              >
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-              </select>
-            </label>
-            <label>
-              Status
-              <select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value as BrandInsightStatus })}>
-                <option value="new">New</option>
-                <option value="confirmed">Confirmed</option>
-                <option value="pending">Pending</option>
-                <option value="ignored">Ignored</option>
-              </select>
-            </label>
-          </div>
-          <div className="insight-evidence">
-            <span>Evidence</span>
-            {insight.evidence.length ? (
-              insight.evidence.map((item, index) => <blockquote key={`${insight.insight_id}-${index}`}>{item.quote ?? "未填写 quote"}</blockquote>)
-            ) : (
-              <p>暂无 evidence</p>
-            )}
-          </div>
-          <div className="insight-actions">
-            <button className="pinned-add-btn" onClick={handleSave} type="button">保存</button>
-            <button className="insight-delete-btn" onClick={handleDelete} type="button">删除</button>
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function AgentChat({ agent, selectedText, placeholder }: { agent: AgentType; selectedText?: string; placeholder: string }) {
-  const { project, setProject } = useAppStore();
-  const [message, setMessage] = useState("");
-
-  async function handleSend() {
-    if (!project || !message.trim()) return;
-
-    if (agent === "brand") {
-      const savedProject = await createBrandInsight(project._id, project.user_id, {
-        category: "brand_feedback",
-        title: "PR feedback",
-        content: message.trim(),
-        reason: selectedText ? "用户基于选中脚本片段补充的品牌反馈。" : "用户在品牌方 Agent 对话中输入的反馈。",
-        evidence: selectedText ? [{ source_type: "script", quote: selectedText }] : [{ source_type: "chat", quote: message.trim() }],
-        confidence: "medium",
-        status: "pending"
-      });
-      setProject(savedProject);
-    }
-
-    setMessage("");
-  }
-
-  return (
-    <>
-      <div className="chat-area">
-        <div className="msg msg-agent">{welcomeText(agent)}</div>
-      </div>
-      {selectedText ? (
-        <div className="input-quote-wrap show">
-          <div className={`input-quote-tag ${agent}`}>
-            <span className="input-quote-icon">↳</span>
-            <span className="input-quote-text">{selectedText}</span>
-          </div>
-        </div>
-      ) : null}
-      <div className="chat-input">
-        <input placeholder={placeholder} value={message} onChange={(event) => setMessage(event.target.value)} />
-        <button className={`send-btn send-${agent}`} onClick={handleSend} type="button">发送</button>
-      </div>
-    </>
-  );
-}
-
-function welcomeText(agent: AgentType) {
-  if (agent === "brand") return "我会从品牌安全、卖点表达和 brief 一致性角度检查当前脚本。";
-  if (agent === "audience") return "我会模拟目标观众，判断片段的真实感、广告感和信息密度。";
-  return "我会综合多方反馈，给出可预览、可确认的 cell-level 修改建议。";
 }
 
 function statusClass(status: string) {
@@ -530,42 +224,12 @@ function statusLabel(status: string) {
   return "Saved";
 }
 
-function confidenceLabel(confidence: BrandInsightConfidence) {
-  if (confidence === "high") return "高";
-  if (confidence === "low") return "低";
-  return "中";
-}
-
-function statusLabelInsight(status: BrandInsightStatus) {
-  if (status === "confirmed") return "已确认";
-  if (status === "pending") return "待确认";
-  if (status === "ignored") return "忽略";
-  return "新增";
-}
-
 function IconUpload() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
       <polyline points="17 8 12 3 7 8" />
       <line x1="12" y1="3" x2="12" y2="15" />
-    </svg>
-  );
-}
-
-function IconEye() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  );
-}
-
-function IconChevron() {
-  return (
-    <svg className="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <polyline points="6 9 12 15 18 9" />
     </svg>
   );
 }

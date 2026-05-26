@@ -995,6 +995,458 @@ textarea {
   filter: brightness(1.05);
 }
 
+.figma-fab--open {
+  box-shadow:
+    0 0 0 4px rgba(0, 101, 145, 0.2),
+    0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 8px 10px -6px rgba(0, 0, 0, 0.1);
+}
+
+.glacier-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  border: none;
+  background: transparent;
+  cursor: default;
+}
+
+.glacier-assistant {
+  --glacier-primary: #006591;
+  --glacier-border: #bec8d2;
+  --glacier-text: #131b2e;
+  --glacier-text-secondary: #3e4850;
+  --glacier-muted: #6b7280;
+  position: fixed;
+  right: 32px;
+  bottom: 112px;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  width: min(384px, calc(100vw - 48px));
+  height: min(799px, calc(100vh - 180px));
+  max-height: min(799px, calc(100vh - 180px));
+  overflow: hidden;
+  border: 1px solid rgba(0, 101, 145, 0.2);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+.glacier-header {
+  flex-shrink: 0;
+  padding: 16px 16px 17px;
+  border-bottom: 1px solid var(--glacier-border);
+  background: rgba(242, 243, 255, 0.5);
+}
+
+.glacier-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.glacier-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.glacier-icon-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(0, 101, 145, 0.1);
+  color: var(--glacier-primary);
+}
+
+.glacier-icon-badge svg {
+  width: 14px;
+  height: 14px;
+}
+
+.glacier-title {
+  color: var(--glacier-text);
+  font-family: "Hanken Grotesk", Arial, "Microsoft YaHei", sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+}
+
+.glacier-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--glacier-text-secondary);
+  cursor: pointer;
+}
+
+.glacier-close svg {
+  width: 14px;
+  height: 14px;
+}
+
+.glacier-close:hover {
+  background: rgba(0, 101, 145, 0.08);
+}
+
+.glacier-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 8px;
+  background: rgba(226, 231, 255, 0.5);
+}
+
+.glacier-tab {
+  flex: 1;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--glacier-text-secondary);
+  font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  cursor: pointer;
+}
+
+.glacier-tab.active {
+  background: #fff;
+  color: var(--glacier-primary);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
+}
+
+.glacier-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  background: rgba(255, 255, 255, 0.3);
+  scrollbar-color: #eaefff transparent;
+  scrollbar-width: thin;
+}
+
+.glacier-chat-thread {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 100%;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.glacier-msg-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.glacier-msg-row--user {
+  justify-content: flex-end;
+}
+
+.glacier-avatar {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9999px;
+  font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.glacier-avatar--bot {
+  background: rgba(0, 101, 145, 0.1);
+  color: var(--glacier-primary);
+}
+
+.glacier-avatar--bot svg {
+  width: 12px;
+  height: 12px;
+}
+
+.glacier-avatar--user {
+  overflow: hidden;
+  background: #e2e7ff;
+  color: var(--glacier-primary);
+}
+
+.glacier-bubble {
+  max-width: calc(100% - 44px);
+  padding: 12px 13px;
+  font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
+  font-size: 14px;
+  line-height: 20px;
+  white-space: pre-wrap;
+}
+
+.glacier-bubble--assistant {
+  border: 1px solid var(--glacier-border);
+  border-radius: 0 16px 16px 16px;
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--glacier-text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.glacier-bubble--user {
+  border-radius: 16px 0 16px 16px;
+  background: var(--glacier-primary);
+  color: #fff;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
+}
+
+.glacier-plans-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 100%;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.glacier-plan-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 17px 18px;
+  border: 1px solid var(--glacier-border);
+  border-radius: 12px;
+  background: #f2f3ff;
+}
+
+.glacier-plan-card--active {
+  border: 2px solid rgba(0, 101, 145, 0.2);
+  background: rgba(0, 101, 145, 0.05);
+}
+
+.glacier-plan-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.glacier-plan-title {
+  margin: 0;
+  color: var(--glacier-text);
+  font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+}
+
+.glacier-plan-card--active .glacier-plan-title {
+  color: var(--glacier-primary);
+}
+
+.glacier-plan-badge {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: var(--glacier-primary);
+  color: #fff;
+  font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  line-height: 15px;
+}
+
+.glacier-plan-desc {
+  margin: 0;
+  color: var(--glacier-text-secondary);
+  font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
+  font-size: 12px;
+  line-height: 19.5px;
+}
+
+.glacier-plan-btn {
+  width: 100%;
+  padding: 7px 8px;
+  border: 1px solid #6e7881;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--glacier-text-secondary);
+  font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  cursor: pointer;
+}
+
+.glacier-plan-btn--active {
+  border-color: var(--glacier-primary);
+  background: #fff;
+  color: var(--glacier-primary);
+}
+
+.glacier-plans-actions {
+  flex-shrink: 0;
+  padding: 13px 16px 12px;
+  border-top: 1px solid var(--glacier-border);
+  background: rgba(226, 231, 255, 0.8);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.glacier-plans-actions-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.glacier-btn {
+  flex: 1;
+  padding: 9px 8px;
+  border-radius: 8px;
+  font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  cursor: pointer;
+}
+
+.glacier-btn--primary {
+  border: none;
+  background: var(--glacier-primary);
+  color: #fff;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
+}
+
+.glacier-btn--outline {
+  border: 1px solid var(--glacier-primary);
+  background: transparent;
+  color: var(--glacier-primary);
+}
+
+.glacier-reject-all {
+  width: 100%;
+  padding: 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--glacier-text-secondary);
+  font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  cursor: pointer;
+}
+
+.glacier-input-area {
+  flex-shrink: 0;
+  padding: 17px 16px 16px;
+  border-top: 1px solid var(--glacier-border);
+  background: rgba(242, 243, 255, 0.5);
+}
+
+.glacier-quote {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  max-height: 54px;
+  overflow: hidden;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(0, 101, 145, 0.1);
+  color: var(--glacier-primary);
+  font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.glacier-quote-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.glacier-input-wrap {
+  position: relative;
+}
+
+.glacier-input {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  max-height: 120px;
+  padding: 14px 49px 14px 17px;
+  border: 1px solid var(--glacier-border);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--glacier-text);
+  font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
+  font-size: 14px;
+  line-height: 20px;
+  resize: none;
+}
+
+.glacier-input::placeholder {
+  color: var(--glacier-muted);
+}
+
+.glacier-input:focus {
+  outline: 2px solid rgba(0, 101, 145, 0.25);
+  outline-offset: 0;
+}
+
+.glacier-send {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: var(--glacier-primary);
+  color: #fff;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.glacier-send svg {
+  width: 13px;
+  height: 11px;
+}
+
+.glacier-send:hover {
+  filter: brightness(1.05);
+}
+
+@media (max-width: 640px) {
+  .glacier-assistant {
+    right: 12px;
+    bottom: 96px;
+    width: calc(100vw - 24px);
+    height: calc(100vh - 120px);
+    max-height: calc(100vh - 120px);
+  }
+}
+
 .figma-drawer-backdrop {
   position: fixed;
   inset: 0;
