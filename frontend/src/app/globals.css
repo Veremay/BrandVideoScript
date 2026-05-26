@@ -1980,6 +1980,18 @@ textarea {
   width: 14%;
 }
 
+.editor-table-cell--readonly,
+.editor-table-input--readonly {
+  cursor: default;
+  color: var(--text-secondary);
+  background: rgba(79, 142, 247, 0.06);
+}
+
+.col-brand-feedback .editor-table-cell--readonly:empty::before {
+  color: var(--text-muted);
+  content: "—";
+}
+
 .editor-th-data {
   position: relative;
   overflow: visible;
@@ -3225,6 +3237,88 @@ textarea {
   .persona-form-grid {
     grid-template-columns: 1fr;
   }
+}
+
+.brief-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  border: none;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.brief-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 91;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(80vh, 720px);
+  padding: 20px 22px 18px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35);
+  transform: translate(-50%, -50%);
+}
+
+.brief-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.brief-modal-header h2 {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.brief-modal-close {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 22px;
+  line-height: 1;
+}
+
+.brief-modal-hint {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.brief-modal-textarea {
+  flex: 1;
+  min-height: 220px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface2);
+  color: var(--text-primary);
+  resize: vertical;
+}
+
+.brief-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.graph-workspace {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.graph-workspace .map-workspace {
+  flex: 1;
+  min-height: 0;
 }
 
 .chat-area {

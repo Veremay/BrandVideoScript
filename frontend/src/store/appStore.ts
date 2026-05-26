@@ -3,7 +3,7 @@
 import { create } from "zustand";
 
 import { insertColumn, insertRow, removeColumn, removeRow, renameColumn, updateCellValue } from "@/lib/scriptEditor";
-import type { AgentType, BrandInsightCategory, Project, SaveStatus, Script } from "@/lib/types";
+import type { Project, SaveStatus, Script } from "@/lib/types";
 
 type EditorState = {
   selectedRowId?: string;
@@ -22,21 +22,6 @@ type AppState = {
     coordinatorChatOpen: boolean;
     personaPanelOpen: boolean;
   };
-  brand: {
-    activePinnedTab: "explicit_requirement" | "implicit_requirement" | "brand_feedback";
-    streaming: boolean;
-  };
-  audience: {
-    activePersonaId?: string;
-    modalMode: "create" | "edit" | null;
-    streaming: boolean;
-  };
-  expert: {
-    activeSuggestionId?: string;
-    diffOverlayOpen: boolean;
-    hunkState: Record<string, true | false | null>;
-    streaming: boolean;
-  };
   setUserId: (userId?: string) => void;
   setProjects: (projects: Project[]) => void;
   setProject: (project: Project | null) => void;
@@ -51,7 +36,6 @@ type AppState = {
   deleteColumn: (columnId: string) => void;
   renameColumn: (columnId: string, label: string) => void;
   setSelection: (selection?: { rowId?: string; columnId?: string; text: string }) => void;
-  setBrandPinnedTab: (tab: BrandInsightCategory) => void;
   setPersonaPanelOpen: (open: boolean) => void;
 };
 
@@ -65,19 +49,6 @@ export const useAppStore = create<AppState>((set) => ({
   layout: {
     coordinatorChatOpen: false,
     personaPanelOpen: false
-  },
-  brand: {
-    activePinnedTab: "explicit_requirement",
-    streaming: false
-  },
-  audience: {
-    modalMode: null,
-    streaming: false
-  },
-  expert: {
-    diffOverlayOpen: false,
-    hunkState: {},
-    streaming: false
   },
   setUserId: (userId) => set({ userId }),
   setProjects: (projects) => set({ projects }),
@@ -165,10 +136,6 @@ export const useAppStore = create<AppState>((set) => ({
         selectedColumnId: selection?.columnId,
         selectedText: selection?.text
       }
-    })),
-  setBrandPinnedTab: (tab) =>
-    set((state) => ({
-      brand: { ...state.brand, activePinnedTab: tab }
     })),
   setPersonaPanelOpen: (open) =>
     set((state) => ({

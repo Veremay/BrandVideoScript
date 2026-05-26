@@ -132,7 +132,7 @@ MVP 文件类型：`.md`、`.txt`、纯文本粘贴。PDF/DOC/PPT 等见 `develo
 | `scene` | 画面（多行） |
 | `format` | 形式 |
 | `notes` | 备注 |
-| `feedback` | **仅品牌分享视图**出现；品牌方填写真实反馈（`pipeline.md` §9）。创作者默认工作区不含此列。 |
+| `feedback` | **品牌反馈**：品牌方在分享页填写；`sync` 后写入 `current_script` 对应单元格。创作者工作区**只读可见**，不可自行编辑（`pipeline.md` §9）。 |
 
 **快照时机：** 应用 ModificationScheme hunk 前后、手动保存、品牌 feedback 合并、回滚。
 

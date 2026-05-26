@@ -1,5 +1,12 @@
 import type { Script, ScriptColumn, ScriptRow } from "@/lib/types";
 
+/** 品牌方在分享页填写；创作者工作区只读展示（Phase 6 sync 写入）。 */
+export const BRAND_FEEDBACK_COLUMN_KEY = "feedback";
+
+export function isBrandFeedbackColumn(column: Pick<ScriptColumn, "key">) {
+  return column.key === BRAND_FEEDBACK_COLUMN_KEY;
+}
+
 export type DurationIssue = {
   rowIds: string[];
   message: string;
@@ -54,6 +61,11 @@ function alignRowCells(row: ScriptRow, columns: ScriptColumn[]) {
 }
 
 export function updateCellValue(script: Script, rowId: string, columnId: string, value: string): Script {
+  const column = script.columns.find((item) => item.column_id === columnId);
+  if (column && isBrandFeedbackColumn(column)) {
+    return script;
+  }
+
   return {
     ...script,
     rows: script.rows.map((row) =>

@@ -2,7 +2,7 @@
 
 import { MouseEvent, PointerEvent, useMemo, useState } from "react";
 
-import { analyzeDurations } from "@/lib/scriptEditor";
+import { analyzeDurations, isBrandFeedbackColumn } from "@/lib/scriptEditor";
 import type { Script, ScriptColumn } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
 
@@ -14,7 +14,7 @@ const COLUMN_HEADER_LABELS: Record<string, string> = {
   scene: "Visual",
   format: "Format / Script",
   notes: "Remarks",
-  feedback: "Feedback"
+  feedback: "品牌反馈"
 };
 
 function columnHeaderLabel(column: ScriptColumn) {
@@ -56,12 +56,22 @@ export function ScriptGrid({ script }: { script: Script }) {
   }
 
   function handleRenameColumn(columnId: string, currentLabel: string) {
+    const column = columns.find((item) => item.column_id === columnId);
+    if (column && isBrandFeedbackColumn(column)) {
+      window.alert("「品牌反馈」列不可重命名；内容由品牌方在分享页填写，同步后在此只读展示。");
+      return;
+    }
     const label = window.prompt("重命名列", currentLabel)?.trim();
     if (!label || label === currentLabel) return;
     renameColumn(columnId, label);
   }
 
   function handleDeleteColumn(columnId: string) {
+    const column = columns.find((item) => item.column_id === columnId);
+    if (column && isBrandFeedbackColumn(column)) {
+      window.alert("「品牌反馈」列不可删除。");
+      return;
+    }
     if (!window.confirm("确认删除这一列？对应单元格内容也会删除。")) return;
     try {
       deleteColumn(columnId);
@@ -244,16 +254,18 @@ export function ScriptGrid({ script }: { script: Script }) {
                       </button>
                     ) : null}
                     <span className="editor-col-resize-hit" onPointerDown={(event) => startColumnResize(event, column.column_id)} />
-                    <button
-                      className="editor-col-del"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        handleDeleteColumn(column.column_id);
-                      }}
-                      type="button"
-                    >
-                      删除列
-                    </button>
+                    {isBrandFeedbackColumn(column) ? null : (
+                      <button
+                        className="editor-col-del"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleDeleteColumn(column.column_id);
+                        }}
+                        type="button"
+                      >
+                        删除列
+                      </button>
+                    )}
                   </th>
                 ))}
               </tr>
@@ -365,25 +377,28 @@ function RowBlock({
         </td>
         {columns.map((column) => {
           const value = row.cells.find((cell) => cell.column_id === column.column_id)?.value ?? "";
+          const brandFeedback = isBrandFeedbackColumn(column);
           const commonProps = {
             value,
             onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
               updateCell(row.row_id, column.column_id, event.target.value),
             onMouseUp: (event: MouseEvent<HTMLElement>) => onSelection(event, row.row_id, column.column_id),
-            placeholder: column.type === "duration" ? "0-5" : "",
+            placeholder: brandFeedback ? "品牌方通过分享链接填写后同步至此" : column.type === "duration" ? "0-5" : "",
+            readOnly: brandFeedback,
+            title: brandFeedback ? "品牌反馈（只读）；由分享页填写并经同步写入" : undefined,
             style: { minHeight: rowHeight ? Math.max(MIN_ROW_HEIGHT, rowHeight) : undefined }
           };
 
           return (
-            <td className={`editor-td-data col-${column.key}`} key={column.column_id} style={{ width: columnWidths[column.column_id] }}>
+            <td className={`editor-td-data col-${column.key}${brandFeedback ? " col-brand-feedback" : ""}`} key={column.column_id} style={{ width: columnWidths[column.column_id] }}>
               {column.type === "duration" ? (
                 <div className="editor-duration-wrap">
                   <input className={`editor-table-input editor-duration-input ${hasIssue ? "is-invalid" : ""}`} {...commonProps} />
                 </div>
               ) : column.multiline ? (
-                <textarea className={`editor-table-cell cell-${column.key}`} {...commonProps} />
+                <textarea className={`editor-table-cell cell-${column.key}${brandFeedback ? " editor-table-cell--readonly" : ""}`} {...commonProps} />
               ) : (
-                <input className={`editor-table-input cell-${column.key}`} {...commonProps} />
+                <input className={`editor-table-input cell-${column.key}${brandFeedback ? " editor-table-input--readonly" : ""}`} {...commonProps} />
               )}
             </td>
           );

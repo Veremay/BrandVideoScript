@@ -99,6 +99,10 @@ def delete_column(script: dict, column_id: str) -> dict:
     if len(columns) <= 1:
         raise ValueError("Cannot delete the last business column")
 
+    target = next((column for column in columns if column["column_id"] == column_id), None)
+    if target is not None and target.get("key") == "feedback":
+        raise ValueError("Cannot delete the brand feedback column")
+
     next_columns = [column for column in columns if column["column_id"] != column_id]
     if len(next_columns) == len(columns):
         raise ValueError("Column not found")
@@ -115,6 +119,8 @@ def rename_column(script: dict, column_id: str, label: str) -> dict:
     renamed = False
     for column in next_script.get("columns", []):
         if column["column_id"] == column_id:
+            if column.get("key") == "feedback":
+                raise ValueError("Cannot rename the brand feedback column")
             column["label"] = label
             renamed = True
             break

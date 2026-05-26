@@ -10,6 +10,9 @@ def new_id(prefix: str) -> str:
     return f"{prefix}_{uuid4().hex[:12]}"
 
 
+BRAND_FEEDBACK_COLUMN_KEY = "feedback"
+
+
 def default_columns() -> list[dict]:
     return [
         {
@@ -46,8 +49,8 @@ def default_columns() -> list[dict]:
         },
         {
             "column_id": "col_feedback",
-            "key": "feedback",
-            "label": "反馈建议",
+            "key": BRAND_FEEDBACK_COLUMN_KEY,
+            "label": "品牌反馈",
             "type": "textarea",
             "multiline": True,
             "order": 4,

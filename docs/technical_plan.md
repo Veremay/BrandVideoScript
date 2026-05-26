@@ -365,7 +365,7 @@ share_sessions          # 品牌方分享 token → script 视图
 ### 7.3 Script 列规则
 
 - 默认列：`duration`, `scene`, `format`, `notes`（见 `development_plan.md` §5）。  
-- `feedback`：**不进入创作者默认列**；分享会话的 script 视图动态注入该列。  
+- `feedback`（品牌反馈）：默认列存在；创作者侧**只读**；品牌方在 ShareSession **可写**；`brand-feedback/sync` 合并后创作者可见内容。  
 - 序号列 `#` 仅前端渲染。
 
 ### 7.4 ModificationScheme（Expert 方案）

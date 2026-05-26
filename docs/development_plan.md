@@ -15,7 +15,7 @@
 | 2 | **统一 AI 入口** | 创作者只通过 **Coordinator Agent Chat** 与系统交互；Brand / Audience / Expert 为 Coordinator 调度的内部 Agent。 |
 | 3 | **上下文隔离** | 各 Agent 只读各自所需 State 字段，避免自然语言聊天串线（见 `pipeline.md` §2、`technical_plan.md` §5）。 |
 | 4 | **创作者主导** | AI 不直接覆盖整份脚本；修改以 **Expert 多方向方案 + 可选 cell-level hunk** 呈现，由创作者确认后写回。 |
-| 5 | **默认脚本列** | `duration`、`scene`、`format`、`notes`；**不含**默认 `feedback` 列（品牌方通过分享视图写入，见 Phase 6）。 |
+| 5 | **默认脚本列** | `duration`、`scene`、`format`、`notes`、**`feedback`（品牌反馈，只读）**；创作者可见、不可编辑；品牌方在分享页填写，经 sync 写入（Phase 6）。 |
 | 6 | **Brief 格式（MVP）** | `.md` / `.txt` 上传 + 纯文本粘贴；PDF/DOC/PPT 等二期。 |
 | 7 | **主工作区** | Script Editor ↔ IBIS Node Graph 可切换，共享 project state。 |
 | 8 | **输出形态（MVP）** | **Negotiation Preparation**：按需按钮 → **弹窗**（`pipeline.md` §11）；**References** 与固定 Output Panel **MVP 不做**（`pipeline.md` §4、§12）。 |
@@ -121,7 +121,7 @@ BrandVideo/
 
 - 序号列 `#`：仅前端渲染。
 - 时长格式 V1：`起始秒-结束秒`（如 `0-5`）。
-- **`feedback` 列：** 仅在品牌方分享视图中出现/可编辑，见 Phase 6。
+- **`feedback`（品牌反馈）列：** 创作者工作区**只读展示**；品牌方在分享页**可编辑**；`brand-feedback/sync` 合并后创作者可见真实原话，见 Phase 6。
 
 ---
 
@@ -280,11 +280,11 @@ BrandVideo/
 
 ### 7.1 Phase 0 — 主工作区
 
-- [ ] 无三个独立 Agent 面板
-- [ ] 统一 Coordinator Chat
-- [ ] Script Editor / Node Graph 可切换（Graph 可先占位）
-- [ ] Persona 独立入口
-- [ ] **无** MVP 要求的固定 Negotiation/References 侧栏
+- [x] 无三个独立 Agent 面板
+- [x] 统一 Coordinator Chat
+- [x] Script Editor / Node Graph 可切换（Graph 可先占位）
+- [x] Persona 独立入口
+- [x] **无** MVP 要求的固定 Negotiation/References 侧栏
 
 ### 7.2 Phase 1 — Script Editor
 
