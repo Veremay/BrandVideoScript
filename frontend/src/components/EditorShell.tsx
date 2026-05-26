@@ -3,7 +3,6 @@
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 
-import { BriefPasteModal } from "@/components/BriefPasteModal";
 import { CoordinatorChat } from "@/components/CoordinatorChat";
 import { PersonaPanel } from "@/components/PersonaPanel";
 import { ScriptGrid } from "@/components/ScriptGrid";
@@ -12,7 +11,7 @@ import { useAppStore } from "@/store/appStore";
 
 const MapView = dynamic(() => import("@/components/MapView").then((mod) => mod.MapView), {
   ssr: false,
-  loading: () => <main className="centerStage">Loading Node Graph…</main>
+  loading: () => <main className="centerStage">Loading Map…</main>
 });
 
 const SAVE_DELAY_MS = 700;
@@ -31,8 +30,7 @@ export function EditorShell() {
   } = useAppStore();
   const hasHydrated = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [activeView, setActiveView] = useState<"editor" | "graph">("editor");
-  const [briefPasteOpen, setBriefPasteOpen] = useState(false);
+  const [activeView, setActiveView] = useState<"editor" | "map">("editor");
   const coordinatorOpen = layout.coordinatorChatOpen;
 
   useEffect(() => {
@@ -120,22 +118,19 @@ export function EditorShell() {
               Editor
             </button>
             <button
-              className={`figma-view-tab ${activeView === "graph" ? "active" : ""}`}
-              onClick={() => setActiveView("graph")}
+              className={`figma-view-tab ${activeView === "map" ? "active" : ""}`}
+              onClick={() => setActiveView("map")}
               type="button"
-              aria-selected={activeView === "graph"}
+              aria-selected={activeView === "map"}
             >
               <IconMap />
-              Node Graph
+              Map
             </button>
           </div>
         </div>
 
         <div className="figma-topnav-right">
           <input ref={fileInputRef} accept=".md,.txt,text/markdown,text/plain" hidden onChange={handleBriefFile} type="file" />
-          <button className="figma-nav-btn figma-nav-outline" onClick={() => setBriefPasteOpen(true)} type="button">
-            Paste Brief
-          </button>
           <button className="figma-nav-btn figma-nav-outline" onClick={() => fileInputRef.current?.click()} type="button">
             <IconUpload />
             Upload Brief
@@ -174,13 +169,7 @@ export function EditorShell() {
             <ScriptGrid script={script} />
           </div>
         ) : (
-          <div className="graph-workspace">
-            <div className="editor-page-header">
-              <h1 className="editor-page-title">IBIS Node Graph</h1>
-              <p className="editor-page-subtitle">Phase 0 占位：演示节点与连线；Phase 4 接入项目内真实 IBIS 数据。</p>
-            </div>
-            <MapView />
-          </div>
+          <MapView key="map-workspace" />
         )}
       </section>
 
@@ -199,12 +188,6 @@ export function EditorShell() {
         onClose={() => setCoordinatorChatOpen(false)}
         selectedText={editor.selectedText}
         userInitial={project.title.slice(0, 1).toUpperCase()}
-      />
-
-      <BriefPasteModal
-        open={briefPasteOpen}
-        onClose={() => setBriefPasteOpen(false)}
-        onSave={(text) => persistBrief(text, "pasted-brief.txt")}
       />
 
       <PersonaPanel onClose={() => setPersonaPanelOpen(false)} open={layout.personaPanelOpen} />

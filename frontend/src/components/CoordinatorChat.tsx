@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+type AssistantTab = "chat" | "plans";
 
 type ChatMessage = {
   id: string;
@@ -8,11 +10,39 @@ type ChatMessage = {
   text: string;
 };
 
+type PlanItem = {
+  id: string;
+  title: string;
+  description: string;
+  active?: boolean;
+};
+
 const INITIAL_MESSAGES: ChatMessage[] = [
   {
     id: "welcome",
     role: "assistant",
     text: "你好，我是 Coordinator Agent。你可以就脚本与节点图向我提问；品牌 / 观众 / 专家视角会在后台按需调度（Phase 2 接入真实 LLM）。"
+  }
+];
+
+const PLANS: PlanItem[] = [
+  {
+    id: "a",
+    title: "Plan A: Cinematic Expansion",
+    description:
+      "Adds two additional establishing shots and extends the ambient music pad to create a more immersive atmospheric opening.",
+    active: true
+  },
+  {
+    id: "b",
+    title: "Plan B: Technical Efficiency",
+    description:
+      "Condenses the opening sequence into a single block to reduce production complexity while maintaining narrative impact."
+  },
+  {
+    id: "c",
+    title: "Plan C: Narrative Focus",
+    description: "Introduces character voiceover earlier in scene 01 to establish the emotional core of the series immediately."
   }
 ];
 
@@ -24,8 +54,14 @@ type CoordinatorChatProps = {
 };
 
 export function CoordinatorChat({ open, onClose, userInitial = "U", selectedText }: CoordinatorChatProps) {
+  const [tab, setTab] = useState<AssistantTab>("chat");
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
+  const [activePlanId, setActivePlanId] = useState("a");
   const [draft, setDraft] = useState("");
+
+  useEffect(() => {
+    if (open && selectedText) setTab("chat");
+  }, [open, selectedText]);
 
   if (!open) return null;
 
@@ -36,6 +72,7 @@ export function CoordinatorChat({ open, onClose, userInitial = "U", selectedText
     const userMessage: ChatMessage = { id: `user-${Date.now()}`, role: "user", text };
     setMessages((prev) => [...prev, userMessage]);
     setDraft("");
+    setTab("chat");
 
     const contextHint = selectedText ? `（已引用脚本片段：「${selectedText.slice(0, 80)}${selectedText.length > 80 ? "…" : ""}」）` : "";
     window.setTimeout(() => {
@@ -73,29 +110,92 @@ export function CoordinatorChat({ open, onClose, userInitial = "U", selectedText
               <IconClose />
             </button>
           </div>
+          <div className="glacier-tabs" role="tablist" aria-label="Assistant views">
+            <button
+              className={`glacier-tab ${tab === "chat" ? "active" : ""}`}
+              onClick={() => setTab("chat")}
+              role="tab"
+              aria-selected={tab === "chat"}
+              type="button"
+            >
+              Chat
+            </button>
+            <button
+              className={`glacier-tab ${tab === "plans" ? "active" : ""}`}
+              onClick={() => setTab("plans")}
+              role="tab"
+              aria-selected={tab === "plans"}
+              type="button"
+            >
+              Revision Proposals
+            </button>
+          </div>
         </header>
 
         <div className="glacier-body">
-          <div className="glacier-chat-thread" role="log" aria-live="polite">
-            {messages.map((message) =>
-              message.role === "assistant" ? (
-                <div className="glacier-msg-row glacier-msg-row--assistant" key={message.id}>
-                  <span className="glacier-avatar glacier-avatar--bot" aria-hidden="true">
-                    <IconSpark />
-                  </span>
-                  <div className="glacier-bubble glacier-bubble--assistant">{message.text}</div>
-                </div>
-              ) : (
-                <div className="glacier-msg-row glacier-msg-row--user" key={message.id}>
-                  <div className="glacier-bubble glacier-bubble--user">{message.text}</div>
-                  <span className="glacier-avatar glacier-avatar--user" aria-hidden="true">
-                    {userInitial}
-                  </span>
-                </div>
-              )
-            )}
-          </div>
+          {tab === "chat" ? (
+            <div className="glacier-chat-thread" role="log" aria-live="polite">
+              {messages.map((message) =>
+                message.role === "assistant" ? (
+                  <div className="glacier-msg-row glacier-msg-row--assistant" key={message.id}>
+                    <span className="glacier-avatar glacier-avatar--bot" aria-hidden="true">
+                      <IconSpark />
+                    </span>
+                    <div className="glacier-bubble glacier-bubble--assistant">{message.text}</div>
+                  </div>
+                ) : (
+                  <div className="glacier-msg-row glacier-msg-row--user" key={message.id}>
+                    <div className="glacier-bubble glacier-bubble--user">{message.text}</div>
+                    <span className="glacier-avatar glacier-avatar--user" aria-hidden="true">
+                      {userInitial}
+                    </span>
+                  </div>
+                )
+              )}
+            </div>
+          ) : (
+            <div className="glacier-plans-list">
+              {PLANS.map((plan) => {
+                const isActive = plan.id === activePlanId;
+                return (
+                  <article
+                    className={`glacier-plan-card ${isActive ? "glacier-plan-card--active" : ""}`}
+                    key={plan.id}
+                  >
+                    <div className="glacier-plan-head">
+                      <h3 className="glacier-plan-title">{plan.title}</h3>
+                      {isActive ? <span className="glacier-plan-badge">ACTIVE</span> : null}
+                    </div>
+                    <p className="glacier-plan-desc">{plan.description}</p>
+                    <button
+                      className={`glacier-plan-btn ${isActive ? "glacier-plan-btn--active" : ""}`}
+                      onClick={() => setActivePlanId(plan.id)}
+                      type="button"
+                    >
+                      {isActive ? "Currently Previewing" : "Preview Plan"}
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+          )}
         </div>
+
+        {tab === "plans" ? (
+          <div className="glacier-plans-actions">
+            <div className="glacier-plans-actions-row">
+              <button className="glacier-btn glacier-btn--primary" type="button">
+                Accept All
+              </button>
+              <button className="glacier-btn glacier-btn--outline" type="button">
+                Accept Map Only
+              </button>
+            </div>
+            <button className="glacier-reject-all" type="button">
+              Reject All
+            </button>
+          </div>
+        ) : null}
 
         <footer className="glacier-input-area">
           {selectedText ? (

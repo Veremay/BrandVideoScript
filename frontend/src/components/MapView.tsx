@@ -197,13 +197,41 @@ function MapViewContent() {
   const [edgeMenu, setEdgeMenu] = useState<EdgeMenuState | null>(null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const { zoomIn, zoomOut, fitView, screenToFlowPosition } = useReactFlow();
+  const workspaceRef = useRef<HTMLElement>(null);
   const controlsRef = useRef<HTMLDivElement>(null);
   const edgeMenuRef = useRef<HTMLDivElement>(null);
+  const hasFittedRef = useRef(false);
 
   const closeMenus = useCallback(() => {
     setAddNodeMenuOpen(false);
     setEdgeMenu(null);
   }, []);
+
+  const runFitView = useCallback(() => {
+    const workspace = workspaceRef.current;
+    if (!workspace || workspace.clientWidth < 64 || workspace.clientHeight < 64) return;
+    fitView({ padding: 0.25, duration: 150 });
+    hasFittedRef.current = true;
+  }, [fitView]);
+
+  const handleFlowInit = useCallback(() => {
+    requestAnimationFrame(() => runFitView());
+  }, [runFitView]);
+
+  useEffect(() => {
+    hasFittedRef.current = false;
+    const workspace = workspaceRef.current;
+    if (!workspace) return;
+
+    const observer = new ResizeObserver(() => {
+      if (hasFittedRef.current) return;
+      requestAnimationFrame(() => runFitView());
+    });
+    observer.observe(workspace);
+    requestAnimationFrame(() => runFitView());
+
+    return () => observer.disconnect();
+  }, [runFitView]);
 
   useEffect(() => {
     if (!addNodeMenuOpen && !edgeMenu) return;
@@ -347,7 +375,7 @@ function MapViewContent() {
   );
 
   return (
-    <section className="map-workspace">
+    <section className="map-workspace" ref={workspaceRef}>
       <MapGraphActionsContext.Provider value={graphActions}>
         <ReactFlow
           className="map-flow"
@@ -356,10 +384,9 @@ function MapViewContent() {
           deleteKeyCode={["Backspace", "Delete"]}
           edges={edges}
           edgesReconnectable
-          fitView
           fitViewOptions={{ padding: 0.25 }}
           maxZoom={2}
-          minZoom={0.5}
+          minZoom={0.25}
           nodeTypes={nodeTypes}
           nodes={nodes}
           nodesConnectable
@@ -367,6 +394,7 @@ function MapViewContent() {
           onConnect={handleConnect}
           onEdgeContextMenu={handleEdgeContextMenu}
           onEdgesChange={onEdgesChange}
+          onInit={handleFlowInit}
           onNodeContextMenu={(event) => event.preventDefault()}
           onNodesChange={onNodesChange}
           onPaneClick={closeMenus}

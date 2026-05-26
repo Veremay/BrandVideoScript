@@ -44,7 +44,7 @@ npm run dev
 - [x] 无前台 Brand / Audience / Expert 三面板
 - [x] 统一 **Coordinator Chat**（mock 对话，FAB 打开）
 - [x] **Script Editor** ↔ **Node Graph** 主工作区切换（图为演示占位）
-- [x] Topbar：**Brief** 上传 / 粘贴、**Persona** 入口、视图切换、保存状态
+- [x] Topbar：**Brief** 上传、**Persona** 入口、视图切换、保存状态
 - [x] **无** 固定 Negotiation / References Output Panel
 - [x] 选中文本 → quote 插入 Coordinator
 - [x] `docker-compose`、FastAPI、`user_id` 进入、Project CRUD
