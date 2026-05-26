@@ -3,11 +3,15 @@ import type {
   BrandInsightCategory,
   BrandInsightConfidence,
   BrandInsightStatus,
+  BrandRequirement,
+  CoordinatorMessage,
+  CoordinatorQuote,
   PersonaAdSensitivity,
   PlatformContext,
   Project,
   RationaleEdge,
   RationaleNode,
+  RequestedPerspective,
   Script,
   ScriptSnapshotReason,
   ScriptSnapshotSummary
@@ -217,6 +221,25 @@ export async function deleteBrandInsight(projectId: string, userId: string, insi
   });
 }
 
+export async function updateBrandRequirements(
+  projectId: string,
+  userId: string,
+  payload: {
+    explicit_requirements: BrandRequirement[];
+    implicit_requirements: BrandRequirement[];
+  }
+): Promise<Project> {
+  const project = await request<Project>(`/projects/${projectId}/brand/requirements`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      user_id: userId,
+      explicit_requirements: payload.explicit_requirements,
+      implicit_requirements: payload.implicit_requirements
+    })
+  });
+  return normalizeProject(project)!;
+}
+
 export async function saveScriptCell(
   projectId: string,
   userId: string,
@@ -330,4 +353,178 @@ export async function setActivePersona(projectId: string, userId: string, person
     method: "PATCH",
     body: JSON.stringify({ user_id: userId, persona_id: personaId })
   });
+}
+
+export async function fetchCoordinatorMessages(
+  projectId: string,
+  userId: string,
+  limit = 50
+): Promise<CoordinatorMessage[]> {
+  const data = await request<{ messages: CoordinatorMessage[] }>(
+    `/projects/${projectId}/coordinator/messages?user_id=${encodeURIComponent(userId)}&limit=${limit}`
+  );
+  return data.messages;
+}
+
+export type CoordinatorStreamEvent =
+  | { type: "token"; content: string }
+  | { type: "artifact"; rationale_nodes?: RationaleNode[]; rationale_edges?: RationaleEdge[]; related_node_ids?: string[] }
+  | { type: "done"; message_id: string; generated_artifact_ids?: string[] }
+  | { type: "error"; message: string };
+
+function parseSseBlock(block: string): CoordinatorStreamEvent | null {
+  let event = "message";
+  let data = "";
+  for (const line of block.split("\n")) {
+    if (line.startsWith("event:")) event = line.slice(6).trim();
+    if (line.startsWith("data:")) data = line.slice(5).trim();
+  }
+  if (!data) return null;
+  const payload = JSON.parse(data) as Record<string, unknown>;
+  if (event === "token") return { type: "token", content: String(payload.content ?? "") };
+  if (event === "artifact") {
+    return {
+      type: "artifact",
+      rationale_nodes: payload.rationale_nodes as RationaleNode[] | undefined,
+      rationale_edges: payload.rationale_edges as RationaleEdge[] | undefined,
+      related_node_ids: payload.related_node_ids as string[] | undefined
+    };
+  }
+  if (event === "done") {
+    return {
+      type: "done",
+      message_id: String(payload.message_id ?? ""),
+      generated_artifact_ids: payload.generated_artifact_ids as string[] | undefined
+    };
+  }
+  if (event === "error") return { type: "error", message: String(payload.message ?? "Stream failed") };
+  return null;
+}
+
+export async function streamCoordinatorMessage(
+  projectId: string,
+  userId: string,
+  payload: {
+    message: string;
+    task_type?: "user_message" | "quote_analysis" | "script_delta";
+    requested_perspectives?: RequestedPerspective[];
+    quotes?: CoordinatorQuote[];
+    target_node_ids?: string[];
+    changed_row_ids?: string[];
+  },
+  onEvent: (event: CoordinatorStreamEvent) => void
+): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/projects/${projectId}/coordinator/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId, ...payload })
+  });
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Stream failed: ${response.status}`);
+  }
+  if (!response.body) throw new Error("Stream body missing");
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split("\n\n");
+    buffer = parts.pop() ?? "";
+    for (const part of parts) {
+      const event = parseSseBlock(part.trim());
+      if (event) onEvent(event);
+    }
+  }
+  if (buffer.trim()) {
+    const event = parseSseBlock(buffer.trim());
+    if (event) onEvent(event);
+  }
+}
+
+export async function createGraphNode(
+  projectId: string,
+  userId: string,
+  payload: {
+    node_type?: "issue" | "position" | "argument" | "reference";
+    title: string;
+    content: string;
+    source_type?: RationaleNode["source_type"];
+    layout?: { x: number; y: number };
+    linked_script_refs?: Array<{ row_id: string; column_id?: string; text_snapshot?: string }>;
+  }
+): Promise<Project> {
+  return normalizeProject(
+    await request(`/projects/${projectId}/graph/nodes`, {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId, ...payload })
+    })
+  )!;
+}
+
+export async function updateGraphNode(
+  projectId: string,
+  userId: string,
+  nodeId: string,
+  payload: Partial<{ title: string; content: string; status: string; layout: { x: number; y: number } }>
+): Promise<Project> {
+  return normalizeProject(
+    await request(`/projects/${projectId}/graph/nodes/${nodeId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ user_id: userId, ...payload })
+    })
+  )!;
+}
+
+export async function deleteGraphNode(projectId: string, userId: string, nodeId: string): Promise<Project> {
+  return normalizeProject(
+    await request(`/projects/${projectId}/graph/nodes/${nodeId}?user_id=${encodeURIComponent(userId)}`, {
+      method: "DELETE"
+    })
+  )!;
+}
+
+export async function createGraphEdge(
+  projectId: string,
+  userId: string,
+  fromNodeId: string,
+  toNodeId: string,
+  relationType = "responds_to"
+): Promise<Project> {
+  return normalizeProject(
+    await request(`/projects/${projectId}/graph/edges`, {
+      method: "POST",
+      body: JSON.stringify({
+        user_id: userId,
+        from_node_id: fromNodeId,
+        to_node_id: toNodeId,
+        relation_type: relationType
+      })
+    })
+  )!;
+}
+
+export async function deleteGraphEdge(projectId: string, userId: string, edgeId: string): Promise<Project> {
+  return normalizeProject(
+    await request(`/projects/${projectId}/graph/edges/${edgeId}?user_id=${encodeURIComponent(userId)}`, {
+      method: "DELETE"
+    })
+  )!;
+}
+
+export async function toggleGraphNegotiationQueue(
+  projectId: string,
+  userId: string,
+  nodeId: string,
+  inQueue: boolean
+): Promise<Project> {
+  return normalizeProject(
+    await request(`/projects/${projectId}/graph/nodes/${nodeId}/negotiation-queue`, {
+      method: "PATCH",
+      body: JSON.stringify({ user_id: userId, in_queue: inQueue })
+    })
+  )!;
 }

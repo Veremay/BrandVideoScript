@@ -25,13 +25,16 @@ class BriefParseAgentsTest(unittest.IsolatedAsyncioTestCase):
         brand = await run_brand_agent(project)
         expert = await run_expert_for_brief(project, brand)
 
-        issue_sources = {
+        brand_issue_sources = {
             node.get("source_type")
-            for node in expert.get("proposed_nodes", [])
+            for node in brand.get("proposed_nodes", [])
             if node.get("node_type") == "issue"
         }
-        self.assertTrue(issue_sources.intersection({"brand_brief", "brand_inferred"}))
+        self.assertTrue(brand_issue_sources.intersection({"brand_brief", "brand_inferred"}))
         self.assertGreaterEqual(len(brand.get("explicit_requirements", [])), 1)
+
+        expert_node_types = {node.get("node_type") for node in expert.get("proposed_nodes", [])}
+        self.assertTrue(expert_node_types.intersection({"position", "argument"}))
         self.assertGreaterEqual(len(expert.get("proposed_edges", [])), 1)
 
     def test_audience_context_cannot_see_brief(self) -> None:

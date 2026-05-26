@@ -41,6 +41,23 @@ export type Brief = {
   uploaded_at: string | null;
 };
 
+export type BrandRequirementConfidence = "high" | "medium" | "low";
+
+export type BrandRequirement = {
+  id: string;
+  text: string;
+  evidence?: string;
+  confidence: BrandRequirementConfidence;
+};
+
+export type BrandPerspectiveResult = {
+  explicit_requirements?: BrandRequirement[];
+  implicit_requirements?: BrandRequirement[];
+  constraints?: string[];
+  pr_risks?: string[];
+  tool_calls_used?: string[];
+};
+
 export type BrandInsight = {
   insight_id: string;
   agent_type: "brand";
@@ -109,6 +126,47 @@ export type Persona = {
   updated_at: string;
 };
 
+export type RequestedPerspective = "brand" | "audience" | "expert" | "comprehensive";
+
+export type CoordinatorQuote = {
+  text: string;
+  row_id?: string;
+  column_id?: string;
+  selection_start?: number;
+  selection_end?: number;
+  script_version_id?: string;
+};
+
+export type CoordinatorMessage = {
+  message_id: string;
+  project_id: string;
+  user_id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  task_type: string;
+  requested_perspectives: RequestedPerspective[];
+  active_persona_id?: string | null;
+  quotes: CoordinatorQuote[];
+  related_node_ids: string[];
+  generated_artifact_ids: string[];
+  created_at: string;
+};
+
+export type ScriptRefLink = {
+  row_id: string;
+  column_id?: string;
+  text_snapshot?: string;
+  script_version_id?: string;
+};
+
+export type IssueStatus =
+  | "open"
+  | "in_review"
+  | "resolved"
+  | "needs_negotiation"
+  | "deferred"
+  | "dismissed";
+
 export type RationaleSourceType =
   | "brand_brief"
   | "brand_feedback"
@@ -130,7 +188,9 @@ export type RationaleNode = {
   source_type: RationaleSourceType;
   source_perspective: string;
   layout?: { x: number; y: number };
-  status?: string;
+  status?: IssueStatus;
+  in_negotiation_queue?: boolean;
+  linked_script_refs?: ScriptRefLink[];
   created_by: string;
   updated_at: string;
 };
@@ -153,11 +213,12 @@ export type Project = {
   brief: Brief;
   current_script: Script;
   brand_insights: BrandInsight[];
-  brand_perspective_result?: Record<string, unknown> | null;
+  brand_perspective_result?: BrandPerspectiveResult | null;
   audience_perspective_result?: Record<string, unknown> | null;
   expert_perspective_result?: Record<string, unknown> | null;
   rationale_nodes?: RationaleNode[];
   rationale_edges?: RationaleEdge[];
+  negotiation_queue?: string[];
   personas: Persona[];
   active_persona_id: string | null;
   audience_analysis: Record<string, unknown>;

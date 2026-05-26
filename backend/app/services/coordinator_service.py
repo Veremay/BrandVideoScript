@@ -5,12 +5,13 @@ from typing import Any
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.artifact_stale import mark_persona_changed, stale_set_fields
-from app.models.rationale_ops import merge_proposed_graph
 from app.models.script import now_iso
 from app.repositories.projects import get_project
-from app.services.agents.audience_agent import run_audience_agent
-from app.services.agents.brand_agent import run_brand_agent
-from app.services.agents.expert_agent import run_expert_for_audience, run_expert_for_brief
+from app.services.agent_orchestrator import (
+    merge_pipeline_into_project_graph,
+    run_audience_pipeline,
+    run_brief_initial_pipeline,
+)
 from app.services.persona_analytics import PersonaAnalyticsContext, get_persona_analytics_provider
 
 
@@ -33,26 +34,20 @@ async def run_brief_initial_parse(
     )
 
     try:
-        brand_result = await run_brand_agent(project)
-        expert_result = await run_expert_for_brief(project, brand_result)
+        pipeline = await run_brief_initial_pipeline(project)
+        brand_result = pipeline.brand_result or {}
 
         user_nodes = [n for n in project.get("rationale_nodes", []) if n.get("created_by") == "user"]
         user_edges = [e for e in project.get("rationale_edges", []) if e.get("created_by") == "user"]
-        nodes, edges = merge_proposed_graph(
-            project_id=project_id,
-            existing_nodes=user_nodes,
-            existing_edges=user_edges,
-            proposed_nodes=expert_result.get("proposed_nodes", []),
-            proposed_edges=expert_result.get("proposed_edges", []),
-        )
+        project_for_merge = {**project, "rationale_nodes": user_nodes, "rationale_edges": user_edges}
+        nodes, edges, _ = merge_pipeline_into_project_graph(project_for_merge, pipeline)
 
         existing_insights = [
-            insight
-            for insight in project.get("brand_insights", [])
-            if insight.get("created_by") != "agent"
+            insight for insight in project.get("brand_insights", []) if insight.get("created_by") != "agent"
         ]
         new_insights = [*existing_insights, *brand_result.get("brand_insights", [])]
 
+        expert_result = pipeline.expert_result or {}
         await db.projects.update_one(
             {"_id": project_id, "user_id": user_id},
             {
@@ -61,12 +56,12 @@ async def run_brief_initial_parse(
                     "brand_perspective_result": {
                         k: v
                         for k, v in brand_result.items()
-                        if k not in {"brand_insights", "proposed_nodes", "proposed_edges"}
+                        if k not in {"brand_insights", "proposed_nodes", "proposed_edges", "node_updates"}
                     },
                     "expert_perspective_result": {
                         k: v
                         for k, v in expert_result.items()
-                        if k not in {"proposed_nodes", "proposed_edges"}
+                        if k not in {"proposed_nodes", "proposed_edges", "node_updates"}
                     },
                     "brand_insights": new_insights,
                     "rationale_nodes": nodes,
@@ -106,19 +101,15 @@ async def run_persona_provisioned_parse(
     if not project.get("active_persona_id"):
         raise ValueError("Active persona is required")
 
-    audience_result = await run_audience_agent(project)
-    expert_result = await run_expert_for_audience(project, audience_result)
-
+    pipeline = await run_audience_pipeline(project)
     audience_sources = {"audience_persona", "audience_simulation"}
-    nodes, edges = merge_proposed_graph(
-        project_id=project_id,
-        existing_nodes=project.get("rationale_nodes", []),
-        existing_edges=project.get("rationale_edges", []),
-        proposed_nodes=expert_result.get("proposed_nodes", []),
-        proposed_edges=expert_result.get("proposed_edges", []),
+    nodes, edges, _ = merge_pipeline_into_project_graph(
+        project,
+        pipeline,
         replace_agent_sources=audience_sources,
     )
 
+    audience_result = pipeline.audience_result or {}
     await db.projects.update_one(
         {"_id": project_id, "user_id": user_id},
         {
@@ -126,7 +117,7 @@ async def run_persona_provisioned_parse(
                 "audience_perspective_result": {
                     k: v
                     for k, v in audience_result.items()
-                    if k not in {"proposed_nodes", "proposed_edges"}
+                    if k not in {"proposed_nodes", "proposed_edges", "node_updates"}
                 },
                 "rationale_nodes": nodes,
                 "rationale_edges": edges,

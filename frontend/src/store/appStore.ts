@@ -22,6 +22,7 @@ type AppState = {
   layout: {
     coordinatorChatOpen: boolean;
     personaPanelOpen: boolean;
+    requirementsPanelOpen: boolean;
   };
   setUserId: (userId?: string) => void;
   setProjects: (projects: Project[]) => void;
@@ -38,6 +39,7 @@ type AppState = {
   renameColumn: (columnId: string, label: string) => void;
   setSelection: (selection?: { rowId?: string; columnId?: string; text: string }) => void;
   setPersonaPanelOpen: (open: boolean) => void;
+  setRequirementsPanelOpen: (open: boolean) => void;
 };
 
 export const useAppStore = create<AppState>((set) => ({
@@ -49,7 +51,8 @@ export const useAppStore = create<AppState>((set) => ({
   },
   layout: {
     coordinatorChatOpen: false,
-    personaPanelOpen: false
+    personaPanelOpen: false,
+    requirementsPanelOpen: false
   },
   setUserId: (userId) => set({ userId }),
   setProjects: (projects) => set({ projects: projects.map((p) => normalizeProject(p)!).filter(Boolean) }),
@@ -145,5 +148,9 @@ export const useAppStore = create<AppState>((set) => ({
   setPersonaPanelOpen: (open) =>
     set((state) => ({
       layout: { ...state.layout, personaPanelOpen: open }
+    })),
+  setRequirementsPanelOpen: (open) =>
+    set((state) => ({
+      layout: { ...state.layout, requirementsPanelOpen: open }
     }))
 }));

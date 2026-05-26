@@ -1,28 +1,29 @@
 from __future__ import annotations
 
-import re
 from typing import Any
 
-from app.models.rationale_ops import build_rationale_edge, build_rationale_node
 from app.repositories.projects import build_brand_insight
 from app.services.agent_context import assert_context_isolation, build_agent_context
+from app.services.agent_llm import (
+    existing_nodes_summary,
+    format_quotes,
+    invoke_agent_json,
+    script_excerpt_for_rows,
+)
 from app.services.tools.brand_wiki import brand_wiki_lookup
+from app.services.tools.ibis_graph import persist_rationale_graph
 from app.services.tavily_client import TavilyClient
 
-
-def _extract_brief_lines(text: str) -> list[str]:
-    lines: list[str] = []
-    for raw in text.splitlines():
-        line = raw.strip()
-        if not line:
-            continue
-        line = re.sub(r"^[-*•\d.)\]]+\s*", "", line).strip()
-        if len(line) >= 6:
-            lines.append(line)
-    return lines[:12]
+BRAND_SOURCES = {"brand_brief", "brand_inferred"}
 
 
-async def run_brand_agent(project: dict[str, Any]) -> dict[str, Any]:
+async def run_brand_agent(
+    project: dict[str, Any],
+    *,
+    user_message: str | None = None,
+    quotes: list[dict[str, Any]] | None = None,
+    changed_row_ids: set[str] | None = None,
+) -> dict[str, Any]:
     context = build_agent_context("brand", project)
     assert_context_isolation("brand", context)
 
@@ -31,114 +32,102 @@ async def run_brand_agent(project: dict[str, Any]) -> dict[str, Any]:
     project_id = str(context.get("project_id") or project.get("_id") or "")
     script_version_id = context.get("current_script_version_id")
 
-    lines = _extract_brief_lines(text)
-    explicit: list[dict[str, Any]] = []
-    implicit: list[dict[str, Any]] = []
-    proposed_nodes: list[dict] = []
-    proposed_edges: list[dict] = []
-    brand_insights: list[dict] = []
-
     wiki = await brand_wiki_lookup(brief.get("filename"), mock=True)
-    for snippet in wiki.get("snippets", []):
-        implicit.append(
-            {
-                "text": snippet.get("text", ""),
-                "evidence": f"brand_wiki:{snippet.get('topic', 'wiki')}",
-                "confidence": "medium",
-            }
-        )
-
-    tavily = TavilyClient()
+    tavily_snippets: list[str] = []
     if text:
+        tavily = TavilyClient()
         search = await tavily.search(query=text[:120], max_results=2, mock=True)
-        for result in search.get("results", [])[:2]:
-            implicit.append(
+        tavily_snippets = [
+            f"{r.get('title', '报道')}: {r.get('url', '')}" for r in search.get("results", [])[:2]
+        ]
+
+    row_ids = set(changed_row_ids or [])
+    if quotes:
+        for q in quotes:
+            if q.get("row_id"):
+                row_ids.add(str(q["row_id"]))
+
+    context_block = "\n\n".join(
+        [
+            f"## Brief\n{text[:3000]}",
+            f"## Brief 摘要\n{brief.get('summary', '')}",
+            f"## Brand Wiki\n{wiki.get('snippets', [])}",
+            f"## Tavily\n{tavily_snippets}",
+            f"## 脚本摘要\n{context.get('script_excerpt', '')}",
+            f"## 变动/选段脚本\n{script_excerpt_for_rows(project, row_ids) if row_ids else ''}",
+            f"## 用户问题\n{user_message or ''}",
+            f"## Quotes\n{format_quotes(quotes)}",
+            f"## 已有节点\n{existing_nodes_summary(project)}",
+        ]
+    )
+
+    def mock() -> dict[str, Any]:
+        return {
+            "explicit_requirements": [{"text": text[:120] or "Brief 约束", "confidence": "high"}],
+            "implicit_requirements": [],
+            "constraints": [],
+            "pr_risks": ["口播感过强"],
+            "brand_insights": [
                 {
-                    "text": f"公开资料提及：{result.get('title', '相关报道')}",
-                    "evidence": result.get("url", "tavily"),
-                    "confidence": "low",
+                    "category": "explicit_requirement",
+                    "title": "Brief 核心约束",
+                    "content": text[:200] or "待对齐品牌要求",
+                    "reason": "Brief 解析",
+                    "confidence": "high",
                 }
-            )
+            ],
+            "ibis": {
+                "nodes": [
+                    {
+                        "node_type": "issue",
+                        "title": "品牌诉求与创作表达如何平衡？",
+                        "content": text[:300] or "需对齐 Brief",
+                        "source_type": "brand_brief",
+                        "source_perspective": "brand",
+                    }
+                ],
+                "edges": [],
+            },
+        }
 
-    for index, line in enumerate(lines):
-        explicit.append({"text": line, "evidence": line[:160], "confidence": "high"})
-        issue = build_rationale_node(
-            project_id=project_id,
-            node_type="issue",
-            title=line[:80],
-            content=f"Brief 明确要求：{line}",
-            source_type="brand_brief",
-            source_perspective="brand",
-            business_tags=["brand_requirement"],
-            layout={"x": 160.0, "y": 80.0 + index * 160.0},
-            based_on_script_version_id=script_version_id,
-        )
-        proposed_nodes.append(issue)
+    payload = await invoke_agent_json(
+        agent_prompt_file="brand_agent.md",
+        context=context_block,
+        task_type="brand_analyze_brief",
+        mock_payload=mock,
+    )
+
+    graph = persist_rationale_graph(
+        project_id,
+        payload.get("ibis"),
+        script_version_id=script_version_id,
+        allowed_source_types=BRAND_SOURCES,
+    )
+
+    brand_insights = []
+    for raw in payload.get("brand_insights") or []:
+        if not isinstance(raw, dict):
+            continue
         brand_insights.append(
             build_brand_insight(
-                category="explicit_requirement",
-                title=line[:80],
-                content=line,
-                reason="Brief 解析识别的显式需求",
-                evidence=[{"source_type": "brief", "quote": line[:200]}],
-                confidence="high",
+                category=raw.get("category", "explicit_requirement"),
+                title=str(raw.get("title", "品牌洞察"))[:120],
+                content=str(raw.get("content", "")),
+                reason=str(raw.get("reason", "Brand Agent 推理")),
+                evidence=raw.get("evidence") if isinstance(raw.get("evidence"), list) else [],
+                confidence=raw.get("confidence", "medium"),
                 created_by="agent",
             )
         )
-
-    if not explicit and text:
-        fallback = text[:200]
-        explicit.append({"text": fallback, "evidence": fallback, "confidence": "medium"})
-        issue = build_rationale_node(
-            project_id=project_id,
-            node_type="issue",
-            title="Brief 核心诉求",
-            content=fallback,
-            source_type="brand_brief",
-            source_perspective="brand",
-            business_tags=["brand_requirement"],
-            layout={"x": 160.0, "y": 120.0},
-            based_on_script_version_id=script_version_id,
-        )
-        proposed_nodes.append(issue)
-
-    for index, item in enumerate(implicit[:3]):
-        node = build_rationale_node(
-            project_id=project_id,
-            node_type="issue",
-            title=f"隐性需求 {index + 1}",
-            content=item["text"],
-            source_type="brand_inferred",
-            source_perspective="brand",
-            business_tags=["brand_requirement", "conflict"],
-            confidence=item.get("confidence", "medium"),
-            layout={"x": 160.0, "y": 80.0 + (len(explicit) + index) * 150.0},
-            based_on_script_version_id=script_version_id,
-        )
-        proposed_nodes.append(node)
-        brand_insights.append(
-            build_brand_insight(
-                category="implicit_requirement",
-                title=node["title"],
-                content=item["text"],
-                reason="品牌 Wiki / 公开资料推断",
-                evidence=[{"source_type": "brief", "quote": item.get("evidence", "")}],
-                confidence=item.get("confidence", "medium"),
-                created_by="agent",
-            )
-        )
-
-    constraints = [item["text"] for item in explicit[:5]]
-    if any("避免" in line or "不要" in line for line in lines):
-        constraints.append("Brief 包含否定性约束，需在脚本中规避硬广表达")
 
     return {
-        "explicit_requirements": explicit,
-        "implicit_requirements": implicit,
-        "constraints": constraints,
-        "pr_risks": ["过度承诺功效", "口播感过强引发受众反感"],
-        "proposed_nodes": proposed_nodes,
-        "proposed_edges": proposed_edges,
+        "explicit_requirements": payload.get("explicit_requirements") or [],
+        "implicit_requirements": payload.get("implicit_requirements") or [],
+        "constraints": payload.get("constraints") or [],
+        "pr_risks": payload.get("pr_risks") or [],
+        "proposed_nodes": graph.proposed_nodes,
+        "proposed_edges": graph.proposed_edges,
+        "node_updates": graph.node_updates,
         "brand_insights": brand_insights,
-        "tool_calls_used": ["tavily_search", "brand_wiki_lookup"],
+        "tool_calls_used": ["tavily_search", "brand_wiki_lookup", "persist_rationale_graph"],
     }

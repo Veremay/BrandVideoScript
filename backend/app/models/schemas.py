@@ -109,6 +109,19 @@ class BrandInsightUpdateRequest(BaseModel):
     status: Literal["new", "confirmed", "pending", "ignored"] | None = None
 
 
+class BrandRequirementItem(BaseModel):
+    id: str | None = Field(default=None, max_length=80)
+    text: str = Field(min_length=1, max_length=2000)
+    evidence: str | None = Field(default=None, max_length=2000)
+    confidence: Literal["high", "medium", "low"] = "medium"
+
+
+class BrandRequirementsUpdateRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    explicit_requirements: list[BrandRequirementItem] = Field(default_factory=list)
+    implicit_requirements: list[BrandRequirementItem] = Field(default_factory=list)
+
+
 class PersonaCreateRequest(BaseModel):
     user_id: str = Field(min_length=1, max_length=80)
     name: str = Field(min_length=1, max_length=80)
@@ -188,6 +201,7 @@ class ProjectResponse(BaseModel):
     expert_perspective_result: dict[str, Any] | None = None
     rationale_nodes: list[dict[str, Any]] = Field(default_factory=list)
     rationale_edges: list[dict[str, Any]] = Field(default_factory=list)
+    negotiation_queue: list[str] = Field(default_factory=list)
     personas: list[dict[str, Any]]
     active_persona_id: str | None
     audience_analysis: dict[str, Any]
@@ -229,3 +243,98 @@ class TavilyExtractRequest(BaseModel):
     format: Literal["markdown", "text"] = "markdown"
     query: str | None = Field(default=None, max_length=400)
     mock: bool = False
+
+
+class CoordinatorQuote(BaseModel):
+    text: str = Field(min_length=1)
+    row_id: str | None = None
+    column_id: str | None = None
+    selection_start: int | None = None
+    selection_end: int | None = None
+    script_version_id: str | None = None
+
+
+class CoordinatorStreamRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    message: str = Field(min_length=1, max_length=4000)
+    task_type: Literal["user_message", "quote_analysis", "script_delta"] = "user_message"
+    requested_perspectives: list[Literal["brand", "audience", "expert", "comprehensive"]] = Field(default_factory=lambda: ["comprehensive"])
+    quotes: list[CoordinatorQuote] = Field(default_factory=list)
+    target_node_ids: list[str] = Field(default_factory=list)
+    changed_row_ids: list[str] = Field(default_factory=list)
+
+
+class CoordinatorMessageResponse(BaseModel):
+    message_id: str
+    project_id: str
+    user_id: str
+    role: Literal["user", "assistant", "system"]
+    content: str
+    task_type: str
+    requested_perspectives: list[str] = Field(default_factory=list)
+    active_persona_id: str | None = None
+    quotes: list[dict[str, Any]] = Field(default_factory=list)
+    related_node_ids: list[str] = Field(default_factory=list)
+    generated_artifact_ids: list[str] = Field(default_factory=list)
+    created_at: str
+
+
+class CoordinatorMessageListResponse(BaseModel):
+    messages: list[CoordinatorMessageResponse]
+
+
+class ScriptRefLink(BaseModel):
+    row_id: str
+    column_id: str | None = None
+    text_snapshot: str = ""
+    script_version_id: str | None = None
+
+
+class GraphNodeCreateRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    node_type: Literal["issue", "position", "argument", "reference"] = "issue"
+    title: str = Field(min_length=1, max_length=120)
+    content: str = Field(min_length=1, max_length=2000)
+    source_type: Literal[
+        "brand_brief",
+        "brand_feedback",
+        "brand_inferred",
+        "audience_persona",
+        "audience_simulation",
+        "expert_strategy",
+        "creator_manual",
+        "external_reference",
+    ] = "creator_manual"
+    source_perspective: str = "creator"
+    layout: dict[str, float] | None = None
+    status: Literal["open", "in_review", "resolved", "needs_negotiation", "deferred", "dismissed"] = "open"
+    linked_script_refs: list[ScriptRefLink] = Field(default_factory=list)
+
+
+class GraphNodeUpdateRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    title: str | None = Field(default=None, min_length=1, max_length=120)
+    content: str | None = Field(default=None, min_length=1, max_length=2000)
+    status: Literal["open", "in_review", "resolved", "needs_negotiation", "deferred", "dismissed"] | None = None
+    layout: dict[str, float] | None = None
+
+
+class GraphEdgeCreateRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    from_node_id: str = Field(min_length=1)
+    to_node_id: str = Field(min_length=1)
+    relation_type: Literal[
+        "responds_to",
+        "supports",
+        "opposes",
+        "evidenced_by",
+        "derived_from",
+        "refines",
+        "conflicts_with",
+        "updates",
+    ] = "responds_to"
+
+
+class GraphNodeNegotiationRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    in_queue: bool

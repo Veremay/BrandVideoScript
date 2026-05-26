@@ -2,6 +2,7 @@
 
 import { MouseEvent, PointerEvent, useEffect, useMemo, useState } from "react";
 
+import { createGraphNode } from "@/lib/api";
 import { analyzeDurations, isBrandFeedbackColumn } from "@/lib/scriptEditor";
 import type { Script, ScriptColumn } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
@@ -28,7 +29,9 @@ export function ScriptGrid({ script }: { script: Script }) {
     insertColumnAfter,
     insertRowAfter,
     openCoordinatorWithQuote,
+    project,
     renameColumn,
+    setProject,
     updateCell
   } = useAppStore();
   const [quoteMenu, setQuoteMenu] = useState<{ x: number; y: number; rowId: string; columnId: string; text: string } | null>(null);
@@ -47,8 +50,14 @@ export function ScriptGrid({ script }: { script: Script }) {
         issueMap.set(rowId, [...(issueMap.get(rowId) ?? []), issue.range ? `${issue.message} ${issue.range}` : issue.message]);
       }
     }
+    for (const node of project?.rationale_nodes ?? []) {
+      for (const ref of node.linked_script_refs ?? []) {
+        if (!ref.row_id) continue;
+        issueMap.set(ref.row_id, [...(issueMap.get(ref.row_id) ?? []), node.title]);
+      }
+    }
     return issueMap;
-  }, [durationAnalysis.issues]);
+  }, [durationAnalysis.issues, project?.rationale_nodes]);
   const totalSeconds = Math.max(0, ...durationAnalysis.timeline.map((segment) => segment.end));
 
   useEffect(() => {
@@ -118,6 +127,29 @@ export function ScriptGrid({ script }: { script: Script }) {
       text: quoteMenu.text
     });
     setQuoteMenu(null);
+  }
+
+  async function addSelectionToGraph() {
+    if (!quoteMenu || !project) return;
+    try {
+      const updated = await createGraphNode(project._id, project.user_id, {
+        node_type: "issue",
+        title: quoteMenu.text.slice(0, 80),
+        content: quoteMenu.text,
+        source_type: "creator_manual",
+        linked_script_refs: [
+          {
+            row_id: quoteMenu.rowId,
+            column_id: quoteMenu.columnId,
+            text_snapshot: quoteMenu.text
+          }
+        ]
+      });
+      setProject(updated);
+      setQuoteMenu(null);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Failed to add Issue to graph");
+    }
   }
 
   function startColumnResize(event: PointerEvent<HTMLElement>, columnId: string) {
@@ -339,6 +371,9 @@ export function ScriptGrid({ script }: { script: Script }) {
         <div className="sel-popup show" style={{ left: quoteMenu.x, top: quoteMenu.y }}>
           <button className="sel-btn sel-btn-coordinator" onClick={quoteToCoordinator} type="button">
             Ask Coordinator
+          </button>
+          <button className="sel-btn sel-btn-graph" onClick={() => void addSelectionToGraph()} type="button">
+            Add as Issue
           </button>
         </div>
       ) : null}

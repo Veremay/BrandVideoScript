@@ -1,98 +1,231 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import { fetchCoordinatorMessages, streamCoordinatorMessage } from "@/lib/api";
+import type { CoordinatorMessage, RequestedPerspective } from "@/lib/types";
+import { useAppStore } from "@/store/appStore";
 
 type AssistantTab = "chat" | "plans";
 
-type ChatMessage = {
-  id: string;
-  role: "assistant" | "user";
-  text: string;
-};
-
-type PlanItem = {
-  id: string;
-  title: string;
-  description: string;
-  active?: boolean;
-};
-
-const INITIAL_MESSAGES: ChatMessage[] = [
-  {
-    id: "welcome",
-    role: "assistant",
-    text: "Hi, I'm the Coordinator Agent. Upload a Brief to run brand + expert initial parse; use Personas → From Analytics for audience nodes. Full streaming chat arrives in Phase 3."
-  }
+const PERSPECTIVE_CHIPS: Array<{ id: RequestedPerspective; label: string }> = [
+  { id: "comprehensive", label: "Comprehensive" },
+  { id: "brand", label: "Brand" },
+  { id: "audience", label: "Audience" },
+  { id: "expert", label: "Expert" }
 ];
 
-const PLANS: PlanItem[] = [
-  {
-    id: "a",
-    title: "Plan A: Cinematic Expansion",
-    description:
-      "Adds two additional establishing shots and extends the ambient music pad to create a more immersive atmospheric opening.",
-    active: true
-  },
-  {
-    id: "b",
-    title: "Plan B: Technical Efficiency",
-    description:
-      "Condenses the opening sequence into a single block to reduce production complexity while maintaining narrative impact."
-  },
-  {
-    id: "c",
-    title: "Plan C: Narrative Focus",
-    description: "Introduces character voiceover earlier in scene 01 to establish the emotional core of the series immediately."
-  }
-];
+const WELCOME: CoordinatorMessage = {
+  message_id: "welcome",
+  project_id: "",
+  user_id: "",
+  role: "assistant",
+  content:
+    "Hi, I'm the Coordinator. Ask about your script, quote a selection, or pick perspectives below. I'll stream analysis and add IBIS nodes when relevant.",
+  task_type: "user_message",
+  requested_perspectives: ["comprehensive"],
+  quotes: [],
+  related_node_ids: [],
+  generated_artifact_ids: [],
+  created_at: new Date().toISOString()
+};
 
 type CoordinatorChatProps = {
   open: boolean;
   onClose: () => void;
   userInitial?: string;
   selectedText?: string;
+  selectedRowId?: string;
+  selectedColumnId?: string;
+  projectId?: string;
+  userId?: string;
+  scriptVersionId?: string | null;
 };
 
-export function CoordinatorChat({ open, onClose, userInitial = "U", selectedText }: CoordinatorChatProps) {
+export function CoordinatorChat({
+  open,
+  onClose,
+  userInitial = "U",
+  selectedText,
+  selectedRowId,
+  selectedColumnId,
+  projectId,
+  userId,
+  scriptVersionId
+}: CoordinatorChatProps) {
+  const setProject = useAppStore((state) => state.setProject);
   const [tab, setTab] = useState<AssistantTab>("chat");
-  const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
-  const [activePlanId, setActivePlanId] = useState("a");
+  const [messages, setMessages] = useState<CoordinatorMessage[]>([WELCOME]);
+  const [perspectives, setPerspectives] = useState<RequestedPerspective[]>(["comprehensive"]);
   const [draft, setDraft] = useState("");
+  const [streaming, setStreaming] = useState(false);
+  const [streamError, setStreamError] = useState<string | null>(null);
+  const threadRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open && selectedText) setTab("chat");
   }, [open, selectedText]);
 
+  useEffect(() => {
+    if (!open || !projectId || !userId) return;
+    fetchCoordinatorMessages(projectId, userId)
+      .then((loaded) => {
+        if (loaded.length === 0) {
+          setMessages([WELCOME]);
+          return;
+        }
+        setMessages(loaded);
+      })
+      .catch(() => setMessages([WELCOME]));
+  }, [open, projectId, userId]);
+
+  useEffect(() => {
+    threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages, streaming]);
+
   if (!open) return null;
 
-  function handleSend() {
-    const text = draft.trim();
-    if (!text) return;
+  function togglePerspective(id: RequestedPerspective) {
+    if (id === "comprehensive") {
+      setPerspectives(["comprehensive"]);
+      return;
+    }
+    setPerspectives((current) => {
+      const withoutComprehensive = current.filter((item) => item !== "comprehensive");
+      const next = withoutComprehensive.includes(id)
+        ? withoutComprehensive.filter((item) => item !== id)
+        : [...withoutComprehensive, id];
+      return next.length === 0 ? ["comprehensive"] : next;
+    });
+  }
 
-    const userMessage: ChatMessage = { id: `user-${Date.now()}`, role: "user", text };
-    setMessages((prev) => [...prev, userMessage]);
+  async function handleSend() {
+    const text = draft.trim();
+    if (!text || streaming || !projectId || !userId) return;
+
+    const quotes =
+      selectedText && selectedText.trim()
+        ? [
+            {
+              text: selectedText.trim(),
+              row_id: selectedRowId,
+              column_id: selectedColumnId,
+              script_version_id: scriptVersionId ?? undefined
+            }
+          ]
+        : [];
+
+    const taskType = quotes.length ? ("quote_analysis" as const) : ("user_message" as const);
+
+    const userMessage: CoordinatorMessage = {
+      message_id: `local-user-${Date.now()}`,
+      project_id: projectId,
+      user_id: userId,
+      role: "user",
+      content: text,
+      task_type: taskType,
+      requested_perspectives: perspectives,
+      quotes,
+      related_node_ids: [],
+      generated_artifact_ids: [],
+      created_at: new Date().toISOString()
+    };
+
+    const assistantPlaceholder: CoordinatorMessage = {
+      message_id: `local-assistant-${Date.now()}`,
+      project_id: projectId,
+      user_id: userId,
+      role: "assistant",
+      content: "",
+      task_type: userMessage.task_type,
+      requested_perspectives: perspectives,
+      quotes,
+      related_node_ids: [],
+      generated_artifact_ids: [],
+      created_at: new Date().toISOString()
+    };
+
+    setMessages((prev) => [...prev, userMessage, assistantPlaceholder]);
     setDraft("");
     setTab("chat");
+    setStreaming(true);
+    setStreamError(null);
 
-    const contextHint = selectedText
-      ? ` (Quoted script: "${selectedText.slice(0, 80)}${selectedText.length > 80 ? "…" : ""}")`
-      : "";
-    window.setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
+    try {
+      await streamCoordinatorMessage(
+        projectId,
+        userId,
         {
-          id: `assistant-${Date.now()}`,
-          role: "assistant",
-          text: `Got your question.${contextHint} This is a mock reply in Phase 0; Phase 3 will stream Coordinator responses over SSE.`
+          message: text,
+          task_type: taskType,
+          requested_perspectives: perspectives,
+          quotes,
+          changed_row_ids: selectedRowId ? [selectedRowId] : []
+        },
+        (event) => {
+          if (event.type === "token") {
+            setMessages((prev) =>
+              prev.map((item) =>
+                item.message_id === assistantPlaceholder.message_id
+                  ? { ...item, content: item.content + event.content }
+                  : item
+              )
+            );
+          }
+          if (event.type === "artifact") {
+            const current = useAppStore.getState().project;
+            if (current && event.rationale_nodes?.length) {
+              const existingIds = new Set((current.rationale_nodes ?? []).map((node) => node.node_id));
+              const mergedNodes = [
+                ...(current.rationale_nodes ?? []),
+                ...event.rationale_nodes.filter((node) => !existingIds.has(node.node_id))
+              ];
+              const existingEdgeIds = new Set((current.rationale_edges ?? []).map((edge) => edge.edge_id));
+              const mergedEdges = [
+                ...(current.rationale_edges ?? []),
+                ...(event.rationale_edges ?? []).filter((edge) => !existingEdgeIds.has(edge.edge_id))
+              ];
+              setProject({
+                ...current,
+                rationale_nodes: mergedNodes,
+                rationale_edges: mergedEdges
+              });
+            }
+            if (event.related_node_ids?.length) {
+              setMessages((prev) =>
+                prev.map((item) =>
+                  item.message_id === assistantPlaceholder.message_id
+                    ? { ...item, related_node_ids: event.related_node_ids ?? [] }
+                    : item
+                )
+              );
+            }
+          }
+          if (event.type === "done") {
+            setMessages((prev) =>
+              prev.map((item) =>
+                item.message_id === assistantPlaceholder.message_id
+                  ? { ...item, message_id: event.message_id || item.message_id }
+                  : item
+              )
+            );
+          }
+          if (event.type === "error") {
+            setStreamError(event.message);
+          }
         }
-      ]);
-    }, 400);
+      );
+    } catch (error) {
+      setStreamError(error instanceof Error ? error.message : "Coordinator stream failed");
+    } finally {
+      setStreaming(false);
+    }
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      handleSend();
+      void handleSend();
     }
   }
 
@@ -136,70 +269,53 @@ export function CoordinatorChat({ open, onClose, userInitial = "U", selectedText
 
         <div className="glacier-body">
           {tab === "chat" ? (
-            <div className="glacier-chat-thread" role="log" aria-live="polite">
+            <div className="glacier-chat-thread" ref={threadRef} role="log" aria-live="polite">
               {messages.map((message) =>
                 message.role === "assistant" ? (
-                  <div className="glacier-msg-row glacier-msg-row--assistant" key={message.id}>
+                  <div className="glacier-msg-row glacier-msg-row--assistant" key={message.message_id}>
                     <span className="glacier-avatar glacier-avatar--bot" aria-hidden="true">
                       <IconSpark />
                     </span>
-                    <div className="glacier-bubble glacier-bubble--assistant">{message.text}</div>
+                    <div className="glacier-bubble glacier-bubble--assistant">
+                      {message.content || (streaming ? "…" : "")}
+                      {message.related_node_ids.length > 0 ? (
+                        <p className="glacier-related-nodes">
+                          Related nodes: {message.related_node_ids.join(", ")}
+                        </p>
+                      ) : null}
+                    </div>
                   </div>
                 ) : (
-                  <div className="glacier-msg-row glacier-msg-row--user" key={message.id}>
-                    <div className="glacier-bubble glacier-bubble--user">{message.text}</div>
+                  <div className="glacier-msg-row glacier-msg-row--user" key={message.message_id}>
+                    <div className="glacier-bubble glacier-bubble--user">{message.content}</div>
                     <span className="glacier-avatar glacier-avatar--user" aria-hidden="true">
                       {userInitial}
                     </span>
                   </div>
                 )
               )}
+              {streamError ? <p className="glacier-stream-error">{streamError}</p> : null}
             </div>
           ) : (
             <div className="glacier-plans-list">
-              {PLANS.map((plan) => {
-                const isActive = plan.id === activePlanId;
-                return (
-                  <article
-                    className={`glacier-plan-card ${isActive ? "glacier-plan-card--active" : ""}`}
-                    key={plan.id}
-                  >
-                    <div className="glacier-plan-head">
-                      <h3 className="glacier-plan-title">{plan.title}</h3>
-                      {isActive ? <span className="glacier-plan-badge">ACTIVE</span> : null}
-                    </div>
-                    <p className="glacier-plan-desc">{plan.description}</p>
-                    <button
-                      className={`glacier-plan-btn ${isActive ? "glacier-plan-btn--active" : ""}`}
-                      onClick={() => setActivePlanId(plan.id)}
-                      type="button"
-                    >
-                      {isActive ? "Currently Previewing" : "Preview Plan"}
-                    </button>
-                  </article>
-                );
-              })}
+              <p className="glacier-plans-placeholder">Revision proposals arrive in Phase 5.</p>
             </div>
           )}
         </div>
 
-        {tab === "plans" ? (
-          <div className="glacier-plans-actions">
-            <div className="glacier-plans-actions-row">
-              <button className="glacier-btn glacier-btn--primary" type="button">
-                Accept All
-              </button>
-              <button className="glacier-btn glacier-btn--outline" type="button">
-                Accept Map Only
-              </button>
-            </div>
-            <button className="glacier-reject-all" type="button">
-              Reject All
-            </button>
-          </div>
-        ) : null}
-
         <footer className="glacier-input-area">
+          <div className="glacier-perspective-chips" role="group" aria-label="Requested perspectives">
+            {PERSPECTIVE_CHIPS.map((chip) => (
+              <button
+                className={`glacier-perspective-chip ${perspectives.includes(chip.id) ? "active" : ""}`}
+                key={chip.id}
+                onClick={() => togglePerspective(chip.id)}
+                type="button"
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
           {selectedText ? (
             <div className="glacier-quote">
               <span className="glacier-quote-icon" aria-hidden="true">
@@ -217,8 +333,9 @@ export function CoordinatorChat({ open, onClose, userInitial = "U", selectedText
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={handleKeyDown}
               aria-label="Coordinator message input"
+              disabled={streaming}
             />
-            <button className="glacier-send" onClick={handleSend} type="button" aria-label="Send">
+            <button className="glacier-send" onClick={() => void handleSend()} type="button" aria-label="Send" disabled={streaming}>
               <IconSend />
             </button>
           </div>

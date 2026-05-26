@@ -1,0 +1,255 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+
+import { updateBrandRequirements } from "@/lib/api";
+import {
+  createEmptyRequirement,
+  requirementsFromProject,
+  toApiRequirements
+} from "@/lib/brandRequirements";
+import type { BrandRequirement, BrandRequirementConfidence } from "@/lib/types";
+import { useAppStore } from "@/store/appStore";
+
+type RequirementsPanelProps = {
+  open: boolean;
+  onClose: () => void;
+};
+
+type RequirementTab = "explicit" | "implicit";
+
+function listsEqual(a: BrandRequirement[], b: BrandRequirement[]) {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+export function RequirementsPanel({ open, onClose }: RequirementsPanelProps) {
+  const { project, setProject } = useAppStore();
+  const [activeTab, setActiveTab] = useState<RequirementTab>("explicit");
+  const [explicit, setExplicit] = useState<BrandRequirement[]>([]);
+  const [implicit, setImplicit] = useState<BrandRequirement[]>([]);
+  const [baselineExplicit, setBaselineExplicit] = useState<BrandRequirement[]>([]);
+  const [baselineImplicit, setBaselineImplicit] = useState<BrandRequirement[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  const hasParsedBrief = project?.brief.parse_status === "parsed";
+  const isDirty = useMemo(
+    () => !listsEqual(explicit, baselineExplicit) || !listsEqual(implicit, baselineImplicit),
+    [explicit, implicit, baselineExplicit, baselineImplicit]
+  );
+
+  useEffect(() => {
+    if (!open || !project) return;
+    const { explicit: nextExplicit, implicit: nextImplicit } = requirementsFromProject(project);
+    setExplicit(nextExplicit);
+    setImplicit(nextImplicit);
+    setBaselineExplicit(nextExplicit);
+    setBaselineImplicit(nextImplicit);
+    setActiveTab("explicit");
+  }, [open, project?._id, project?.brand_perspective_result, project?.updated_at]);
+
+  if (!open || !project) return null;
+
+  const currentProject = project;
+  const activeList = activeTab === "explicit" ? explicit : implicit;
+  const setActiveList = activeTab === "explicit" ? setExplicit : setImplicit;
+
+  function updateRequirement(id: string, patch: Partial<BrandRequirement>) {
+    setActiveList((items) => items.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+  }
+
+  function addRequirement() {
+    setActiveList((items) => [...items, createEmptyRequirement(activeTab)]);
+  }
+
+  function removeRequirement(id: string) {
+    setActiveList((items) => items.filter((item) => item.id !== id));
+  }
+
+  function resetDraft() {
+    setExplicit(baselineExplicit);
+    setImplicit(baselineImplicit);
+  }
+
+  async function handleSave() {
+    const payloadExplicit = toApiRequirements(explicit);
+    const payloadImplicit = toApiRequirements(implicit);
+
+    setSaving(true);
+    try {
+      const savedProject = await updateBrandRequirements(currentProject._id, currentProject.user_id, {
+        explicit_requirements: payloadExplicit,
+        implicit_requirements: payloadImplicit
+      });
+      setProject(savedProject);
+      const next = requirementsFromProject(savedProject);
+      setExplicit(next.explicit);
+      setImplicit(next.implicit);
+      setBaselineExplicit(next.explicit);
+      setBaselineImplicit(next.implicit);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleClose() {
+    if (isDirty && !window.confirm("You have unsaved requirement changes. Close anyway?")) return;
+    onClose();
+  }
+
+  return (
+    <div className="persona-overlay" role="presentation">
+      <button aria-label="Close requirements panel" className="persona-overlay-backdrop" onClick={handleClose} type="button" />
+      <section
+        aria-labelledby="requirements-panel-title"
+        aria-modal="true"
+        className="persona-panel requirements-panel"
+        role="dialog"
+      >
+        <button aria-label="Close" className="persona-panel-close" onClick={handleClose} type="button">
+          <IconClose />
+        </button>
+
+        <header className="persona-panel-header requirements-panel-header">
+          <div className="persona-panel-heading">
+            <h1 className="persona-panel-title" id="requirements-panel-title">
+              Brand Requirements
+            </h1>
+            <p className="persona-panel-subtitle">
+              Explicit and implicit brand needs inferred from your Brief. Edit here to keep agents aligned.
+            </p>
+          </div>
+          <div className="persona-panel-actions">
+            <button className="persona-add-btn persona-add-btn-secondary" disabled={saving || !isDirty} onClick={resetDraft} type="button">
+              Reset
+            </button>
+            <button className="persona-add-btn" disabled={saving || !isDirty} onClick={handleSave} type="button">
+              {saving ? "Saving…" : "Save Changes"}
+            </button>
+          </div>
+        </header>
+
+        <div className="requirements-tabs" role="tablist" aria-label="Requirement type">
+          <button
+            className={`requirements-tab ${activeTab === "explicit" ? "active" : ""}`}
+            onClick={() => setActiveTab("explicit")}
+            role="tab"
+            aria-selected={activeTab === "explicit"}
+            type="button"
+          >
+            Explicit
+            <span className="requirements-tab-count">{explicit.length}</span>
+          </button>
+          <button
+            className={`requirements-tab ${activeTab === "implicit" ? "active" : ""}`}
+            onClick={() => setActiveTab("implicit")}
+            role="tab"
+            aria-selected={activeTab === "implicit"}
+            type="button"
+          >
+            Implicit
+            <span className="requirements-tab-count">{implicit.length}</span>
+          </button>
+        </div>
+
+        <div className="requirements-panel-body">
+          {!hasParsedBrief ? (
+            <p className="requirements-empty">
+              Upload and parse a Brief first. Brand Agent will populate requirements here after parsing.
+            </p>
+          ) : activeList.length === 0 ? (
+            <p className="requirements-empty">
+              No {activeTab === "explicit" ? "explicit" : "implicit"} requirements yet. Add one below or re-parse your Brief.
+            </p>
+          ) : (
+            <ul className="requirements-list">
+              {activeList.map((item, index) => (
+                <li className="requirement-card" key={item.id}>
+                  <div className="requirement-card-header">
+                    <span className="requirement-card-index">#{index + 1}</span>
+                    <label className="requirement-confidence-label">
+                      Confidence
+                      <select
+                        className="requirement-confidence-select"
+                        onChange={(event) =>
+                          updateRequirement(item.id, {
+                            confidence: event.target.value as BrandRequirementConfidence
+                          })
+                        }
+                        value={item.confidence}
+                      >
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                      </select>
+                    </label>
+                    <button
+                      aria-label="Delete requirement"
+                      className="requirement-delete-btn"
+                      onClick={() => removeRequirement(item.id)}
+                      type="button"
+                    >
+                      <IconTrash />
+                    </button>
+                  </div>
+                  <label className="requirement-field">
+                    <span>Requirement</span>
+                    <textarea
+                      onChange={(event) => updateRequirement(item.id, { text: event.target.value })}
+                      placeholder="Describe the brand requirement…"
+                      rows={3}
+                      value={item.text}
+                    />
+                  </label>
+                  <label className="requirement-field">
+                    <span>Evidence (optional)</span>
+                    <input
+                      onChange={(event) => updateRequirement(item.id, { evidence: event.target.value })}
+                      placeholder="Brief quote or source note"
+                      type="text"
+                      value={item.evidence ?? ""}
+                    />
+                  </label>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <button className="requirements-add-btn" onClick={addRequirement} type="button">
+            <IconPlus />
+            Add {activeTab === "explicit" ? "explicit" : "implicit"} requirement
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function IconClose() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </svg>
+  );
+}
+
+function IconPlus() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </svg>
+  );
+}
+
+function IconTrash() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M3 6h18" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
+  );
+}

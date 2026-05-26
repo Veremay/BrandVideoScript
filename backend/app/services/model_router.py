@@ -7,6 +7,10 @@ ADVANCED_TASKS = {
     "audience_analyze_script",
     "expert_generate_suggestions",
     "expert_generate_hunks",
+    "coordinator_structured",
+    "quote_analysis",
+    "script_delta",
+    "ibis_graph_generation",
 }
 
 

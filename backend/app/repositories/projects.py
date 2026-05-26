@@ -47,6 +47,7 @@ def serialize_project(document: dict) -> dict:
     document.setdefault("expert_perspective_result", None)
     document.setdefault("rationale_nodes", [])
     document.setdefault("rationale_edges", [])
+    document.setdefault("negotiation_queue", [])
     return document
 
 
@@ -587,6 +588,57 @@ async def _write_personas(
                 "active_persona_id": active_persona_id,
                 "updated_at": now_iso(),
                 **stale_set_fields(mark_persona_changed()),
+            }
+        },
+    )
+    return await get_project(db, project_id, user_id)
+
+
+def normalize_brand_requirements(items: list[dict] | None) -> list[dict]:
+    normalized: list[dict] = []
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        text = str(item.get("text", "")).strip()
+        if not text:
+            continue
+        confidence = str(item.get("confidence", "medium"))
+        if confidence not in {"high", "medium", "low"}:
+            confidence = "medium"
+        entry: dict = {"text": text, "confidence": confidence}
+        requirement_id = str(item.get("id", "")).strip()
+        if requirement_id:
+            entry["id"] = requirement_id
+        evidence = str(item.get("evidence", "")).strip()
+        if evidence:
+            entry["evidence"] = evidence[:2000]
+        normalized.append(entry)
+    return normalized
+
+
+async def update_brand_requirements(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    *,
+    explicit_requirements: list[dict],
+    implicit_requirements: list[dict],
+) -> dict | None:
+    project = await get_project(db, project_id, user_id)
+    if project is None:
+        return None
+
+    perspective = dict(project.get("brand_perspective_result") or {})
+    perspective["explicit_requirements"] = normalize_brand_requirements(explicit_requirements)
+    perspective["implicit_requirements"] = normalize_brand_requirements(implicit_requirements)
+
+    await db.projects.update_one(
+        {"_id": project_id, "user_id": user_id},
+        {
+            "$set": {
+                "brand_perspective_result": perspective,
+                "updated_at": now_iso(),
+                "stale.modification_schemes": "stale_graph_changed",
             }
         },
     )

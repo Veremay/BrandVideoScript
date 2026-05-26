@@ -2,11 +2,24 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.models.rationale_ops import build_rationale_node
 from app.services.agent_context import assert_context_isolation, build_agent_context
+from app.services.agent_llm import (
+    existing_nodes_summary,
+    format_quotes,
+    invoke_agent_json,
+    script_excerpt_for_rows,
+)
+from app.services.tools.ibis_graph import persist_rationale_graph
+
+AUDIENCE_SOURCES = {"audience_persona", "audience_simulation"}
 
 
-async def run_audience_agent(project: dict[str, Any]) -> dict[str, Any]:
+async def run_audience_agent(
+    project: dict[str, Any],
+    *,
+    quotes: list[dict[str, Any]] | None = None,
+    changed_row_ids: set[str] | None = None,
+) -> dict[str, Any]:
     context = build_agent_context("audience", project)
     assert_context_isolation("audience", context)
 
@@ -16,63 +29,69 @@ async def run_audience_agent(project: dict[str, Any]) -> dict[str, Any]:
 
     project_id = str(context.get("project_id") or project.get("_id") or "")
     script_version_id = context.get("current_script_version_id")
-    proposed_nodes: list[dict] = []
-    structured_issues: list[dict[str, str]] = []
 
-    ad_level = persona.get("ad_sensitivity", "medium")
-    naturalness = f"以 {persona.get('name', '目标观众')} 视角，{'高' if ad_level == 'high' else '中' if ad_level == 'medium' else '低'}广告敏感。"
-    ad_sense = f"平台语境：{persona.get('platform_context') or context.get('platform_context', 'other')}。"
-    trust = "、".join(persona.get("trust_trigger") or []) or "真实体验与细节"
-    reject = "、".join(persona.get("reject_trigger") or []) or "硬广话术"
+    row_ids = set(changed_row_ids or [])
+    if quotes:
+        for q in quotes:
+            if q.get("row_id"):
+                row_ids.add(str(q["row_id"]))
 
-    issues_data = [
-        (
-            "观众信任门槛",
-            f"需呈现 {trust}，否则易划走。",
-            "audience_persona",
-        ),
-        (
-            "广告感风险",
-            f"需规避 {reject}；当前人设对广告{'非常' if ad_level == 'high' else ''}敏感。",
-            "audience_simulation",
-        ),
-    ]
+    context_block = "\n\n".join(
+        [
+            f"## Persona\n{persona}",
+            f"## 平台\n{context.get('platform_context', 'other')}",
+            f"## 脚本摘要\n{context.get('script_excerpt', '')}",
+            f"## 变动/选段脚本\n{script_excerpt_for_rows(project, row_ids) if row_ids else ''}",
+            f"## Quotes\n{format_quotes(quotes)}",
+            f"## 已有节点\n{existing_nodes_summary(project)}",
+        ]
+    )
 
-    if context.get("script_excerpt"):
-        issues_data.append(
-            (
-                "脚本观感初判",
-                f"基于当前脚本片段：{context['script_excerpt'][:120]}…",
-                "audience_simulation",
-            )
-        )
+    def mock() -> dict[str, Any]:
+        return {
+            "naturalness": f"以 {persona.get('name')} 视角评估",
+            "ad_sense": "需降低硬广感",
+            "trust": "、".join(persona.get("trust_trigger") or []) or "真实体验",
+            "drop_off_risk": "、".join(persona.get("reject_trigger") or []) or "硬广话术",
+            "suggestions": ["开头点明观众价值"],
+            "structured_issues": [{"title": "广告感风险", "content": "Persona 对广告较敏感"}],
+            "ibis": {
+                "nodes": [
+                    {
+                        "node_type": "issue",
+                        "title": "当前脚本广告感是否过高？",
+                        "content": "结合 Persona 广告敏感度评估。",
+                        "source_type": "audience_simulation",
+                        "source_perspective": "audience",
+                    }
+                ],
+                "edges": [],
+            },
+        }
 
-    for index, (title, content, source_type) in enumerate(issues_data):
-        structured_issues.append({"title": title, "content": content})
-        proposed_nodes.append(
-            build_rationale_node(
-                project_id=project_id,
-                node_type="issue",
-                title=title,
-                content=content,
-                source_type=source_type,
-                source_perspective="audience",
-                business_tags=["audience_feedback"],
-                layout={"x": 180.0, "y": 100.0 + index * 170.0},
-                based_on_script_version_id=script_version_id,
-            )
-        )
+    payload = await invoke_agent_json(
+        agent_prompt_file="audience_agent.md",
+        context=context_block,
+        task_type="audience_analyze_script",
+        mock_payload=mock,
+    )
+
+    graph = persist_rationale_graph(
+        project_id,
+        payload.get("ibis"),
+        script_version_id=script_version_id,
+        allowed_source_types=AUDIENCE_SOURCES,
+    )
 
     return {
-        "naturalness": naturalness,
-        "ad_sense": ad_sense,
-        "trust": trust,
-        "drop_off_risk": reject,
-        "suggestions": [
-            "开头 3 秒点明对观众的价值",
-            "用生活场景替代功能堆砌",
-        ],
-        "structured_issues": structured_issues,
-        "proposed_nodes": proposed_nodes,
-        "proposed_edges": [],
+        "naturalness": payload.get("naturalness", ""),
+        "ad_sense": payload.get("ad_sense", ""),
+        "trust": payload.get("trust", ""),
+        "drop_off_risk": payload.get("drop_off_risk", ""),
+        "suggestions": payload.get("suggestions") or [],
+        "structured_issues": payload.get("structured_issues") or [],
+        "proposed_nodes": graph.proposed_nodes,
+        "proposed_edges": graph.proposed_edges,
+        "node_updates": graph.node_updates,
+        "tool_calls_used": ["persist_rationale_graph"],
     }

@@ -2538,6 +2538,11 @@ textarea {
   color: var(--figma-primary);
 }
 
+.sel-btn-graph:hover {
+  background: rgba(14, 165, 233, 0.12);
+  color: #0284c7;
+}
+
 .sel-btn-brand:hover {
   background: var(--brand-blue-dim);
   color: var(--brand-blue);
@@ -3698,4 +3703,294 @@ textarea {
   .agents-col {
     min-height: 420px;
   }
+}
+
+.glacier-perspective-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.glacier-perspective-chip {
+  border: 1px solid var(--glacier-border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: #fff;
+  color: var(--glacier-text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.glacier-perspective-chip.active {
+  border-color: var(--glacier-primary);
+  background: rgba(0, 101, 145, 0.1);
+  color: var(--glacier-primary);
+}
+
+.glacier-related-nodes,
+.glacier-stream-error,
+.glacier-plans-placeholder {
+  margin-top: 8px;
+  font-size: 11px;
+  opacity: 0.85;
+}
+
+.glacier-stream-error {
+  color: #b42318;
+}
+
+.map-legend-subtitle {
+  margin: 16px 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--figma-text-secondary);
+}
+
+.map-legend-sources {
+  margin-bottom: 8px;
+}
+
+.map-source-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+}
+
+.map-source-dot.source-brand_brief,
+.map-source-dot.source-brand_inferred,
+.map-source-dot.source-brand_feedback {
+  background: #2563eb;
+}
+
+.map-source-dot.source-audience_persona,
+.map-source-dot.source-audience_simulation {
+  background: #16a34a;
+}
+
+.map-source-dot.source-expert_strategy {
+  background: #9333ea;
+}
+
+.map-source-dot.source-creator_manual {
+  background: #64748b;
+}
+
+.map-negotiation-panel {
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(10px);
+}
+
+.map-negotiation-empty {
+  font-size: 11px;
+  color: var(--figma-text-secondary);
+}
+
+.map-negotiation-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.map-negotiation-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+}
+
+.map-node-negotiation {
+  margin-left: 6px;
+  color: #c2410c;
+  font-style: normal;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.requirements-panel {
+  width: min(720px, calc(100vw - 64px));
+}
+
+.requirements-panel-header {
+  padding-bottom: 16px;
+}
+
+.requirements-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 0 40px 16px;
+  border-bottom: 1px solid var(--figma-border);
+}
+
+.requirements-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--figma-text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.requirements-tab.active {
+  border-color: var(--figma-border);
+  background: #fff;
+  color: var(--figma-text);
+  box-shadow: 0 1px 2px rgba(19, 27, 46, 0.06);
+}
+
+.requirements-tab-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(19, 27, 46, 0.06);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.requirements-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px 40px 40px;
+  overflow: auto;
+}
+
+.requirements-empty {
+  margin: 0;
+  color: var(--figma-text-secondary);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.requirements-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.requirement-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--figma-border);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.requirement-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.requirement-card-index {
+  color: var(--figma-text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.requirement-confidence-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  color: var(--figma-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.requirement-confidence-select {
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--figma-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--figma-text);
+  font-size: 13px;
+}
+
+.requirement-delete-btn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--figma-text-secondary);
+}
+
+.requirement-delete-btn:hover {
+  background: rgba(220, 38, 38, 0.08);
+  color: #dc2626;
+}
+
+.requirement-delete-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.requirement-field {
+  display: grid;
+  gap: 6px;
+}
+
+.requirement-field span {
+  color: var(--figma-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.requirement-field textarea,
+.requirement-field input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--figma-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--figma-text);
+  font: inherit;
+  font-size: 14px;
+  line-height: 20px;
+  resize: vertical;
+}
+
+.requirements-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  align-self: flex-start;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px dashed var(--figma-border);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--figma-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.requirements-add-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.requirements-add-btn:hover {
+  border-color: var(--figma-primary);
+  color: var(--figma-primary);
 }

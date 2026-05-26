@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import health, llm, projects, research, users
+from app.api.routes import coordinator, health, llm, projects, research, users
 from app.core.config import get_cors_origins, get_settings
 from app.db.mongo import close_mongo, connect_mongo
 
@@ -30,6 +30,8 @@ app.add_middleware(
 app.include_router(health.router, prefix=settings.api_prefix)
 app.include_router(users.router, prefix=settings.api_prefix)
 app.include_router(projects.router, prefix=settings.api_prefix)
+app.include_router(coordinator.router, prefix=settings.api_prefix)
+app.include_router(coordinator.graph_router, prefix=settings.api_prefix)
 app.include_router(llm.router, prefix=settings.api_prefix)
 app.include_router(research.router, prefix=settings.api_prefix)
 

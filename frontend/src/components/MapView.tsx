@@ -22,6 +22,14 @@ import "@xyflow/react/dist/style.css";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import type { RationaleEdge, RationaleNode, RationaleSourceType } from "@/lib/types";
+import {
+  createGraphEdge,
+  createGraphNode,
+  deleteGraphEdge,
+  deleteGraphNode,
+  toggleGraphNegotiationQueue,
+  updateGraphNode
+} from "@/lib/api";
 import { useAppStore } from "@/store/appStore";
 
 type MapNodeType = "issue" | "position" | "argument";
@@ -32,6 +40,8 @@ type IbisNodeData = {
   content: string;
   width: number;
   sourceType?: RationaleSourceType;
+  status?: string;
+  inNegotiationQueue?: boolean;
   proposalCount?: number;
   reference?: string;
 } & Record<string, unknown>;
@@ -81,10 +91,12 @@ function rationaleToFlowNode(node: RationaleNode, index: number): Node<IbisNodeD
   const nodeType = (["issue", "position", "argument"].includes(rawType) ? rawType : "issue") as MapNodeType;
   const width = nodeType === "argument" ? 256 : 224;
   const height = 132;
-  const position = {
-    x: 120 + (index % 4) * 300,
-    y: 80 + Math.floor(index / 4) * 200
-  };
+  const position = node.layout
+    ? { x: node.layout.x, y: node.layout.y }
+    : {
+        x: 120 + (index % 4) * 300,
+        y: 80 + Math.floor(index / 4) * 200
+      };
   return {
     id: node.node_id,
     type: "ibis",
@@ -97,7 +109,9 @@ function rationaleToFlowNode(node: RationaleNode, index: number): Node<IbisNodeD
       title: node.title,
       content: node.content,
       width,
-      sourceType: node.source_type
+      sourceType: node.source_type,
+      status: node.status,
+      inNegotiationQueue: node.in_negotiation_queue
     }
   };
 }
@@ -137,6 +151,7 @@ const MapGraphActionsContext = createContext<{
   onSaveEdit: (nodeId: string, title: string, content: string) => void;
   onCancelEdit: () => void;
   onDelete: (nodeId: string) => void;
+  onToggleNegotiation: (nodeId: string, inQueue: boolean) => void;
 } | null>(null);
 
 const nodeTypes: NodeTypes = {
@@ -190,6 +205,7 @@ export function MapView() {
 
 function MapViewContent() {
   const project = useAppStore((state) => state.project);
+  const setProject = useAppStore((state) => state.setProject);
   const flowNodes = useMemo(() => {
     return (project?.rationale_nodes ?? [])
       .map(rationaleToFlowNode)
@@ -278,10 +294,10 @@ function MapViewContent() {
   }, []);
 
   const handleSaveEdit = useCallback(
-    (nodeId: string, title: string, content: string) => {
+    async (nodeId: string, title: string, content: string) => {
       const nextTitle = title.trim();
       const nextContent = content.trim();
-      if (!nextTitle) return;
+      if (!nextTitle || !project) return;
       setNodes((current) =>
         current.map((item) =>
           item.id === nodeId
@@ -290,8 +306,17 @@ function MapViewContent() {
         )
       );
       setEditingNodeId((current) => (current === nodeId ? null : current));
+      try {
+        const updated = await updateGraphNode(project._id, project.user_id, nodeId, {
+          title: nextTitle,
+          content: nextContent
+        });
+        setProject(updated);
+      } catch (error) {
+        window.alert(error instanceof Error ? error.message : "Failed to save node");
+      }
     },
-    [setNodes]
+    [project, setNodes, setProject]
   );
 
   const handleCancelEdit = useCallback(() => {
@@ -299,20 +324,40 @@ function MapViewContent() {
   }, []);
 
   const handleDeleteNode = useCallback(
-    (nodeId: string) => {
+    async (nodeId: string) => {
       const node = nodes.find((item) => item.id === nodeId);
-      if (!node) return;
+      if (!node || !project) return;
       const confirmed = window.confirm(`Delete "${node.data.title}"?`);
       if (!confirmed) return;
       setEditingNodeId((current) => (current === nodeId ? null : current));
       setNodes((current) => current.filter((item) => item.id !== nodeId));
       setEdges((current) => current.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
+      try {
+        const updated = await deleteGraphNode(project._id, project.user_id, nodeId);
+        setProject(updated);
+      } catch (error) {
+        window.alert(error instanceof Error ? error.message : "Failed to delete node");
+      }
     },
-    [nodes, setEdges, setNodes]
+    [nodes, project, setEdges, setNodes, setProject]
+  );
+
+  const handleToggleNegotiation = useCallback(
+    async (nodeId: string, inQueue: boolean) => {
+      if (!project) return;
+      try {
+        const updated = await toggleGraphNegotiationQueue(project._id, project.user_id, nodeId, inQueue);
+        setProject(updated);
+      } catch (error) {
+        window.alert(error instanceof Error ? error.message : "Failed to update negotiation queue");
+      }
+    },
+    [project, setProject]
   );
 
   const handleAddNode = useCallback(
-    (nodeType: MapNodeType) => {
+    async (nodeType: MapNodeType) => {
+      if (!project) return;
       const defaults = NODE_DEFAULTS[nodeType];
       const pane = document.querySelector(".map-flow");
       const rect = pane?.getBoundingClientRect();
@@ -320,33 +365,45 @@ function MapViewContent() {
         ? screenToFlowPosition({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 })
         : { x: 320, y: 240 };
       const offset = (nodes.length % 6) * 28;
-      const newNode: Node<IbisNodeData> = {
-        id: `node-${Date.now()}`,
-        type: "ibis",
-        position: { x: center.x - defaults.width / 2 + offset, y: center.y - 80 + offset },
-        data: {
-          nodeType,
+      const layout = { x: center.x - defaults.width / 2 + offset, y: center.y - 80 + offset };
+      setAddNodeMenuOpen(false);
+      try {
+        const updated = await createGraphNode(project._id, project.user_id, {
+          node_type: nodeType,
           title: defaults.title,
           content: defaults.content,
-          width: defaults.width
-        }
-      };
-      setNodes((current) => [...current, newNode]);
-      setAddNodeMenuOpen(false);
+          layout
+        });
+        setProject(updated);
+      } catch (error) {
+        window.alert(error instanceof Error ? error.message : "Failed to create node");
+      }
     },
-    [nodes.length, screenToFlowPosition, setNodes]
+    [nodes.length, project, screenToFlowPosition, setProject]
   );
 
   const handleConnect = useCallback(
-    (connection: Connection) => {
-      if (!connection.source || !connection.target || connection.source === connection.target) return;
+    async (connection: Connection) => {
+      if (!connection.source || !connection.target || connection.source === connection.target || !project) return;
       setEdges((current) => {
         const exists = current.some((edge) => edge.source === connection.source && edge.target === connection.target);
         if (exists) return current;
         return addEdge(createFlowEdge(connection), current);
       });
+      try {
+        const updated = await createGraphEdge(
+          project._id,
+          project.user_id,
+          connection.source,
+          connection.target,
+          "responds_to"
+        );
+        setProject(updated);
+      } catch (error) {
+        window.alert(error instanceof Error ? error.message : "Failed to create edge");
+      }
     },
-    [setEdges]
+    [project, setEdges, setProject]
   );
 
   const handleReconnect = useCallback(
@@ -365,11 +422,32 @@ function MapViewContent() {
   );
 
   const handleDeleteEdge = useCallback(
-    (edgeId: string) => {
-      setEdges((current) => current.filter((edge) => edge.id !== edgeId));
+    async (edgeId: string) => {
+      if (!project) return;
       closeMenus();
+      setEdges((current) => current.filter((edge) => edge.id !== edgeId));
+      try {
+        const updated = await deleteGraphEdge(project._id, project.user_id, edgeId);
+        setProject(updated);
+      } catch (error) {
+        window.alert(error instanceof Error ? error.message : "Failed to delete edge");
+      }
     },
-    [closeMenus, setEdges]
+    [closeMenus, project, setEdges, setProject]
+  );
+
+  const handleNodeDragStop = useCallback(
+    async (_event: React.MouseEvent, node: Node<IbisNodeData>) => {
+      if (!project) return;
+      try {
+        await updateGraphNode(project._id, project.user_id, node.id, {
+          layout: { x: node.position.x, y: node.position.y }
+        });
+      } catch {
+        // Layout sync is best-effort on drag end.
+      }
+    },
+    [project]
   );
 
   const handleEdgeContextMenu = useCallback((event: MouseEvent | React.MouseEvent, edge: Edge) => {
@@ -386,10 +464,18 @@ function MapViewContent() {
       onStartEdit: handleStartEdit,
       onSaveEdit: handleSaveEdit,
       onCancelEdit: handleCancelEdit,
-      onDelete: handleDeleteNode
+      onDelete: handleDeleteNode,
+      onToggleNegotiation: handleToggleNegotiation
     }),
-    [editingNodeId, handleCancelEdit, handleDeleteNode, handleSaveEdit, handleStartEdit]
+    [editingNodeId, handleCancelEdit, handleDeleteNode, handleSaveEdit, handleStartEdit, handleToggleNegotiation]
   );
+
+  const negotiationIssues = useMemo(() => {
+    const queue = new Set(project?.negotiation_queue ?? []);
+    return (project?.rationale_nodes ?? []).filter(
+      (node) => node.node_type === "issue" && (node.in_negotiation_queue || queue.has(node.node_id))
+    );
+  }, [project?.negotiation_queue, project?.rationale_nodes]);
 
   const emptyGraph = flowNodes.length === 0;
 
@@ -426,6 +512,7 @@ function MapViewContent() {
           onInit={handleFlowInit}
           onNodeContextMenu={(event) => event.preventDefault()}
           onNodesChange={onNodesChange}
+          onNodeDragStop={handleNodeDragStop}
           onPaneClick={closeMenus}
           onReconnect={handleReconnect}
           proOptions={{ hideAttribution: true }}
@@ -465,6 +552,31 @@ function MapViewContent() {
               </li>
             ))}
           </ul>
+          <h3 className="map-legend-subtitle">Source colors</h3>
+          <ul className="map-legend-list map-legend-sources">
+            {SOURCE_LEGEND.map((item) => (
+              <li key={item.source}>
+                <span className={`map-source-dot source-${item.source}`} />
+                <span>{item.label}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="map-negotiation-panel">
+          <h2 className="map-legend-title">TO BE NEGOTIATED</h2>
+          {negotiationIssues.length === 0 ? (
+            <p className="map-negotiation-empty">Mark Issue nodes from the node menu.</p>
+          ) : (
+            <ul className="map-negotiation-list">
+              {negotiationIssues.map((issue) => (
+                <li key={issue.node_id}>
+                  <strong>{issue.title}</strong>
+                  <span>{issue.status ?? "needs_negotiation"}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <div className="map-controls-wrap" ref={controlsRef}>
@@ -592,6 +704,7 @@ function IbisNode({ data, id }: NodeProps) {
           <span className="map-node-label">
             {nodeData.nodeType}
             {nodeData.sourceType ? <em className="map-node-source">{sourceLabel(nodeData.sourceType)}</em> : null}
+            {nodeData.inNegotiationQueue ? <em className="map-node-negotiation">negotiate</em> : null}
           </span>
           <div className="map-node-menu-wrap" ref={menuRef}>
             <button
@@ -623,6 +736,19 @@ function IbisNode({ data, id }: NodeProps) {
                 >
                   Edit
                 </button>
+                {nodeData.nodeType === "issue" ? (
+                  <button
+                    className="map-node-dropdown-item"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      actions?.onToggleNegotiation(id, !nodeData.inNegotiationQueue);
+                    }}
+                    role="menuitem"
+                    type="button"
+                  >
+                    {nodeData.inNegotiationQueue ? "Remove from negotiation" : "Add to negotiation"}
+                  </button>
+                ) : null}
                 <button
                   className="map-node-dropdown-item map-node-dropdown-item-danger"
                   onClick={() => {

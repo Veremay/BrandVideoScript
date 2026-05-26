@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { CoordinatorChat } from "@/components/CoordinatorChat";
 import { PersonaPanel } from "@/components/PersonaPanel";
+import { RequirementsPanel } from "@/components/RequirementsPanel";
 import { ScriptGrid } from "@/components/ScriptGrid";
 import { ScriptSnapshotsPanel } from "@/components/ScriptSnapshotsPanel";
 import { staleSummary } from "@/lib/stale";
@@ -28,7 +29,8 @@ export function EditorShell() {
     setProject,
     setSaveStatus,
     setUserId,
-    setPersonaPanelOpen
+    setPersonaPanelOpen,
+    setRequirementsPanelOpen
   } = useAppStore();
   const hasHydrated = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -116,6 +118,10 @@ export function EditorShell() {
     setPersonaPanelOpen(true);
   }
 
+  function handleRequirementsClick() {
+    setRequirementsPanelOpen(true);
+  }
+
   function openVersionHistory() {
     setSettingsOpen(false);
     setSnapshotsOpen(true);
@@ -199,6 +205,10 @@ export function EditorShell() {
           {project.brief.parse_status ? (
             <span className="figma-brief-tag figma-brief-tag--status">{project.brief.parse_status}</span>
           ) : null}
+          <button className="figma-nav-btn figma-nav-outline" onClick={handleRequirementsClick} type="button">
+            <IconRequirements />
+            Requirements
+          </button>
           <button className="figma-nav-btn figma-nav-outline" onClick={handlePersonasClick} type="button">
             <IconPersonas />
             Personas
@@ -270,9 +280,15 @@ export function EditorShell() {
         open={coordinatorOpen}
         onClose={() => setCoordinatorChatOpen(false)}
         selectedText={editor.selectedText}
+        selectedRowId={editor.selectedRowId}
+        selectedColumnId={editor.selectedColumnId}
+        projectId={project._id}
+        userId={project.user_id}
+        scriptVersionId={project.current_script_version_id}
         userInitial={project.title.slice(0, 1).toUpperCase()}
       />
 
+      <RequirementsPanel onClose={() => setRequirementsPanelOpen(false)} open={layout.requirementsPanelOpen} />
       <PersonaPanel onClose={() => setPersonaPanelOpen(false)} open={layout.personaPanelOpen} />
       <ScriptSnapshotsPanel onClose={() => setSnapshotsOpen(false)} open={snapshotsOpen} />
     </main>
@@ -341,6 +357,15 @@ function IconMap() {
       <line x1="12" x2="5" y1="12" y2="7" />
       <line x1="12" x2="19" y1="12" y2="7" />
       <line x1="12" x2="7" y1="12" y2="19" />
+    </svg>
+  );
+}
+
+function IconRequirements() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M9 11l3 3L22 4" />
+      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
     </svg>
   );
 }

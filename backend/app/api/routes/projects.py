@@ -10,6 +10,7 @@ from app.models.schemas import (
     GraphResponse,
     BrandInsightCreateRequest,
     BrandInsightUpdateRequest,
+    BrandRequirementsUpdateRequest,
     PersonaCreateRequest,
     PersonaProvisionRequest,
     PersonaProvisionResponse,
@@ -46,6 +47,7 @@ from app.repositories.projects import (
     remove_script_row,
     set_active_persona,
     update_brand_insight,
+    update_brand_requirements,
     update_brief,
     update_persona,
     update_script_column,
@@ -164,6 +166,26 @@ async def provision_persona_from_analytics(
         message = str(exc)
         status_code = 404 if message == "Project not found" else 400
         raise HTTPException(status_code=status_code, detail=message) from exc
+
+
+@router.patch("/{project_id}/brand/requirements", response_model=ProjectResponse)
+async def save_brand_requirements(
+    project_id: str,
+    payload: BrandRequirementsUpdateRequest,
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> dict:
+    explicit = [item.model_dump() for item in payload.explicit_requirements]
+    implicit = [item.model_dump() for item in payload.implicit_requirements]
+    project = await update_brand_requirements(
+        db,
+        project_id,
+        payload.user_id.strip(),
+        explicit_requirements=explicit,
+        implicit_requirements=implicit,
+    )
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
 
 
 @router.post("/{project_id}/agents/brand/insights", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)

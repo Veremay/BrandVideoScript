@@ -303,10 +303,10 @@ BrandVideo/
 
 ### 7.4 Phase 3–4 — Coordinator + Graph + Persona
 
-- [ ] Coordinator 消息持久化与 SSE
-- [ ] Persona 编辑影响后续 Audience 分析
-- [ ] 选段提问可产生或更新节点
-- [ ] 图中编辑、删除、待协商标记
+- [x] Coordinator 消息持久化与 SSE
+- [x] Persona 编辑影响后续 Audience 分析
+- [x] 选段提问可产生或更新节点
+- [x] 图中编辑、删除、待协商标记
 
 ### 7.5 Phase 5–7 — 方案、品牌反馈、协商
 
