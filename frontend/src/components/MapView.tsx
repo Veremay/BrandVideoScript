@@ -12,11 +12,12 @@ import {
   useEdgesState,
   useNodesState,
   useReactFlow,
+  SelectionMode,
   type Connection,
   type Edge,
   type Node,
   type NodeProps,
-  type NodeTypes
+  type NodeTypes,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
@@ -258,6 +259,7 @@ function MapViewContent() {
   const [edgeMenu, setEdgeMenu] = useState<EdgeMenuState | null>(null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [syncingMap, setSyncingMap] = useState(false);
+  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const { zoomIn, zoomOut, fitView, screenToFlowPosition } = useReactFlow();
   const workspaceRef = useRef<HTMLElement>(null);
   const controlsRef = useRef<HTMLDivElement>(null);
@@ -358,24 +360,72 @@ function MapViewContent() {
     setEditingNodeId(null);
   }, []);
 
-  const handleDeleteNode = useCallback(
-    async (nodeId: string) => {
-      const node = nodes.find((item) => item.id === nodeId);
-      if (!node || !project) return;
-      const confirmed = window.confirm(`Delete "${node.data.title}"?`);
-      if (!confirmed) return;
-      setEditingNodeId((current) => (current === nodeId ? null : current));
-      setNodes((current) => current.filter((item) => item.id !== nodeId));
-      setEdges((current) => current.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
+  const handleDeleteNodes = useCallback(
+    async (nodeIds: string[], options?: { skipConfirm?: boolean }) => {
+      const uniqueIds = [...new Set(nodeIds)].filter(Boolean);
+      if (!uniqueIds.length || !project) return;
+
+      const labels = uniqueIds
+        .map((id) => nodes.find((item) => item.id === id)?.data.title)
+        .filter((title): title is string => typeof title === "string" && !!title);
+
+      if (!options?.skipConfirm) {
+        const preview = labels.slice(0, 3).join("、");
+        const more = uniqueIds.length > 3 ? ` 等 ${uniqueIds.length} 个` : "";
+        const message =
+          uniqueIds.length === 1
+            ? `Delete "${labels[0] ?? "this node"}"?`
+            : `Delete ${uniqueIds.length} selected nodes?${preview ? `\n${preview}${more}` : ""}`;
+        if (!window.confirm(message)) return;
+      }
+
+      setEditingNodeId((current) => (current && uniqueIds.includes(current) ? null : current));
+      setSelectedNodeIds((current) => current.filter((id) => !uniqueIds.includes(id)));
+
       try {
-        const updated = await deleteGraphNode(project._id, project.user_id, nodeId);
+        let updated = project;
+        for (const nodeId of uniqueIds) {
+          updated = (await deleteGraphNode(project._id, project.user_id, nodeId)) ?? updated;
+        }
         setProject(updated);
       } catch (error) {
-        window.alert(error instanceof Error ? error.message : "Failed to delete node");
+        window.alert(error instanceof Error ? error.message : "Failed to delete nodes");
+        setProject(project);
       }
     },
-    [nodes, project, setEdges, setNodes, setProject]
+    [nodes, project, setProject]
   );
+
+  const handleDeleteNode = useCallback(
+    (nodeId: string) => {
+      void handleDeleteNodes([nodeId]);
+    },
+    [handleDeleteNodes]
+  );
+
+  const handleBeforeDelete = useCallback(async ({ nodes: nodesToDelete }: { nodes: Node[]; edges: Edge[] }) => {
+    if (!nodesToDelete.length) return true;
+    const labels = nodesToDelete
+      .map((node) => (typeof node.data?.title === "string" ? node.data.title : ""))
+      .filter(Boolean);
+    const preview = labels.slice(0, 3).join("、");
+    const more = nodesToDelete.length > 3 ? ` 等 ${nodesToDelete.length} 个` : "";
+    return window.confirm(`Delete ${nodesToDelete.length} selected nodes?${preview ? `\n${preview}${more}` : ""}`);
+  }, []);
+
+  const handleNodesDelete = useCallback(
+    (deleted: Node<IbisNodeData>[]) => {
+      void handleDeleteNodes(
+        deleted.map((node) => node.id),
+        { skipConfirm: true }
+      );
+    },
+    [handleDeleteNodes]
+  );
+
+  const handleSelectionChange = useCallback(({ nodes: selected }: { nodes: Node[] }) => {
+    setSelectedNodeIds(selected.map((node) => node.id));
+  }, []);
 
   const handleToggleNegotiation = useCallback(
     async (nodeId: string, inQueue: boolean) => {
@@ -574,20 +624,27 @@ function MapViewContent() {
           fitViewOptions={{ padding: 0.25 }}
           maxZoom={2}
           minZoom={0.25}
+          multiSelectionKeyCode={["Control", "Meta", "Shift"]}
           nodeTypes={nodeTypes}
           nodes={nodes}
           nodesConnectable
           nodesDraggable={!editingNodeId}
+          panOnDrag={[1, 2]}
+          selectionMode={SelectionMode.Partial}
+          selectionOnDrag
           isValidConnection={isValidConnection}
           onConnect={handleConnect}
+          onBeforeDelete={handleBeforeDelete}
           onEdgeContextMenu={handleEdgeContextMenu}
           onEdgesChange={onEdgesChange}
           onInit={handleFlowInit}
           onNodeContextMenu={(event) => event.preventDefault()}
           onNodesChange={onNodesChange}
+          onNodesDelete={handleNodesDelete}
           onNodeDragStop={handleNodeDragStop}
           onPaneClick={closeMenus}
           onReconnect={handleReconnect}
+          onSelectionChange={handleSelectionChange}
           proOptions={{ hideAttribution: true }}
         >
           <Background color="#d4efff" gap={30} size={1.5} variant={BackgroundVariant.Dots} />
@@ -669,6 +726,20 @@ function MapViewContent() {
             <button aria-label="Fit view" className="map-control-btn" onClick={() => fitView({ padding: 0.25 })} type="button">
               <IconFocus />
             </button>
+            {selectedNodeIds.length > 0 ? (
+              <>
+                <div className="map-control-divider" />
+                <button
+                  aria-label={`Delete ${selectedNodeIds.length} selected nodes`}
+                  className="map-control-btn map-control-btn-delete"
+                  onClick={() => void handleDeleteNodes(selectedNodeIds)}
+                  type="button"
+                >
+                  <IconTrash />
+                  <span className="map-control-btn-badge">{selectedNodeIds.length}</span>
+                </button>
+              </>
+            ) : null}
           </div>
 
           {addNodeMenuOpen ? (
@@ -870,6 +941,17 @@ function IbisNode({ data, id }: NodeProps) {
         <Handle className="map-node-handle map-node-handle-source" position={Position.Right} type="source" />
       ) : null}
     </>
+  );
+}
+
+function IconTrash() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <line x1="10" y1="11" x2="10" y2="17" />
+      <line x1="14" y1="11" x2="14" y2="17" />
+    </svg>
   );
 }
 

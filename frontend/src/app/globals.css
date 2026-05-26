@@ -604,6 +604,40 @@ textarea {
   background-color: #faf8ff;
 }
 
+.map-flow .react-flow__selection {
+  background: rgba(0, 101, 145, 0.08);
+  border: 1px dashed rgba(0, 101, 145, 0.55);
+  border-radius: 4px;
+}
+
+.map-flow .react-flow__node.selected .map-node {
+  outline: 2px solid rgba(0, 101, 145, 0.65);
+  outline-offset: 2px;
+}
+
+.map-control-btn-delete {
+  position: relative;
+  color: #b42318;
+}
+
+.map-control-btn-delete:hover {
+  background: rgba(180, 35, 24, 0.1);
+}
+
+.map-control-btn-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 14px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: #b42318;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 14px;
+}
+
 .map-flow .react-flow__edge-path {
   stroke: #7ed4fd;
   stroke-width: 2;
