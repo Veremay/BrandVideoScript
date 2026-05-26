@@ -4,7 +4,9 @@ import type {
   BrandInsightStatus,
   PersonaAdSensitivity,
   Project,
-  Script
+  Script,
+  ScriptSnapshotReason,
+  ScriptSnapshotSummary
 } from "@/lib/types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
@@ -36,10 +38,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     return response.json() as Promise<T>;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error("连接后端超时，请确认 backend 已启动（http://localhost:8000）。");
+      throw new Error("Backend request timed out. Make sure the API is running at http://localhost:8000.");
     }
     if (error instanceof TypeError) {
-      throw new Error("无法连接后端，请确认 backend 已启动（http://localhost:8000）。");
+      throw new Error("Cannot reach backend. Make sure the API is running at http://localhost:8000.");
     }
     throw error;
   } finally {
@@ -75,6 +77,32 @@ export async function saveScript(projectId: string, userId: string, script: Scri
     method: "PATCH",
     body: JSON.stringify({ user_id: userId, script })
   });
+}
+
+export async function fetchScriptSnapshots(projectId: string, userId: string): Promise<ScriptSnapshotSummary[]> {
+  const data = await request<{ snapshots: ScriptSnapshotSummary[] }>(
+    `/projects/${projectId}/script/snapshots?user_id=${encodeURIComponent(userId)}`
+  );
+  return data.snapshots;
+}
+
+export async function createScriptSnapshot(
+  projectId: string,
+  userId: string,
+  reason: ScriptSnapshotReason = "manual_save"
+): Promise<ScriptSnapshotSummary> {
+  const data = await request<{ snapshot: ScriptSnapshotSummary }>(`/projects/${projectId}/script/snapshots`, {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId, reason })
+  });
+  return data.snapshot;
+}
+
+export async function restoreScriptSnapshot(projectId: string, userId: string, snapshotId: string): Promise<Project> {
+  return request(
+    `/projects/${projectId}/script/snapshots/${snapshotId}/restore?user_id=${encodeURIComponent(userId)}`,
+    { method: "POST" }
+  );
 }
 
 export async function saveBrief(projectId: string, userId: string, text: string, filename?: string): Promise<Project> {

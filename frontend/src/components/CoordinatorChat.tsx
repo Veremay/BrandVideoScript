@@ -21,7 +21,7 @@ const INITIAL_MESSAGES: ChatMessage[] = [
   {
     id: "welcome",
     role: "assistant",
-    text: "你好，我是 Coordinator Agent。你可以就脚本与节点图向我提问；品牌 / 观众 / 专家视角会在后台按需调度（Phase 2 接入真实 LLM）。"
+    text: "Hi, I'm the Coordinator Agent. Ask me about your script or node graph — brand, audience, and expert perspectives run in the background (real LLM in Phase 2)."
   }
 ];
 
@@ -74,14 +74,16 @@ export function CoordinatorChat({ open, onClose, userInitial = "U", selectedText
     setDraft("");
     setTab("chat");
 
-    const contextHint = selectedText ? `（已引用脚本片段：「${selectedText.slice(0, 80)}${selectedText.length > 80 ? "…" : ""}」）` : "";
+    const contextHint = selectedText
+      ? ` (Quoted script: "${selectedText.slice(0, 80)}${selectedText.length > 80 ? "…" : ""}")`
+      : "";
     window.setTimeout(() => {
       setMessages((prev) => [
         ...prev,
         {
           id: `assistant-${Date.now()}`,
           role: "assistant",
-          text: `收到你的问题。${contextHint} Phase 0 为 mock 回复；Phase 3 将通过 SSE 接入 Coordinator 与多视角分析。`
+          text: `Got your question.${contextHint} This is a mock reply in Phase 0; Phase 3 will stream Coordinator responses over SSE.`
         }
       ]);
     }, 400);
@@ -96,7 +98,7 @@ export function CoordinatorChat({ open, onClose, userInitial = "U", selectedText
 
   return (
     <>
-      <button className="glacier-backdrop" onClick={onClose} type="button" aria-label="关闭 Coordinator Chat" />
+      <button className="glacier-backdrop" onClick={onClose} type="button" aria-label="Close Coordinator Chat" />
       <aside className="glacier-assistant" aria-label="Coordinator Agent Chat">
         <header className="glacier-header">
           <div className="glacier-header-top">
@@ -106,7 +108,7 @@ export function CoordinatorChat({ open, onClose, userInitial = "U", selectedText
               </span>
               <span className="glacier-title">Coordinator Agent</span>
             </div>
-            <button className="glacier-close" onClick={onClose} type="button" aria-label="关闭">
+            <button className="glacier-close" onClick={onClose} type="button" aria-label="Close">
               <IconClose />
             </button>
           </div>
@@ -209,14 +211,14 @@ export function CoordinatorChat({ open, onClose, userInitial = "U", selectedText
           <div className="glacier-input-wrap">
             <textarea
               className="glacier-input"
-              placeholder="向 Coordinator 提问…"
+              placeholder="Ask Coordinator…"
               rows={1}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={handleKeyDown}
-              aria-label="Coordinator 消息输入"
+              aria-label="Coordinator message input"
             />
-            <button className="glacier-send" onClick={handleSend} type="button" aria-label="发送">
+            <button className="glacier-send" onClick={handleSend} type="button" aria-label="Send">
               <IconSend />
             </button>
           </div>

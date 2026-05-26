@@ -32,7 +32,7 @@ export default function Home() {
 
   const content = useMemo(() => {
     if (loading) {
-      return <main className="centerStage">正在连接工作区...</main>;
+      return <main className="centerStage">Connecting to workspace…</main>;
     }
 
     if (!userId) {

@@ -82,6 +82,26 @@ class ScriptOpsTest(unittest.TestCase):
 
         self.assertEqual(overlaps, [{"row_ids": ["row_a", "row_b"], "range": "4-5"}])
 
+    def test_update_cell_rejects_brand_feedback_column(self):
+        script = sample_script()
+        script["columns"].append(
+            {
+                "column_id": "col_feedback",
+                "key": "feedback",
+                "label": "品牌反馈",
+                "type": "textarea",
+                "multiline": True,
+                "order": 2,
+            }
+        )
+        for row in script["rows"]:
+            row["cells"].append({"column_id": "col_feedback", "value": "请加强品牌露出"})
+
+        with self.assertRaises(ValueError):
+            from app.models.script_ops import update_cell
+
+            update_cell(script, "row_a", "col_feedback", "新反馈")
+
     def test_delete_column_rejects_brand_feedback_column(self):
         script = sample_script()
         script["columns"].append(

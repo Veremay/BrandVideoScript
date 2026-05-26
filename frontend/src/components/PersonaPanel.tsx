@@ -103,7 +103,7 @@ export function PersonaPanel({ open, onClose }: PersonaPanelProps) {
   const isDirty = JSON.stringify(draft) !== JSON.stringify(baselineDraft);
 
   function selectPersona(persona: Persona) {
-    if (isDirty && !window.confirm("当前 persona 有未保存修改，确定切换吗？")) return;
+    if (isDirty && !window.confirm("You have unsaved persona changes. Switch anyway?")) return;
     setSelectedId(persona.persona_id);
     const nextDraft = personaToDraft(persona);
     setDraft(nextDraft);
@@ -120,7 +120,7 @@ export function PersonaPanel({ open, onClose }: PersonaPanelProps) {
 
   async function handleSavePersona(): Promise<boolean> {
     if (!selectedPersona || !draft.name.trim()) {
-      window.alert("请填写 persona 名称。");
+      window.alert("Please enter a persona name.");
       return false;
     }
 
@@ -145,7 +145,7 @@ export function PersonaPanel({ open, onClose }: PersonaPanelProps) {
       setBaselineDraft(nextDraft);
       return true;
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "保存失败");
+      window.alert(error instanceof Error ? error.message : "Save failed");
       return false;
     } finally {
       setSaving(false);
@@ -170,14 +170,14 @@ export function PersonaPanel({ open, onClose }: PersonaPanelProps) {
         setBaselineDraft(nextDraft);
       }
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "创建失败");
+      window.alert(error instanceof Error ? error.message : "Create failed");
     } finally {
       setCreating(false);
     }
   }
 
   async function handleDeletePersona(personaId: string) {
-    if (!window.confirm("确定删除这个 persona 吗？")) return;
+    if (!window.confirm("Delete this persona?")) return;
 
     try {
       const savedProject = await deletePersona(currentProject._id, currentProject.user_id, personaId);
@@ -195,7 +195,7 @@ export function PersonaPanel({ open, onClose }: PersonaPanelProps) {
         setBaselineDraft(EMPTY_DRAFT);
       }
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "删除失败");
+      window.alert(error instanceof Error ? error.message : "Delete failed");
     }
   }
 
@@ -210,20 +210,20 @@ export function PersonaPanel({ open, onClose }: PersonaPanelProps) {
       setProject(savedProject);
       onClose();
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "应用失败");
+      window.alert(error instanceof Error ? error.message : "Apply failed");
     }
   }
 
   function handleClose() {
-    if (isDirty && !window.confirm("有未保存修改，确定关闭吗？")) return;
+    if (isDirty && !window.confirm("You have unsaved changes. Close anyway?")) return;
     onClose();
   }
 
   return (
     <div className="persona-overlay" role="presentation">
-      <button aria-label="关闭 Persona 面板" className="persona-overlay-backdrop" onClick={handleClose} type="button" />
+      <button aria-label="Close persona panel" className="persona-overlay-backdrop" onClick={handleClose} type="button" />
       <section aria-labelledby="persona-panel-title" aria-modal="true" className="persona-panel" role="dialog">
-        <button aria-label="关闭" className="persona-panel-close" onClick={handleClose} type="button">
+        <button aria-label="Close" className="persona-panel-close" onClick={handleClose} type="button">
           <IconClose />
         </button>
 
@@ -270,7 +270,7 @@ export function PersonaPanel({ open, onClose }: PersonaPanelProps) {
                         </span>
                       </button>
                       <button
-                        aria-label={`删除 ${persona.name}`}
+                        aria-label={`Delete ${persona.name}`}
                         className="persona-card-delete"
                         onClick={() => handleDeletePersona(persona.persona_id)}
                         type="button"
@@ -281,7 +281,7 @@ export function PersonaPanel({ open, onClose }: PersonaPanelProps) {
                   );
                 })
               ) : (
-                <div className="persona-empty">暂无 persona，点击右上角新建。</div>
+                <div className="persona-empty">No personas yet. Click Add New Persona to create one.</div>
               )}
             </div>
           </aside>
@@ -384,7 +384,7 @@ export function PersonaPanel({ open, onClose }: PersonaPanelProps) {
                 </div>
               </>
             ) : (
-              <div className="persona-editor-empty">选择或新建一个 persona 开始配置。</div>
+              <div className="persona-editor-empty">Select or create a persona to configure.</div>
             )}
           </div>
         </div>

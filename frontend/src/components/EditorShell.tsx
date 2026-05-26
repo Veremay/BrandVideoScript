@@ -6,6 +6,8 @@ import { useEffect, useRef, useState } from "react";
 import { CoordinatorChat } from "@/components/CoordinatorChat";
 import { PersonaPanel } from "@/components/PersonaPanel";
 import { ScriptGrid } from "@/components/ScriptGrid";
+import { ScriptSnapshotsPanel } from "@/components/ScriptSnapshotsPanel";
+import { staleSummary } from "@/lib/stale";
 import { saveBrief, saveScript } from "@/lib/api";
 import { useAppStore } from "@/store/appStore";
 
@@ -30,8 +32,12 @@ export function EditorShell() {
   } = useAppStore();
   const hasHydrated = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const settingsRef = useRef<HTMLDivElement>(null);
   const [activeView, setActiveView] = useState<"editor" | "map">("editor");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [snapshotsOpen, setSnapshotsOpen] = useState(false);
   const coordinatorOpen = layout.coordinatorChatOpen;
+  const staleHint = staleSummary(project?.stale);
 
   useEffect(() => {
     if (!project || !script) return;
@@ -57,6 +63,18 @@ export function EditorShell() {
     return () => window.clearTimeout(timeoutId);
   }, [editor.saveStatus, project, script, setProject, setSaveStatus]);
 
+  useEffect(() => {
+    if (!settingsOpen) return;
+
+    function handlePointerDown(event: MouseEvent) {
+      if (settingsRef.current?.contains(event.target as Node)) return;
+      setSettingsOpen(false);
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [settingsOpen]);
+
   function handleBack() {
     setProject(null);
   }
@@ -65,6 +83,7 @@ export function EditorShell() {
     window.localStorage.removeItem("brandvideo:user_id");
     setUserId(undefined);
     setProject(null);
+    setSettingsOpen(false);
   }
 
   function handleFabClick() {
@@ -73,6 +92,11 @@ export function EditorShell() {
 
   function handlePersonasClick() {
     setPersonaPanelOpen(true);
+  }
+
+  function openVersionHistory() {
+    setSettingsOpen(false);
+    setSnapshotsOpen(true);
   }
 
   async function persistBrief(text: string, filename?: string) {
@@ -89,7 +113,7 @@ export function EditorShell() {
 
     const isSupported = file.name.endsWith(".md") || file.name.endsWith(".txt");
     if (!isSupported) {
-      window.alert("当前 MVP 仅支持 .md / .txt Brief。");
+      window.alert("MVP supports .md and .txt briefs only.");
       return;
     }
 
@@ -140,20 +164,41 @@ export function EditorShell() {
             <IconPersonas />
             Personas
           </button>
-          <button className="figma-icon-btn" type="button" aria-label="通知">
-            <IconBell />
-          </button>
-          <button className="figma-icon-btn" onClick={handleLogout} title="退出登录" type="button" aria-label="设置">
-            <IconSettings />
-          </button>
+          <div className="figma-settings-wrap" ref={settingsRef}>
+            <button
+              aria-expanded={settingsOpen}
+              aria-haspopup="menu"
+              aria-label="Settings"
+              className={`figma-icon-btn ${settingsOpen ? "active" : ""}`}
+              onClick={() => setSettingsOpen((open) => !open)}
+              type="button"
+            >
+              <IconSettings />
+            </button>
+            {settingsOpen ? (
+              <div className="figma-settings-menu" role="menu">
+                <button className="figma-settings-menu-item" onClick={openVersionHistory} role="menuitem" type="button">
+                  Version History
+                </button>
+                <button className="figma-settings-menu-item figma-settings-menu-item-danger" onClick={handleLogout} role="menuitem" type="button">
+                  Sign Out
+                </button>
+              </div>
+            ) : null}
+          </div>
           <button className="figma-nav-btn figma-nav-outline figma-nav-share" type="button">
             Share
           </button>
-          <div className={`figma-save-pill status-${statusClass(editor.saveStatus)}`}>{statusLabel(editor.saveStatus)}</div>
+          <div
+            className={`figma-save-pill status-${savePillStatus(editor.saveStatus, staleHint)}`}
+            title={savePillTitle(editor.saveStatus, staleHint) ?? undefined}
+          >
+            {savePillLabel(editor.saveStatus, staleHint)}
+          </div>
           <button className="figma-nav-btn figma-nav-primary" type="button">
             Export
           </button>
-          <button className="figma-avatar-btn" onClick={handleLogout} title={project.title} type="button" aria-label="用户">
+          <button className="figma-avatar-btn" onClick={handleLogout} title={project.title} type="button" aria-label="Account">
             <span className="figma-avatar-fallback">{project.title.slice(0, 1).toUpperCase()}</span>
           </button>
         </div>
@@ -164,7 +209,6 @@ export function EditorShell() {
           <div className="editor-workspace">
             <div className="editor-page-header">
               <h1 className="editor-page-title">Script Editor</h1>
-              <p className="editor-page-subtitle">{project.title}</p>
             </div>
             <ScriptGrid script={script} />
           </div>
@@ -177,7 +221,7 @@ export function EditorShell() {
         className={`figma-fab ${coordinatorOpen ? "figma-fab--open" : ""}`}
         onClick={handleFabClick}
         type="button"
-        aria-label={coordinatorOpen ? "关闭 Coordinator Chat" : "打开 Coordinator Chat"}
+        aria-label={coordinatorOpen ? "Close Coordinator Chat" : "Open Coordinator Chat"}
         aria-expanded={coordinatorOpen}
       >
         <IconLightning />
@@ -191,21 +235,29 @@ export function EditorShell() {
       />
 
       <PersonaPanel onClose={() => setPersonaPanelOpen(false)} open={layout.personaPanelOpen} />
+      <ScriptSnapshotsPanel onClose={() => setSnapshotsOpen(false)} open={snapshotsOpen} />
     </main>
   );
 }
 
-function statusClass(status: string) {
+function savePillStatus(status: string, staleHint: string | null) {
   if (status === "editing" || status === "saving") return "editing";
   if (status === "failed") return "failed";
+  if (staleHint) return "outdated";
   return "saved";
 }
 
-function statusLabel(status: string) {
+function savePillLabel(status: string, staleHint: string | null) {
   if (status === "editing") return "Editing";
   if (status === "saving") return "Saving";
   if (status === "failed") return "Failed";
+  if (staleHint) return "Outdated";
   return "Saved";
+}
+
+function savePillTitle(status: string, staleHint: string | null) {
+  if (status !== "saved" || !staleHint) return null;
+  return `Script changed — outdated: ${staleHint}`;
 }
 
 function IconUpload() {
@@ -259,15 +311,6 @@ function IconPersonas() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
       <circle cx="12" cy="7" r="4" />
-    </svg>
-  );
-}
-
-function IconBell() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
     </svg>
   );
 }

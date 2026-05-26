@@ -16,12 +16,12 @@ export function ProjectList() {
     setCreating(true);
     setError(null);
     try {
-      const project = await createProject(userId, `品牌脚本 ${projects.length + 1}`);
+      const project = await createProject(userId, `Brand Script ${projects.length + 1}`);
       const nextProjects = await fetchProjects(userId);
       setProjects(nextProjects);
       setProject(project);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "创建项目失败");
+      setError(err instanceof Error ? err.message : "Failed to create project");
     } finally {
       setCreating(false);
     }
@@ -34,7 +34,7 @@ export function ProjectList() {
     try {
       setProject(await fetchProject(projectId, userId));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "打开项目失败");
+      setError(err instanceof Error ? err.message : "Failed to open project");
     }
   }
 
@@ -43,10 +43,10 @@ export function ProjectList() {
       <header className="projectsHeader">
         <div>
           <p className="eyebrow">Project Hub</p>
-          <h1>项目列表</h1>
+          <h1>Projects</h1>
         </div>
         <button onClick={handleCreate} disabled={creating} type="button">
-          {creating ? "创建中..." : "新建项目"}
+          {creating ? "Creating…" : "New Project"}
         </button>
       </header>
       {error ? <p className="formError">{error}</p> : null}
@@ -57,7 +57,7 @@ export function ProjectList() {
             <span>{new Date(project.updated_at).toLocaleString()}</span>
           </button>
         ))}
-        {projects.length === 0 ? <p className="emptyState">还没有项目，先创建一个。</p> : null}
+        {projects.length === 0 ? <p className="emptyState">No projects yet. Create one to get started.</p> : null}
       </section>
     </main>
   );

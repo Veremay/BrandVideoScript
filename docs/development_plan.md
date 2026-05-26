@@ -288,10 +288,12 @@ BrandVideo/
 
 ### 7.2 Phase 1 — Script Editor
 
-- [ ] 业务列可编辑；序号列不可编辑
-- [ ] 行/列增删（有确认与边界规则）
-- [ ] 时长校验与时间轴
-- [ ] 选中文本 → Coordinator quote
+- [x] 业务列可编辑；序号列不可编辑
+- [x] 行/列增删（有确认与边界规则）
+- [x] 时长校验与时间轴
+- [x] 选中文本 → Coordinator quote
+- [x] 脚本 PATCH debounce；`stale` 触发（图/方案/协商材料）
+- [x] snapshot 列表 / restore API 壳
 
 ### 7.3 Phase 2 — Brief 与初始解析
 

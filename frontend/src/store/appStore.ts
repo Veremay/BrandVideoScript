@@ -104,7 +104,7 @@ export const useAppStore = create<AppState>((set) => ({
         editor: { ...state.editor, saveStatus: "editing" }
       };
     }),
-  insertColumnAfter: (columnId, label = "新列", multiline = false) =>
+  insertColumnAfter: (columnId, label = "New Column", multiline = false) =>
     set((state) => {
       if (!state.script) return state;
       return {

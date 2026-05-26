@@ -1,6 +1,6 @@
 "use client";
 
-import { MouseEvent, PointerEvent, useMemo, useState } from "react";
+import { MouseEvent, PointerEvent, useEffect, useMemo, useState } from "react";
 
 import { analyzeDurations, isBrandFeedbackColumn } from "@/lib/scriptEditor";
 import type { Script, ScriptColumn } from "@/lib/types";
@@ -14,7 +14,7 @@ const COLUMN_HEADER_LABELS: Record<string, string> = {
   scene: "Visual",
   format: "Format / Script",
   notes: "Remarks",
-  feedback: "品牌反馈"
+  feedback: "Brand Feedback"
 };
 
 function columnHeaderLabel(column: ScriptColumn) {
@@ -51,17 +51,28 @@ export function ScriptGrid({ script }: { script: Script }) {
   }, [durationAnalysis.issues]);
   const totalSeconds = Math.max(0, ...durationAnalysis.timeline.map((segment) => segment.end));
 
+  useEffect(() => {
+    function handleDocumentPointerDown(event: globalThis.MouseEvent) {
+      const target = event.target as HTMLElement;
+      if (target.closest(".editor-th-data")) return;
+      setSelectedColumnId(null);
+    }
+
+    document.addEventListener("mousedown", handleDocumentPointerDown);
+    return () => document.removeEventListener("mousedown", handleDocumentPointerDown);
+  }, []);
+
   function handleAddColumn(afterColumnId?: string) {
-    insertColumnAfter(afterColumnId, "新列", false);
+    insertColumnAfter(afterColumnId, "New Column", false);
   }
 
   function handleRenameColumn(columnId: string, currentLabel: string) {
     const column = columns.find((item) => item.column_id === columnId);
     if (column && isBrandFeedbackColumn(column)) {
-      window.alert("「品牌反馈」列不可重命名；内容由品牌方在分享页填写，同步后在此只读展示。");
+      window.alert("The Brand Feedback column cannot be renamed. Brand partners fill it on the share page.");
       return;
     }
-    const label = window.prompt("重命名列", currentLabel)?.trim();
+    const label = window.prompt("Rename column", currentLabel)?.trim();
     if (!label || label === currentLabel) return;
     renameColumn(columnId, label);
   }
@@ -69,23 +80,24 @@ export function ScriptGrid({ script }: { script: Script }) {
   function handleDeleteColumn(columnId: string) {
     const column = columns.find((item) => item.column_id === columnId);
     if (column && isBrandFeedbackColumn(column)) {
-      window.alert("「品牌反馈」列不可删除。");
+      window.alert("The Brand Feedback column cannot be deleted.");
       return;
     }
-    if (!window.confirm("确认删除这一列？对应单元格内容也会删除。")) return;
+    if (!window.confirm("Delete this column? Cell values in this column will be removed.")) return;
     try {
       deleteColumn(columnId);
+      setSelectedColumnId(null);
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "删除失败");
+      window.alert(error instanceof Error ? error.message : "Delete failed");
     }
   }
 
   function handleDeleteRow(rowId: string) {
-    if (!window.confirm("确认删除这一行？")) return;
+    if (!window.confirm("Delete this row?")) return;
     try {
       deleteRow(rowId);
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "删除失败");
+      window.alert(error instanceof Error ? error.message : "Delete failed");
     }
   }
 
@@ -167,9 +179,9 @@ export function ScriptGrid({ script }: { script: Script }) {
 
   return (
     <div className="editor-wrap">
-      <div className="script-timeline-wrap" aria-label="脚本阶段时长">
+      <div className="script-timeline-wrap" aria-label="Script duration timeline">
         <div className="script-timeline-row">
-          <span className="script-timeline-label">时长</span>
+          <span className="script-timeline-label">Duration</span>
           <div className="script-timeline-track">
             {durationAnalysis.timeline.map((segment, index) => (
               <span
@@ -184,7 +196,7 @@ export function ScriptGrid({ script }: { script: Script }) {
                 className="script-timeline-overlap"
                 key={`${overlap.start}-${overlap.end}`}
                 style={{ left: `${overlap.left}%`, width: `${Math.max(overlap.width, 2)}%` }}
-                title={`重叠 ${overlap.start}-${overlap.end}s`}
+                title={`Overlap ${overlap.start}-${overlap.end}s`}
               />
             ))}
           </div>
@@ -211,7 +223,7 @@ export function ScriptGrid({ script }: { script: Script }) {
                       handleAddColumn(undefined);
                     }}
                     type="button"
-                    title="在首列前插入列"
+                    title="Insert column before first"
                   >
                     +
                   </button>
@@ -220,8 +232,9 @@ export function ScriptGrid({ script }: { script: Script }) {
                   <th
                     className={`editor-th-data col-${column.key} ${selectedColumnId === column.column_id ? "col-selected" : ""}`}
                     key={column.column_id}
-                    onClick={() => {
-                      setSelectedColumnId(column.column_id);
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setSelectedColumnId((current) => (current === column.column_id ? null : column.column_id));
                       setSelectedRowId(null);
                     }}
                     style={{ width: columnWidths[column.column_id] }}
@@ -236,7 +249,7 @@ export function ScriptGrid({ script }: { script: Script }) {
                         handleAddColumn(columns[columnIndex - 1]?.column_id);
                       }}
                       type="button"
-                      title="在左侧插入列"
+                      title="Insert column to the left"
                     >
                       +
                     </button>
@@ -248,7 +261,7 @@ export function ScriptGrid({ script }: { script: Script }) {
                           handleAddColumn(column.column_id);
                         }}
                         type="button"
-                        title="在最后追加列"
+                        title="Append column at end"
                       >
                         +
                       </button>
@@ -263,7 +276,7 @@ export function ScriptGrid({ script }: { script: Script }) {
                         }}
                         type="button"
                       >
-                        删除列
+                        Delete column
                       </button>
                     )}
                   </th>
@@ -276,7 +289,7 @@ export function ScriptGrid({ script }: { script: Script }) {
                   <span className="editor-row-insert-line" />
                   <button className="editor-row-insert-btn" onClick={() => insertRowAfter(undefined)} type="button">
                     +
-                    <span className="editor-row-insert-tip">在首行前插入行</span>
+                    <span className="editor-row-insert-tip">Insert row before first</span>
                   </button>
                 </td>
               </tr>
@@ -307,7 +320,7 @@ export function ScriptGrid({ script }: { script: Script }) {
                   <span className="editor-row-insert-line" />
                   <button className="editor-row-insert-btn" onClick={() => insertRowAfter(rows.at(-1)?.row_id)} type="button">
                     +
-                    <span className="editor-row-insert-tip">插入行</span>
+                    <span className="editor-row-insert-tip">Insert row</span>
                   </button>
                 </td>
               </tr>
@@ -325,7 +338,7 @@ export function ScriptGrid({ script }: { script: Script }) {
       {quoteMenu ? (
         <div className="sel-popup show" style={{ left: quoteMenu.x, top: quoteMenu.y }}>
           <button className="sel-btn sel-btn-coordinator" onClick={quoteToCoordinator} type="button">
-            问 Coordinator
+            Ask Coordinator
           </button>
         </div>
       ) : null}
@@ -371,7 +384,7 @@ function RowBlock({
       <tr className={`editor-row ${index % 2 === 1 ? "row-alt" : ""} ${hasIssue ? "row-has-issue" : ""} ${selected ? "row-selected" : ""}`} style={{ height: rowHeight }}>
         <td className="editor-td-num" title={issueTitle}>
           <button className="editor-row-num-btn" onClick={onSelectRow} type="button">{rowMark}</button>
-          <button className="editor-row-del editor-row-del-left" onClick={onDeleteRow} type="button" title="删除行">
+          <button className="editor-row-del editor-row-del-left" onClick={onDeleteRow} type="button" title="Delete row">
             <IconTrash />
           </button>
         </td>
@@ -383,9 +396,9 @@ function RowBlock({
             onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
               updateCell(row.row_id, column.column_id, event.target.value),
             onMouseUp: (event: MouseEvent<HTMLElement>) => onSelection(event, row.row_id, column.column_id),
-            placeholder: brandFeedback ? "品牌方通过分享链接填写后同步至此" : column.type === "duration" ? "0-5" : "",
+            placeholder: brandFeedback ? "Filled by brand partner via share link" : column.type === "duration" ? "0-5" : "",
             readOnly: brandFeedback,
-            title: brandFeedback ? "品牌反馈（只读）；由分享页填写并经同步写入" : undefined,
+            title: brandFeedback ? "Brand feedback (read-only). Synced from the share page." : undefined,
             style: { minHeight: rowHeight ? Math.max(MIN_ROW_HEIGHT, rowHeight) : undefined }
           };
 
@@ -407,10 +420,10 @@ function RowBlock({
       <tr className="editor-row-insert-band">
         <td className="editor-row-insert-cell" colSpan={columns.length + 1}>
           <span className="editor-row-insert-line" />
-          <span className="editor-row-resize-hit" onPointerDown={onResizeRow} title="拖拽调整行高" />
+          <span className="editor-row-resize-hit" onPointerDown={onResizeRow} title="Drag to resize row height" />
           <button className="editor-row-insert-btn" onClick={onAddRow} type="button">
             +
-            <span className="editor-row-insert-tip">在下方插入行</span>
+            <span className="editor-row-insert-tip">Insert row below</span>
           </button>
         </td>
       </tr>

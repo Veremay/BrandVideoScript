@@ -1,5 +1,34 @@
 export type SaveStatus = "saved" | "editing" | "saving" | "failed";
-export type AgentType = "brand" | "audience" | "expert";
+
+export type StaleStatus =
+  | "up_to_date"
+  | "stale_script_changed"
+  | "stale_brief_changed"
+  | "stale_persona_changed"
+  | "stale_graph_changed"
+  | "stale_brand_feedback"
+  | "generating"
+  | "failed";
+
+export type ArtifactKey = "rationale_graph" | "modification_schemes" | "negotiation_preparation";
+
+export type ArtifactStaleness = Record<ArtifactKey, StaleStatus>;
+
+export type ScriptSnapshotReason =
+  | "manual_save"
+  | "before_expert_apply"
+  | "after_expert_apply"
+  | "brand_feedback_sync"
+  | "import"
+  | "rollback";
+
+export type ScriptSnapshotSummary = {
+  snapshot_id: string;
+  project_id: string;
+  reason: ScriptSnapshotReason;
+  script_version_id: string | null;
+  created_at: string;
+};
 export type BrandInsightCategory = "explicit_requirement" | "implicit_requirement" | "brand_feedback";
 export type BrandInsightConfidence = "high" | "medium" | "low";
 export type BrandInsightStatus = "new" | "confirmed" | "pending" | "ignored";
@@ -90,7 +119,8 @@ export type Project = {
   active_persona_id: string | null;
   audience_analysis: Record<string, unknown>;
   expert_suggestions: Array<Record<string, unknown>>;
-  stale: Record<AgentType, boolean>;
+  current_script_version_id?: string | null;
+  stale: ArtifactStaleness;
   created_at: string;
   updated_at: string;
 };

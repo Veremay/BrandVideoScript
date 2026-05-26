@@ -18,7 +18,11 @@ from app.models.schemas import (
     ProjectUpdateRequest,
     ScriptPatchRequest,
     ScriptRowCreateRequest,
+    ScriptSnapshotCreateRequest,
+    ScriptSnapshotCreateResponse,
+    ScriptSnapshotListResponse,
 )
+from app.repositories.script_snapshots import create_script_snapshot, list_script_snapshots, restore_script_snapshot
 from app.repositories.projects import (
     create_brand_insight,
     create_persona,
@@ -192,7 +196,63 @@ async def save_script(
     payload: ScriptPatchRequest,
     db: AsyncIOMotorDatabase = Depends(database_dependency),
 ) -> dict:
-    project = await patch_script(db, project_id, payload.user_id.strip(), payload.script)
+    try:
+        project = await patch_script(db, project_id, payload.user_id.strip(), payload.script)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
+@router.get("/{project_id}/script/snapshots", response_model=ScriptSnapshotListResponse)
+async def get_script_snapshots(
+    project_id: str,
+    user_id: str = Query(min_length=1),
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> dict:
+    project = await get_project(db, project_id, user_id.strip())
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    snapshots = await list_script_snapshots(db, project_id, user_id.strip())
+    return {"snapshots": snapshots}
+
+
+@router.post(
+    "/{project_id}/script/snapshots",
+    response_model=ScriptSnapshotCreateResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def save_script_snapshot(
+    project_id: str,
+    payload: ScriptSnapshotCreateRequest,
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> dict:
+    try:
+        snapshot = await create_script_snapshot(
+            db,
+            project_id,
+            payload.user_id.strip(),
+            reason=payload.reason,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if snapshot is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"snapshot": snapshot}
+
+
+@router.post("/{project_id}/script/snapshots/{snapshot_id}/restore", response_model=ProjectResponse)
+async def restore_snapshot(
+    project_id: str,
+    snapshot_id: str,
+    user_id: str = Query(min_length=1),
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> dict:
+    try:
+        project = await restore_script_snapshot(db, project_id, user_id.strip(), snapshot_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404 if "not found" in str(exc).lower() else 400, detail=str(exc)) from exc
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
     return project

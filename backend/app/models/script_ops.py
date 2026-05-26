@@ -1,6 +1,6 @@
 from copy import deepcopy
 
-from app.models.script import new_id
+from app.models.script import BRAND_FEEDBACK_COLUMN_KEY, new_id
 
 
 def _sorted_columns(script: dict) -> list[dict]:
@@ -133,6 +133,10 @@ def rename_column(script: dict, column_id: str, label: str) -> dict:
 
 def update_cell(script: dict, row_id: str, column_id: str, value: str) -> dict:
     next_script = deepcopy(script)
+    target_column = next((column for column in next_script.get("columns", []) if column.get("column_id") == column_id), None)
+    if target_column is not None and target_column.get("key") == BRAND_FEEDBACK_COLUMN_KEY:
+        raise ValueError("Cannot edit the brand feedback column")
+
     updated = False
     for row in next_script.get("rows", []):
         if row["row_id"] != row_id:

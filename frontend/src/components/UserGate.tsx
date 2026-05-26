@@ -25,7 +25,7 @@ export function UserGate() {
       setUserId(userId);
       setProjects(projects);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "进入失败");
+      setError(err instanceof Error ? err.message : "Sign-in failed");
     } finally {
       setSubmitting(false);
     }
@@ -35,17 +35,17 @@ export function UserGate() {
     <main className="gate">
       <form className="gatePanel" onSubmit={handleSubmit}>
         <p className="eyebrow">BrandVideo MVP</p>
-        <h1>进入脚本工作台</h1>
-        <label htmlFor="user-id">自定义 user_id</label>
+        <h1>Enter Workspace</h1>
+        <label htmlFor="user-id">User ID</label>
         <input
           id="user-id"
           value={value}
           onChange={(event) => setValue(event.target.value)}
-          placeholder="例如 creator_may"
+          placeholder="e.g. creator_may"
         />
         {error ? <p className="formError">{error}</p> : null}
         <button type="submit" disabled={submitting || !value.trim()}>
-          {submitting ? "进入中..." : "进入"}
+          {submitting ? "Entering…" : "Enter"}
         </button>
       </form>
     </main>

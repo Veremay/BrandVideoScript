@@ -2,8 +2,16 @@ from datetime import datetime, timedelta
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app.models.artifact_stale import (
+    default_stale,
+    mark_brief_changed,
+    mark_persona_changed,
+    mark_script_changed,
+    stale_set_fields,
+)
 from app.models.script import default_script, new_id, now_iso
 from app.models.script_ops import add_column, add_row, delete_column, delete_row, rename_column, update_cell
+from app.models.script_validate import normalize_script, validate_script
 
 BRAND_INSIGHT_CATEGORIES = {"explicit_requirement", "implicit_requirement", "brand_feedback"}
 BRAND_INSIGHT_CONFIDENCE = {"high", "medium", "low"}
@@ -29,6 +37,10 @@ PERSONA_MUTABLE_FIELDS = (
 
 def serialize_project(document: dict) -> dict:
     document["_id"] = str(document["_id"])
+    if "stale" not in document:
+        document["stale"] = default_stale()
+    if "current_script_version_id" not in document:
+        document["current_script_version_id"] = None
     return document
 
 
@@ -261,7 +273,13 @@ async def create_project(db: AsyncIOMotorDatabase, user_id: str, title: str) -> 
         "active_persona_id": None,
         "audience_analysis": {},
         "expert_suggestions": [],
-        "stale": {"brand": False, "audience": False, "expert": False},
+        "rationale_nodes": [],
+        "rationale_edges": [],
+        "modification_schemes": [],
+        "negotiation_queue": [],
+        "negotiation_preparation": None,
+        "current_script_version_id": new_id("script_ver"),
+        "stale": default_stale(),
         "created_at": now,
         "updated_at": now,
     }
@@ -393,7 +411,7 @@ async def update_brief(
     brief = build_brief(filename=filename, text=text)
     await db.projects.update_one(
         {"_id": project_id, "user_id": user_id},
-        {"$set": {"brief": brief, "stale.brand": True, "updated_at": now_iso()}},
+        {"$set": {"brief": brief, "updated_at": now_iso(), **stale_set_fields(mark_brief_changed())}},
     )
     return await get_project(db, project_id, user_id)
 
@@ -557,9 +575,8 @@ async def _write_personas(
             "$set": {
                 "personas": personas,
                 "active_persona_id": active_persona_id,
-                "stale.audience": True,
-                "stale.expert": True,
                 "updated_at": now_iso(),
+                **stale_set_fields(mark_persona_changed()),
             }
         },
     )
@@ -569,20 +586,28 @@ async def _write_personas(
 async def _write_brand_insights(db: AsyncIOMotorDatabase, project_id: str, user_id: str, insights: list[dict]) -> dict | None:
     await db.projects.update_one(
         {"_id": project_id, "user_id": user_id},
-        {"$set": {"brand_insights": insights, "stale.expert": True, "updated_at": now_iso()}},
+        {
+            "$set": {
+                "brand_insights": insights,
+                "updated_at": now_iso(),
+                "stale.modification_schemes": "stale_graph_changed",
+            }
+        },
     )
     return await get_project(db, project_id, user_id)
 
 
 async def _write_script(db: AsyncIOMotorDatabase, project_id: str, user_id: str, script: dict) -> dict | None:
-    script["updated_at"] = now_iso()
+    normalized = normalize_script(script)
+    validate_script(normalized)
+    normalized["updated_at"] = now_iso()
     await db.projects.update_one(
         {"_id": project_id, "user_id": user_id},
         {
             "$set": {
-                "current_script": script,
-                "stale": {"brand": True, "audience": True, "expert": True},
-                "updated_at": now_iso(),
+                "current_script": normalized,
+                "updated_at": normalized["updated_at"],
+                **stale_set_fields(mark_script_changed()),
             }
         },
     )

@@ -52,6 +52,34 @@ class ScriptColumnUpdateRequest(BaseModel):
     label: str = Field(min_length=1, max_length=40)
 
 
+class ScriptSnapshotCreateRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    reason: Literal[
+        "manual_save",
+        "before_expert_apply",
+        "after_expert_apply",
+        "brand_feedback_sync",
+        "import",
+        "rollback",
+    ] = "manual_save"
+
+
+class ScriptSnapshotSummary(BaseModel):
+    snapshot_id: str
+    project_id: str
+    reason: str
+    script_version_id: str | None = None
+    created_at: str
+
+
+class ScriptSnapshotListResponse(BaseModel):
+    snapshots: list[ScriptSnapshotSummary]
+
+
+class ScriptSnapshotCreateResponse(BaseModel):
+    snapshot: ScriptSnapshotSummary
+
+
 class BriefUpdateRequest(BaseModel):
     user_id: str = Field(min_length=1, max_length=80)
     text: str = Field(min_length=1)
@@ -126,7 +154,8 @@ class ProjectResponse(BaseModel):
     active_persona_id: str | None
     audience_analysis: dict[str, Any]
     expert_suggestions: list[dict[str, Any]]
-    stale: dict[str, bool]
+    current_script_version_id: str | None = None
+    stale: dict[str, str]
     created_at: str
     updated_at: str
 
