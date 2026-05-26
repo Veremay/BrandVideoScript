@@ -21,6 +21,7 @@ type AppState = {
   layout: {
     activePanel: AgentType | null;
     agentsColWidth: number;
+    personaPanelOpen: boolean;
   };
   brand: {
     activePinnedTab: "explicit_requirement" | "implicit_requirement" | "brand_feedback";
@@ -53,6 +54,7 @@ type AppState = {
   setAgentColumnWidth: (width: number) => void;
   setSelection: (selection?: { rowId?: string; columnId?: string; text: string }) => void;
   setBrandPinnedTab: (tab: BrandInsightCategory) => void;
+  setPersonaPanelOpen: (open: boolean) => void;
 };
 
 export const useAppStore = create<AppState>((set) => ({
@@ -64,7 +66,8 @@ export const useAppStore = create<AppState>((set) => ({
   },
   layout: {
     activePanel: null,
-    agentsColWidth: 360
+    agentsColWidth: 360,
+    personaPanelOpen: false
   },
   brand: {
     activePinnedTab: "explicit_requirement",
@@ -167,5 +170,9 @@ export const useAppStore = create<AppState>((set) => ({
   setBrandPinnedTab: (tab) =>
     set((state) => ({
       brand: { ...state.brand, activePinnedTab: tab }
+    })),
+  setPersonaPanelOpen: (open) =>
+    set((state) => ({
+      layout: { ...state.layout, personaPanelOpen: open }
     }))
 }));

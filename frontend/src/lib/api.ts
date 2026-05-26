@@ -2,6 +2,7 @@ import type {
   BrandInsightCategory,
   BrandInsightConfidence,
   BrandInsightStatus,
+  PersonaAdSensitivity,
   Project,
   Script
 } from "@/lib/types";
@@ -183,5 +184,62 @@ export async function renameScriptColumn(projectId: string, userId: string, colu
 export async function deleteScriptColumn(projectId: string, userId: string, columnId: string): Promise<Project> {
   return request(`/projects/${projectId}/script/columns/${columnId}?user_id=${encodeURIComponent(userId)}`, {
     method: "DELETE"
+  });
+}
+
+export async function createPersona(
+  projectId: string,
+  userId: string,
+  payload: {
+    name: string;
+    icon?: string;
+    gender?: string;
+    age_range?: string;
+    preferences?: string;
+    behavior?: string;
+    platform_context?: string;
+    ad_sensitivity?: PersonaAdSensitivity;
+    trust_trigger?: string[];
+    reject_trigger?: string[];
+  }
+): Promise<Project> {
+  return request(`/projects/${projectId}/personas`, {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId, ...payload })
+  });
+}
+
+export async function updatePersona(
+  projectId: string,
+  userId: string,
+  personaId: string,
+  payload: Partial<{
+    name: string;
+    gender: string;
+    age_range: string;
+    preferences: string;
+    behavior: string;
+    platform_context: string;
+    ad_sensitivity: PersonaAdSensitivity;
+    trust_trigger: string[];
+    reject_trigger: string[];
+  }>
+): Promise<Project> {
+  return request(`/projects/${projectId}/personas/${personaId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ user_id: userId, ...payload })
+  });
+}
+
+export async function deletePersona(projectId: string, userId: string, personaId: string): Promise<Project> {
+  return request(`/projects/${projectId}/personas/${personaId}?user_id=${encodeURIComponent(userId)}`, {
+    method: "DELETE"
+  });
+}
+
+export async function setActivePersona(projectId: string, userId: string, personaId: string | null): Promise<Project> {
+  return request(`/projects/${projectId}/active-persona`, {
+    method: "PATCH",
+    body: JSON.stringify({ user_id: userId, persona_id: personaId })
   });
 }

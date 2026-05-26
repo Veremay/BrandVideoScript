@@ -3,9 +3,12 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.db.mongo import database_dependency
 from app.models.schemas import (
+    ActivePersonaUpdateRequest,
     BriefUpdateRequest,
     BrandInsightCreateRequest,
     BrandInsightUpdateRequest,
+    PersonaCreateRequest,
+    PersonaUpdateRequest,
     ProjectCreateRequest,
     ProjectListResponse,
     ProjectResponse,
@@ -18,10 +21,12 @@ from app.models.schemas import (
 )
 from app.repositories.projects import (
     create_brand_insight,
+    create_persona,
     create_script_column,
     create_script_row,
     create_project,
     delete_brand_insight,
+    delete_persona,
     delete_project,
     get_project,
     list_projects,
@@ -29,8 +34,10 @@ from app.repositories.projects import (
     patch_script_cell,
     remove_script_column,
     remove_script_row,
+    set_active_persona,
     update_brand_insight,
     update_brief,
+    update_persona,
     update_script_column,
     update_project,
 )
@@ -288,6 +295,87 @@ async def delete_script_column(
         project = await remove_script_column(db, project_id, user_id.strip(), column_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
+@router.post("/{project_id}/personas", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
+async def add_persona(
+    project_id: str,
+    payload: PersonaCreateRequest,
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> dict:
+    try:
+        project = await create_persona(
+            db,
+            project_id,
+            payload.user_id.strip(),
+            name=payload.name,
+            icon=payload.icon,
+            gender=payload.gender,
+            age_range=payload.age_range,
+            preferences=payload.preferences,
+            behavior=payload.behavior,
+            platform_context=payload.platform_context,
+            ad_sensitivity=payload.ad_sensitivity,
+            trust_trigger=payload.trust_trigger if isinstance(payload.trust_trigger, list) else payload.trust_trigger,
+            reject_trigger=payload.reject_trigger if isinstance(payload.reject_trigger, list) else payload.reject_trigger,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
+@router.patch("/{project_id}/personas/{persona_id}", response_model=ProjectResponse)
+async def edit_persona(
+    project_id: str,
+    persona_id: str,
+    payload: PersonaUpdateRequest,
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> dict:
+    changes = payload.model_dump(exclude={"user_id"}, exclude_none=True)
+    if "trust_trigger" in changes and isinstance(changes["trust_trigger"], str):
+        changes["trust_trigger"] = [chunk.strip() for chunk in changes["trust_trigger"].split(",") if chunk.strip()]
+    if "reject_trigger" in changes and isinstance(changes["reject_trigger"], str):
+        changes["reject_trigger"] = [chunk.strip() for chunk in changes["reject_trigger"].split(",") if chunk.strip()]
+    try:
+        project = await update_persona(db, project_id, payload.user_id.strip(), persona_id, changes)
+    except ValueError as exc:
+        raise HTTPException(status_code=404 if str(exc) == "Persona not found" else 400, detail=str(exc)) from exc
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
+@router.delete("/{project_id}/personas/{persona_id}", response_model=ProjectResponse)
+async def remove_persona(
+    project_id: str,
+    persona_id: str,
+    user_id: str = Query(min_length=1),
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> dict:
+    try:
+        project = await delete_persona(db, project_id, user_id.strip(), persona_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
+@router.patch("/{project_id}/active-persona", response_model=ProjectResponse)
+async def update_active_persona(
+    project_id: str,
+    payload: ActivePersonaUpdateRequest,
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> dict:
+    try:
+        project = await set_active_persona(db, project_id, payload.user_id.strip(), payload.persona_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
     return project

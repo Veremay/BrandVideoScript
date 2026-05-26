@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 
+import { PersonaPanel } from "@/components/PersonaPanel";
 import { ScriptGrid } from "@/components/ScriptGrid";
 import {
   createBrandInsight,
@@ -11,6 +12,7 @@ import {
   saveScript,
   updateBrandInsight
 } from "@/lib/api";
+import { getPersonaEmoji } from "@/lib/personaEmoji";
 import type { AgentType, BrandInsight, BrandInsightCategory, BrandInsightConfidence, BrandInsightStatus } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
 
@@ -49,7 +51,8 @@ export function EditorShell() {
     setSaveStatus,
     setUserId,
     setActivePanel,
-    openPanel
+    openPanel,
+    setPersonaPanelOpen
   } = useAppStore();
   const hasHydrated = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -109,8 +112,7 @@ export function EditorShell() {
   }
 
   function handlePersonasClick() {
-    setAgentDrawerOpen(true);
-    setActivePanel("audience");
+    setPersonaPanelOpen(true);
   }
 
   async function persistBrief(text: string, filename?: string) {
@@ -248,12 +250,14 @@ export function EditorShell() {
           </aside>
         </>
       ) : null}
+
+      <PersonaPanel onClose={() => setPersonaPanelOpen(false)} open={layout.personaPanelOpen} />
     </main>
   );
 }
 
 function AgentBody({ agent, selectedText }: { agent: AgentType; selectedText?: string }) {
-  const { brand, project, setBrandPinnedTab, setProject } = useAppStore();
+  const { brand, project, setBrandPinnedTab, setProject, setPersonaPanelOpen } = useAppStore();
 
   if (agent === "brand" && project) {
     const activeTab = brand.activePinnedTab;
@@ -311,13 +315,30 @@ function AgentBody({ agent, selectedText }: { agent: AgentType; selectedText?: s
   }
 
   if (agent === "audience") {
+    const personas = project?.personas ?? [];
+    const activePersonaId = project?.active_persona_id ?? undefined;
+
     return (
       <div className="panel-body">
         <div className="persona-bar">
           <span className="persona-label">画像</span>
-          <button className="chip active" type="button">年轻职场人</button>
-          <button className="chip" type="button">首次购车</button>
-          <button className="chip add-chip" type="button">+</button>
+          {personas.length ? (
+            personas.map((persona) => (
+              <button
+                className={`chip ${activePersonaId === persona.persona_id ? "active" : ""}`}
+                key={persona.persona_id}
+                onClick={() => setPersonaPanelOpen(true)}
+                type="button"
+              >
+                {getPersonaEmoji(persona)} {persona.name}
+              </button>
+            ))
+          ) : (
+            <span className="persona-empty-chip">暂无 persona</span>
+          )}
+          <button className="chip add-chip" onClick={() => setPersonaPanelOpen(true)} type="button">
+            +
+          </button>
         </div>
         <AgentChat agent="audience" selectedText={selectedText} placeholder="发送片段让观众评估..." />
       </div>

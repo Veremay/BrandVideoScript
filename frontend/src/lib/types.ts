@@ -60,6 +60,25 @@ export type Script = {
   updated_at?: string;
 };
 
+export type PersonaAdSensitivity = "low" | "medium" | "high";
+
+export type Persona = {
+  persona_id: string;
+  name: string;
+  icon: string;
+  gender: string;
+  age_range: string;
+  preferences: string;
+  behavior: string;
+  platform_context: string;
+  ad_sensitivity: PersonaAdSensitivity;
+  trust_trigger: string[];
+  reject_trigger: string[];
+  data_source: "manual" | "system_generated" | "imported_data";
+  created_at: string;
+  updated_at: string;
+};
+
 export type Project = {
   _id: string;
   user_id: string;
@@ -67,7 +86,7 @@ export type Project = {
   brief: Brief;
   current_script: Script;
   brand_insights: BrandInsight[];
-  personas: Array<Record<string, unknown>>;
+  personas: Persona[];
   active_persona_id: string | null;
   audience_analysis: Record<string, unknown>;
   expert_suggestions: Array<Record<string, unknown>>;

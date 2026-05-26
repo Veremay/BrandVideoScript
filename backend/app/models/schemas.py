@@ -81,6 +81,38 @@ class BrandInsightUpdateRequest(BaseModel):
     status: Literal["new", "confirmed", "pending", "ignored"] | None = None
 
 
+class PersonaCreateRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    name: str = Field(min_length=1, max_length=80)
+    icon: str = Field(default="", max_length=8)
+    gender: str = Field(default="", max_length=40)
+    age_range: str = Field(default="", max_length=60)
+    preferences: str = Field(default="", max_length=600)
+    behavior: str = Field(default="", max_length=600)
+    platform_context: str = Field(default="", max_length=200)
+    ad_sensitivity: Literal["low", "medium", "high"] = "medium"
+    trust_trigger: list[str] | str = Field(default_factory=list)
+    reject_trigger: list[str] | str = Field(default_factory=list)
+
+
+class PersonaUpdateRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    name: str | None = Field(default=None, min_length=1, max_length=80)
+    gender: str | None = Field(default=None, max_length=40)
+    age_range: str | None = Field(default=None, max_length=60)
+    preferences: str | None = Field(default=None, max_length=600)
+    behavior: str | None = Field(default=None, max_length=600)
+    platform_context: str | None = Field(default=None, max_length=200)
+    ad_sensitivity: Literal["low", "medium", "high"] | None = None
+    trust_trigger: list[str] | str | None = None
+    reject_trigger: list[str] | str | None = None
+
+
+class ActivePersonaUpdateRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    persona_id: str | None = None
+
+
 class ProjectResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 

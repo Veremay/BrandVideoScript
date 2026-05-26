@@ -2340,6 +2340,436 @@ textarea {
   line-height: 1.8;
 }
 
+.persona-empty-chip {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.persona-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+
+.persona-overlay-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(19, 27, 46, 0.2);
+  backdrop-filter: blur(6px);
+}
+
+.persona-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(1152px, calc(100vw - 64px));
+  max-height: calc(100vh - 64px);
+  overflow: hidden;
+  border: 1px solid rgba(110, 120, 129, 0.1);
+  border-radius: 24px;
+  background: var(--figma-bg);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+.persona-panel-close {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--figma-text-secondary);
+}
+
+.persona-panel-close svg {
+  width: 14px;
+  height: 14px;
+}
+
+.persona-panel-close:hover {
+  background: rgba(19, 27, 46, 0.05);
+}
+
+.persona-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 40px 40px 24px;
+}
+
+.persona-panel-heading {
+  display: grid;
+  gap: 4px;
+  max-width: 576px;
+}
+
+.persona-panel-title {
+  color: var(--figma-text);
+  font-family: "Hanken Grotesk", Arial, "Microsoft YaHei", sans-serif;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.75px;
+  line-height: 36px;
+}
+
+.persona-panel-subtitle {
+  color: var(--figma-text-secondary);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.persona-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--figma-primary);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.persona-add-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.persona-panel-body {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(0, 2fr);
+  gap: 32px;
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 0 40px 24px;
+}
+
+.persona-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.persona-sidebar-label {
+  padding: 0 8px;
+  color: var(--figma-text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+
+.persona-card-list {
+  display: grid;
+  gap: 12px;
+}
+
+.persona-card {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  background: rgba(234, 237, 255, 0.4);
+  backdrop-filter: blur(6px);
+}
+
+.persona-card.active {
+  border: 2px solid var(--figma-primary);
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 20px rgba(0, 101, 145, 0.1);
+}
+
+.persona-card.selected:not(.active) {
+  border-left: 4px solid rgba(0, 101, 145, 0.35);
+}
+
+.persona-card-main {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 17px 12px 17px 18px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.persona-card-avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: var(--figma-primary-dim);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.persona-card:not(.active) .persona-card-avatar {
+  background: rgba(19, 27, 46, 0.05);
+}
+
+.persona-card-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.persona-card-name {
+  color: var(--figma-text);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+}
+
+.persona-card-meta {
+  overflow: hidden;
+  color: var(--figma-text-secondary);
+  font-size: 12px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.persona-card-delete {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  margin-right: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--figma-text-secondary);
+}
+
+.persona-card-delete svg {
+  width: 14px;
+  height: 14px;
+}
+
+.persona-card-delete:hover {
+  background: rgba(248, 113, 113, 0.12);
+  color: #dc2626;
+}
+
+.persona-empty,
+.persona-editor-empty {
+  padding: 16px;
+  border: 1px dashed rgba(110, 120, 129, 0.25);
+  border-radius: 16px;
+  color: var(--figma-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.persona-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+  padding: 33px;
+  border: 1px solid rgba(110, 120, 129, 0.1);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 4px 24px -1px rgba(0, 101, 145, 0.06);
+}
+
+.persona-editor-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.persona-editor-header svg {
+  width: 20px;
+  height: 20px;
+  color: var(--figma-primary);
+}
+
+.persona-editor-header h2 {
+  color: var(--figma-text);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 28px;
+}
+
+.persona-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px 24px;
+}
+
+.persona-field {
+  display: grid;
+  gap: 6px;
+}
+
+.persona-field-full {
+  grid-column: 1 / -1;
+}
+
+.persona-field > span {
+  padding-left: 4px;
+  color: var(--figma-text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.persona-field input,
+.persona-field select,
+.persona-field textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--figma-muted-border);
+  border-radius: 0;
+  background: #fff;
+  color: var(--figma-text);
+  font-size: 16px;
+}
+
+.persona-field input,
+.persona-field select {
+  height: 42px;
+  padding: 0 13px;
+}
+
+.persona-field textarea {
+  min-height: 91px;
+  padding: 9px 13px;
+  resize: vertical;
+}
+
+.persona-demographics {
+  display: grid;
+  grid-template-columns: 121px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.persona-segmented {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2px;
+  height: 38px;
+  padding: 2px;
+  border-radius: 12px;
+  background: rgba(0, 101, 145, 0.05);
+}
+
+.persona-segmented button {
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--figma-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.persona-segmented button.active {
+  background: #fff;
+  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.05);
+  color: var(--figma-primary);
+}
+
+.persona-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 17px;
+  border-top: 1px solid rgba(110, 120, 129, 0.1);
+}
+
+.persona-reset-btn,
+.persona-save-btn,
+.persona-cancel-btn,
+.persona-apply-btn {
+  border: 0;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.persona-reset-btn {
+  padding: 8px 20px;
+  background: transparent;
+  color: var(--figma-text-secondary);
+}
+
+.persona-save-btn {
+  padding: 8px 24px;
+  background: #006686;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  color: #fff;
+}
+
+.persona-panel-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  padding: 25px 40px 24px;
+  border-top: 1px solid rgba(110, 120, 129, 0.1);
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(2px);
+}
+
+.persona-cancel-btn {
+  padding: 11px 25px;
+  border: 1px solid rgba(110, 120, 129, 0.2);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--figma-text);
+  font-size: 16px;
+}
+
+.persona-apply-btn {
+  padding: 11px 32px;
+  border-radius: 12px;
+  background: var(--figma-primary);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+@media (max-width: 960px) {
+  .persona-panel-body {
+    grid-template-columns: 1fr;
+  }
+
+  .persona-panel-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .persona-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .chat-area {
   display: flex;
   flex: 1;

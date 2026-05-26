@@ -6,6 +6,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     app_name: str = "BrandVideo API"
     api_prefix: str = "/api"
+    cors_origins: str = (
+        "http://localhost:3000,"
+        "http://127.0.0.1:3000,"
+        "http://localhost:3001,"
+        "http://127.0.0.1:3001"
+    )
     mongodb_url: str = "mongodb://localhost:27017"
     mongodb_db: str = "brandvideo"
     redis_url: str = "redis://localhost:6379/0"
@@ -21,4 +27,8 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def get_cors_origins(settings: Settings) -> list[str]:
+    return [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
 
