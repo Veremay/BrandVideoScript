@@ -10,6 +10,11 @@ export function isStaleStatus(status: StaleStatus | string | undefined): boolean
   return typeof status === "string" && status.startsWith("stale_");
 }
 
+/** Node graph is out of date because the script was edited since last sync. */
+export function isGraphStaleFromScript(stale: ArtifactStaleness | Record<string, string> | undefined): boolean {
+  return stale?.rationale_graph === "stale_script_changed";
+}
+
 export function staleArtifactKeys(stale: ArtifactStaleness | Record<string, string> | undefined): ArtifactKey[] {
   if (!stale) return [];
   return (Object.keys(ARTIFACT_LABELS) as ArtifactKey[]).filter((key) => isStaleStatus(stale[key]));

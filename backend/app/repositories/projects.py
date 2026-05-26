@@ -48,6 +48,7 @@ def serialize_project(document: dict) -> dict:
     document.setdefault("rationale_nodes", [])
     document.setdefault("rationale_edges", [])
     document.setdefault("negotiation_queue", [])
+    document.setdefault("modification_schemes", [])
     return document
 
 

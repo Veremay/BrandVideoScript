@@ -11,6 +11,7 @@ import type {
   Project,
   RationaleEdge,
   RationaleNode,
+  ModificationScheme,
   RequestedPerspective,
   Script,
   ScriptSnapshotReason,
@@ -22,6 +23,8 @@ const REQUEST_TIMEOUT_MS = 15000;
 const PROJECT_TIMEOUT_MS = 60000;
 /** Brief parse runs Brand + Expert agents sequentially; each LLM call can take ~60s. */
 const BRIEF_PARSE_TIMEOUT_MS = 180000;
+const SCHEME_GENERATE_TIMEOUT_MS = 180000;
+const GRAPH_SYNC_TIMEOUT_MS = 180000;
 
 async function request<T>(path: string, init?: RequestInit, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
   const controller = new AbortController();
@@ -102,6 +105,22 @@ export async function fetchProjectGraph(
   userId: string
 ): Promise<{ rationale_nodes: RationaleNode[]; rationale_edges: RationaleEdge[]; updated_at: string }> {
   return request(`/projects/${projectId}/graph?user_id=${encodeURIComponent(userId)}`, undefined, PROJECT_TIMEOUT_MS);
+}
+
+export async function syncMapFromScript(
+  projectId: string,
+  userId: string,
+  changedRowIds: string[] = []
+): Promise<Project> {
+  const data = await request<{ project: Project }>(
+    `/projects/${projectId}/graph/sync-from-script`,
+    {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId, changed_row_ids: changedRowIds })
+    },
+    GRAPH_SYNC_TIMEOUT_MS
+  );
+  return normalizeProject(data.project)!;
 }
 
 export async function saveScript(projectId: string, userId: string, script: Script): Promise<Project> {
@@ -373,8 +392,21 @@ export async function fetchCoordinatorMessages(
 
 export type CoordinatorStreamEvent =
   | { type: "token"; content: string }
-  | { type: "artifact"; rationale_nodes?: RationaleNode[]; rationale_edges?: RationaleEdge[]; related_node_ids?: string[] }
-  | { type: "done"; message_id: string; generated_artifact_ids?: string[] }
+  | {
+      type: "artifact";
+      rationale_nodes?: RationaleNode[];
+      rationale_edges?: RationaleEdge[];
+      related_node_ids?: string[];
+      modification_schemes?: ModificationScheme[];
+      new_scheme_ids?: string[];
+    }
+  | {
+      type: "done";
+      message_id: string;
+      generated_artifact_ids?: string[];
+      open_revision_proposals?: boolean;
+      scheme_count?: number;
+    }
   | { type: "error"; message: string };
 
 function parseSseBlock(block: string): CoordinatorStreamEvent | null {
@@ -392,14 +424,18 @@ function parseSseBlock(block: string): CoordinatorStreamEvent | null {
       type: "artifact",
       rationale_nodes: payload.rationale_nodes as RationaleNode[] | undefined,
       rationale_edges: payload.rationale_edges as RationaleEdge[] | undefined,
-      related_node_ids: payload.related_node_ids as string[] | undefined
+      related_node_ids: payload.related_node_ids as string[] | undefined,
+      modification_schemes: payload.modification_schemes as ModificationScheme[] | undefined,
+      new_scheme_ids: payload.new_scheme_ids as string[] | undefined
     };
   }
   if (event === "done") {
     return {
       type: "done",
       message_id: String(payload.message_id ?? ""),
-      generated_artifact_ids: payload.generated_artifact_ids as string[] | undefined
+      generated_artifact_ids: payload.generated_artifact_ids as string[] | undefined,
+      open_revision_proposals: Boolean(payload.open_revision_proposals),
+      scheme_count: typeof payload.scheme_count === "number" ? payload.scheme_count : undefined
     };
   }
   if (event === "error") return { type: "error", message: String(payload.message ?? "Stream failed") };
@@ -411,7 +447,7 @@ export async function streamCoordinatorMessage(
   userId: string,
   payload: {
     message: string;
-    task_type?: "user_message" | "quote_analysis" | "script_delta";
+    task_type?: "user_message" | "quote_analysis" | "script_delta" | "generate_modification_schemes";
     requested_perspectives?: RequestedPerspective[];
     quotes?: CoordinatorQuote[];
     target_node_ids?: string[];
@@ -532,4 +568,57 @@ export async function toggleGraphNegotiationQueue(
       body: JSON.stringify({ user_id: userId, in_queue: inQueue })
     })
   )!;
+}
+
+export async function fetchModificationSchemes(projectId: string, userId: string): Promise<ModificationScheme[]> {
+  const data = await request<{ schemes: ModificationScheme[] }>(
+    `/projects/${projectId}/modification-schemes?user_id=${encodeURIComponent(userId)}`
+  );
+  return data.schemes;
+}
+
+export async function generateModificationSchemes(
+  projectId: string,
+  userId: string,
+  options?: { target_issue_ids?: string[]; message?: string }
+): Promise<{ project: Project; schemes: ModificationScheme[]; assistant_reply: string }> {
+  const data = await request<{
+    project: Project;
+    schemes: ModificationScheme[];
+    assistant_reply: string;
+  }>(
+    `/projects/${projectId}/modification-schemes/generate`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        user_id: userId,
+        target_issue_ids: options?.target_issue_ids ?? [],
+        message: options?.message ?? null
+      })
+    },
+    SCHEME_GENERATE_TIMEOUT_MS
+  );
+  return { ...data, project: normalizeProject(data.project)! };
+}
+
+export async function applyModificationSchemeHunks(
+  projectId: string,
+  userId: string,
+  schemeId: string,
+  acceptedHunkIds: string[],
+  rejectedHunkIds: string[] = []
+): Promise<Project> {
+  const data = await request<{ project: Project }>(
+    `/projects/${projectId}/modification-schemes/${schemeId}/apply`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        user_id: userId,
+        accepted_hunk_ids: acceptedHunkIds,
+        rejected_hunk_ids: rejectedHunkIds
+      })
+    },
+    PROJECT_TIMEOUT_MS
+  );
+  return normalizeProject(data.project)!;
 }

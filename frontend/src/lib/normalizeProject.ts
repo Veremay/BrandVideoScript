@@ -12,6 +12,7 @@ export function normalizeProject(raw: ProjectPayload | null): Project | null {
     rationale_nodes: (raw.rationale_nodes ?? []) as RationaleNode[],
     rationale_edges: (raw.rationale_edges ?? []) as RationaleEdge[],
     negotiation_queue: raw.negotiation_queue ?? [],
+    modification_schemes: raw.modification_schemes ?? [],
     brand_perspective_result: raw.brand_perspective_result ?? null,
     audience_perspective_result: raw.audience_perspective_result ?? null,
     expert_perspective_result: raw.expert_perspective_result ?? null,
@@ -30,6 +31,10 @@ export function mergeProjectPreservingGraph(previous: Project | null, incoming: 
   return {
     ...normalized,
     rationale_nodes: previous.rationale_nodes ?? [],
-    rationale_edges: previous.rationale_edges ?? []
+    rationale_edges: previous.rationale_edges ?? [],
+    modification_schemes:
+      (normalized.modification_schemes?.length ?? 0) > 0
+        ? normalized.modification_schemes
+        : (previous.modification_schemes ?? [])
   };
 }

@@ -12,6 +12,8 @@ from app.models.schemas import (
     GraphNodeCreateRequest,
     GraphNodeNegotiationRequest,
     GraphNodeUpdateRequest,
+    GraphSyncFromScriptRequest,
+    GraphSyncFromScriptResponse,
     ProjectResponse,
 )
 from app.repositories.coordinator_messages import list_coordinator_messages
@@ -25,6 +27,7 @@ from app.repositories.graph import (
 )
 from app.repositories.projects import get_project
 from app.services.coordinator_stream import stream_coordinator_chat
+from app.services.graph_sync import sync_graph_from_script
 
 router = APIRouter(prefix="/projects/{project_id}", tags=["coordinator"])
 
@@ -168,6 +171,23 @@ async def remove_graph_edge(
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
     return project
+
+
+@graph_router.post("/sync-from-script", response_model=GraphSyncFromScriptResponse)
+async def sync_graph_from_script_route(
+    project_id: str,
+    payload: GraphSyncFromScriptRequest,
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> dict:
+    try:
+        return await sync_graph_from_script(
+            db,
+            project_id,
+            payload.user_id.strip(),
+            changed_row_ids=payload.changed_row_ids,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404 if "not found" in str(exc).lower() else 400, detail=str(exc)) from exc
 
 
 @graph_router.patch("/nodes/{node_id}/negotiation-queue", response_model=ProjectResponse)

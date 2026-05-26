@@ -257,7 +257,12 @@ class CoordinatorQuote(BaseModel):
 class CoordinatorStreamRequest(BaseModel):
     user_id: str = Field(min_length=1, max_length=80)
     message: str = Field(min_length=1, max_length=4000)
-    task_type: Literal["user_message", "quote_analysis", "script_delta"] = "user_message"
+    task_type: Literal[
+        "user_message",
+        "quote_analysis",
+        "script_delta",
+        "generate_modification_schemes",
+    ] = "user_message"
     requested_perspectives: list[Literal["brand", "audience", "expert", "comprehensive"]] = Field(default_factory=lambda: ["comprehensive"])
     quotes: list[CoordinatorQuote] = Field(default_factory=list)
     target_node_ids: list[str] = Field(default_factory=list)
@@ -338,3 +343,74 @@ class GraphEdgeCreateRequest(BaseModel):
 class GraphNodeNegotiationRequest(BaseModel):
     user_id: str = Field(min_length=1, max_length=80)
     in_queue: bool
+
+
+class GraphSyncFromScriptRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    changed_row_ids: list[str] = Field(default_factory=list)
+
+
+class GraphSyncFromScriptResponse(BaseModel):
+    project: dict[str, Any]
+    nodes_added: int = 0
+    node_updates: int = 0
+    assistant_reply: str = ""
+
+
+class ModificationSchemeHunk(BaseModel):
+    hunk_id: str
+    row_id: str
+    column_id: str
+    context: str = ""
+    removed: str
+    added: str
+
+
+class ModificationSchemeItem(BaseModel):
+    scheme_id: str
+    project_id: str
+    title: str
+    direction: Literal["conservative", "balanced", "creator_led", "audience_friendly", "custom"]
+    target_issue_ids: list[str] = Field(default_factory=list)
+    changes_summary: str = ""
+    rationale: str = ""
+    tradeoffs: dict[str, str] = Field(default_factory=dict)
+    sacrifice: str = ""
+    communication_scene: str = ""
+    brand_objection: str = ""
+    response_script: str = ""
+    risk: str = ""
+    hunks: list[ModificationSchemeHunk] = Field(default_factory=list)
+    related_node_ids: list[str] = Field(default_factory=list)
+    based_on_script_version_id: str | None = None
+    status: Literal["draft", "previewed", "partially_applied", "applied", "dismissed"] = "draft"
+    created_at: str
+
+
+class ModificationSchemeListResponse(BaseModel):
+    schemes: list[ModificationSchemeItem]
+
+
+class ModificationSchemeGenerateRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    target_issue_ids: list[str] = Field(default_factory=list)
+    message: str | None = Field(default=None, max_length=2000)
+
+
+class ModificationSchemeGenerateResponse(BaseModel):
+    project: dict[str, Any]
+    schemes: list[ModificationSchemeItem]
+    assistant_reply: str = ""
+
+
+class ModificationSchemeApplyRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    accepted_hunk_ids: list[str] = Field(min_length=1)
+    rejected_hunk_ids: list[str] = Field(default_factory=list)
+
+
+class ModificationSchemeApplyResponse(BaseModel):
+    project: dict[str, Any]
+    applied_hunk_ids: list[str]
+    applied_hunk_count: int
+    conflicts: list[dict[str, str]] = Field(default_factory=list)

@@ -7,8 +7,10 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.script import now_iso
 from app.repositories.coordinator_messages import build_coordinator_message, save_coordinator_message
+from app.repositories.modification_schemes import generate_modification_schemes
 from app.repositories.projects import get_project
 from app.services.agent_orchestrator import merge_pipeline_into_project_graph, run_coordinator_pipeline
+from app.services.coordinator_intent import wants_generate_modification_schemes
 from app.services.llm_client import LLMClient
 from app.services.pipeline_log import log_step
 from app.services.sse import encode_sse
@@ -67,6 +69,21 @@ async def stream_coordinator_chat(
         related_node_ids=target_node_ids or [],
     )
     await save_coordinator_message(db, user_doc)
+
+    if wants_generate_modification_schemes(message, task_type=task_type):
+        async for frame in _stream_generate_modification_schemes(
+            db,
+            project_id,
+            user_id,
+            project=project,
+            message=message,
+            task_type=task_type,
+            requested_perspectives=list(perspectives),
+            quotes=quotes or [],
+            target_node_ids=target_node_ids or [],
+        ):
+            yield frame
+        return
 
     pipeline = await run_coordinator_pipeline(
         project,
@@ -162,4 +179,88 @@ async def stream_coordinator_chat(
         "graph_edge_count": len(edges),
     }
     log_step("coordinator_stream", phase="OUT", project_id=project_id, done=done_payload)
+    yield encode_sse("done", done_payload)
+
+
+async def _stream_generate_modification_schemes(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    *,
+    project: dict,
+    message: str,
+    task_type: str,
+    requested_perspectives: list[str],
+    quotes: list[dict],
+    target_node_ids: list[str],
+) -> AsyncIterator[str]:
+    log_step(
+        "coordinator_stream.generate_schemes",
+        phase="IN",
+        project_id=project_id,
+        message=message,
+    )
+
+    issue_targets = [node_id for node_id in target_node_ids if node_id]
+    if not issue_targets:
+        issue_targets = list(project.get("negotiation_queue") or [])
+
+    try:
+        result = await generate_modification_schemes(
+            db,
+            project_id,
+            user_id,
+            target_issue_ids=issue_targets or None,
+            user_message=message,
+        )
+    except ValueError as exc:
+        yield encode_sse("error", {"message": str(exc)})
+        return
+
+    updated_project = result.get("project") or {}
+    new_schemes = result.get("schemes") or []
+    all_schemes = updated_project.get("modification_schemes") or []
+    scheme_ids = [s.get("scheme_id") for s in new_schemes if s.get("scheme_id")]
+
+    yield encode_sse(
+        "artifact",
+        {
+            "modification_schemes": all_schemes,
+            "new_scheme_ids": scheme_ids,
+        },
+    )
+
+    reply = result.get("assistant_reply") or (
+        f"已生成 {len(new_schemes)} 套脚本修改方案（非节点图）。请在 Revision Proposals 中预览稿子，"
+        f"对每处修改选择接受或拒绝，可只写入部分修改。"
+    )
+    for index in range(0, len(reply), 12):
+        yield encode_sse("token", {"content": reply[index : index + 12]})
+
+    assistant_doc = build_coordinator_message(
+        project_id=project_id,
+        user_id=user_id,
+        role="assistant",
+        content=reply,
+        task_type=task_type,
+        requested_perspectives=requested_perspectives,
+        active_persona_id=project.get("active_persona_id"),
+        quotes=quotes,
+        related_node_ids=issue_targets,
+        generated_artifact_ids=scheme_ids,
+    )
+    await save_coordinator_message(db, assistant_doc)
+
+    done_payload = {
+        "message_id": assistant_doc["message_id"],
+        "generated_artifact_ids": scheme_ids,
+        "scheme_count": len(new_schemes),
+        "open_revision_proposals": True,
+    }
+    log_step(
+        "coordinator_stream.generate_schemes",
+        phase="OUT",
+        project_id=project_id,
+        scheme_count=len(new_schemes),
+    )
     yield encode_sse("done", done_payload)

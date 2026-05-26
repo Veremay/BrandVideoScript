@@ -37,9 +37,11 @@ import {
   createGraphNode,
   deleteGraphEdge,
   deleteGraphNode,
+  syncMapFromScript,
   toggleGraphNegotiationQueue,
   updateGraphNode
 } from "@/lib/api";
+import { isGraphStaleFromScript } from "@/lib/stale";
 import { useAppStore } from "@/store/appStore";
 
 type MapNodeType = "issue" | "position" | "argument";
@@ -255,6 +257,7 @@ function MapViewContent() {
   const [addNodeMenuOpen, setAddNodeMenuOpen] = useState(false);
   const [edgeMenu, setEdgeMenu] = useState<EdgeMenuState | null>(null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+  const [syncingMap, setSyncingMap] = useState(false);
   const { zoomIn, zoomOut, fitView, screenToFlowPosition } = useReactFlow();
   const workspaceRef = useRef<HTMLElement>(null);
   const controlsRef = useRef<HTMLDivElement>(null);
@@ -520,10 +523,37 @@ function MapViewContent() {
   }, [project?.negotiation_queue, project?.rationale_nodes]);
 
   const emptyGraph = flowNodes.length === 0;
+  const scriptChanged = isGraphStaleFromScript(project?.stale);
+  const mapSyncing = syncingMap || project?.stale?.rationale_graph === "generating";
+
+  const handleUpdateMap = useCallback(async () => {
+    if (!project?._id || !project.user_id || syncingMap) return;
+    setSyncingMap(true);
+    try {
+      const updated = await syncMapFromScript(project._id, project.user_id);
+      setProject(updated);
+      window.setTimeout(() => runFitView(), 80);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Failed to update map");
+    } finally {
+      setSyncingMap(false);
+    }
+  }, [project, runFitView, setProject, syncingMap]);
 
   return (
     <section className="map-workspace" ref={workspaceRef}>
-      {!emptyGraph ? (
+      {scriptChanged || mapSyncing ? (
+        <button
+          className="map-update-map-btn"
+          disabled={mapSyncing}
+          onClick={() => void handleUpdateMap()}
+          type="button"
+          aria-busy={mapSyncing}
+        >
+          {mapSyncing ? "Updating…" : "Update Map"}
+        </button>
+      ) : null}
+      {!emptyGraph && !scriptChanged && !mapSyncing ? (
         <div className="map-graph-status" aria-live="polite">
           {flowNodes.length} nodes · {flowEdges.length} edges
         </div>

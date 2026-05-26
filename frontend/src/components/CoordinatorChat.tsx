@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { RevisionProposalsPanel } from "@/components/RevisionProposalsPanel";
 import { fetchCoordinatorMessages, streamCoordinatorMessage } from "@/lib/api";
+import { resolveCoordinatorTaskType } from "@/lib/coordinatorIntent";
 import type { CoordinatorMessage, RequestedPerspective } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
 
@@ -21,7 +23,7 @@ const WELCOME: CoordinatorMessage = {
   user_id: "",
   role: "assistant",
   content:
-    "Hi, I'm the Coordinator. Ask about your script, quote a selection, or pick perspectives below. I'll stream analysis and add IBIS nodes when relevant.",
+    "Hi, I'm the Coordinator. Quote script to analyze nodes, or ask me to「生成多方向修改方案」— Expert will add script revision options (not nodes) to Revision Proposals for preview and partial apply.",
   task_type: "user_message",
   requested_perspectives: ["comprehensive"],
   quotes: [],
@@ -115,7 +117,7 @@ export function CoordinatorChat({
           ]
         : [];
 
-    const taskType = quotes.length ? ("quote_analysis" as const) : ("user_message" as const);
+    const taskType = resolveCoordinatorTaskType(text, { hasQuotes: quotes.length > 0 });
 
     const userMessage: CoordinatorMessage = {
       message_id: `local-user-${Date.now()}`,
@@ -147,7 +149,7 @@ export function CoordinatorChat({
 
     setMessages((prev) => [...prev, userMessage, assistantPlaceholder]);
     setDraft("");
-    setTab("chat");
+    setTab(taskType === "generate_modification_schemes" ? "plans" : "chat");
     setStreaming(true);
     setStreamError(null);
 
@@ -174,22 +176,30 @@ export function CoordinatorChat({
           }
           if (event.type === "artifact") {
             const current = useAppStore.getState().project;
-            if (current && event.rationale_nodes?.length) {
-              const existingIds = new Set((current.rationale_nodes ?? []).map((node) => node.node_id));
-              const mergedNodes = [
-                ...(current.rationale_nodes ?? []),
-                ...event.rationale_nodes.filter((node) => !existingIds.has(node.node_id))
-              ];
-              const existingEdgeIds = new Set((current.rationale_edges ?? []).map((edge) => edge.edge_id));
-              const mergedEdges = [
-                ...(current.rationale_edges ?? []),
-                ...(event.rationale_edges ?? []).filter((edge) => !existingEdgeIds.has(edge.edge_id))
-              ];
-              setProject({
-                ...current,
-                rationale_nodes: mergedNodes,
-                rationale_edges: mergedEdges
-              });
+            if (current) {
+              let next = current;
+              if (event.rationale_nodes?.length) {
+                const existingIds = new Set((current.rationale_nodes ?? []).map((node) => node.node_id));
+                const mergedNodes = [
+                  ...(current.rationale_nodes ?? []),
+                  ...event.rationale_nodes.filter((node) => !existingIds.has(node.node_id))
+                ];
+                const existingEdgeIds = new Set((current.rationale_edges ?? []).map((edge) => edge.edge_id));
+                const mergedEdges = [
+                  ...(current.rationale_edges ?? []),
+                  ...(event.rationale_edges ?? []).filter((edge) => !existingEdgeIds.has(edge.edge_id))
+                ];
+                next = { ...next, rationale_nodes: mergedNodes, rationale_edges: mergedEdges };
+              }
+              if (event.modification_schemes) {
+                next = {
+                  ...next,
+                  modification_schemes: event.modification_schemes,
+                  stale: { ...next.stale, modification_schemes: "up_to_date" }
+                };
+                setTab("plans");
+              }
+              if (next !== current) setProject(next);
             }
             if (event.related_node_ids?.length) {
               setMessages((prev) =>
@@ -202,10 +212,15 @@ export function CoordinatorChat({
             }
           }
           if (event.type === "done") {
+            if (event.open_revision_proposals) setTab("plans");
             setMessages((prev) =>
               prev.map((item) =>
                 item.message_id === assistantPlaceholder.message_id
-                  ? { ...item, message_id: event.message_id || item.message_id }
+                  ? {
+                      ...item,
+                      message_id: event.message_id || item.message_id,
+                      generated_artifact_ids: event.generated_artifact_ids ?? item.generated_artifact_ids
+                    }
                   : item
               )
             );
@@ -296,9 +311,11 @@ export function CoordinatorChat({
               )}
               {streamError ? <p className="glacier-stream-error">{streamError}</p> : null}
             </div>
+          ) : projectId && userId ? (
+            <RevisionProposalsPanel projectId={projectId} userId={userId} />
           ) : (
             <div className="glacier-plans-list">
-              <p className="glacier-plans-placeholder">Revision proposals arrive in Phase 5.</p>
+              <p className="glacier-plans-placeholder">Open a project to view revision proposals.</p>
             </div>
           )}
         </div>

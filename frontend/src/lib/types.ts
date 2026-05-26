@@ -203,6 +203,52 @@ export type RationaleEdge = {
   relation_type: string;
 };
 
+export type ModificationSchemeDirection =
+  | "conservative"
+  | "balanced"
+  | "creator_led"
+  | "audience_friendly"
+  | "custom";
+
+export type ModificationSchemeStatus =
+  | "draft"
+  | "previewed"
+  | "partially_applied"
+  | "applied"
+  | "dismissed";
+
+export type ModificationSchemeHunk = {
+  hunk_id: string;
+  row_id: string;
+  column_id: string;
+  context?: string;
+  removed: string;
+  added: string;
+};
+
+export type ModificationScheme = {
+  scheme_id: string;
+  project_id: string;
+  title: string;
+  direction: ModificationSchemeDirection;
+  target_issue_ids: string[];
+  changes_summary: string;
+  rationale: string;
+  tradeoffs: { brand?: string; audience?: string; creator?: string };
+  sacrifice: string;
+  communication_scene: string;
+  brand_objection: string;
+  response_script: string;
+  risk: string;
+  hunks: ModificationSchemeHunk[];
+  related_node_ids: string[];
+  based_on_script_version_id: string | null;
+  status: ModificationSchemeStatus;
+  created_at: string;
+};
+
+export type HunkDecision = true | false | null;
+
 export type PlatformContext = "xiaohongshu" | "douyin" | "bilibili" | "other";
 
 export type Project = {
@@ -219,6 +265,7 @@ export type Project = {
   rationale_nodes?: RationaleNode[];
   rationale_edges?: RationaleEdge[];
   negotiation_queue?: string[];
+  modification_schemes?: ModificationScheme[];
   personas: Persona[];
   active_persona_id: string | null;
   audience_analysis: Record<string, unknown>;
