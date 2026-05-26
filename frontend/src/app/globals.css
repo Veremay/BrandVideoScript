@@ -161,21 +161,65 @@ textarea {
   gap: 12px;
 }
 
-.projectCard {
-  display: grid;
-  gap: 10px;
+.projectCardWrap {
+  display: flex;
+  align-items: stretch;
   min-height: 120px;
-  padding: 18px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
-  color: var(--text-primary);
-  text-align: left;
+  overflow: hidden;
 }
 
-.projectCard:hover {
-  border-color: rgba(79,142,247,0.35);
+.projectCardWrap:hover {
+  border-color: rgba(79, 142, 247, 0.35);
   background: var(--surface2);
+}
+
+.projectCard {
+  display: grid;
+  flex: 1;
+  gap: 10px;
+  min-width: 0;
+  padding: 18px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.projectCard:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.projectCardDelete {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 44px;
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.projectCardDelete svg {
+  width: 16px;
+  height: 16px;
+}
+
+.projectCardDelete:hover:not(:disabled) {
+  background: rgba(248, 113, 113, 0.12);
+  color: #dc2626;
+}
+
+.projectCardDelete:disabled {
+  opacity: 0.5;
+  cursor: wait;
 }
 
 .projectCard span,

@@ -73,6 +73,12 @@ export async function createProject(userId: string, title: string): Promise<Proj
   });
 }
 
+export async function deleteProject(projectId: string, userId: string): Promise<void> {
+  await request(`/projects/${projectId}?user_id=${encodeURIComponent(userId)}`, {
+    method: "DELETE"
+  });
+}
+
 export async function fetchProject(projectId: string, userId: string): Promise<Project> {
   const project = await request<Project>(
     `/projects/${projectId}?user_id=${encodeURIComponent(userId)}`,
