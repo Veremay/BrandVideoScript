@@ -41,6 +41,12 @@ def serialize_project(document: dict) -> dict:
         document["stale"] = default_stale()
     if "current_script_version_id" not in document:
         document["current_script_version_id"] = None
+    document.setdefault("platform_context", "other")
+    document.setdefault("brand_perspective_result", None)
+    document.setdefault("audience_perspective_result", None)
+    document.setdefault("expert_perspective_result", None)
+    document.setdefault("rationale_nodes", [])
+    document.setdefault("rationale_edges", [])
     return document
 
 
@@ -55,7 +61,7 @@ def build_brief(filename: str | None, text: str) -> dict:
         "filename": filename.strip() if filename else None,
         "text": normalized_text,
         "summary": summary,
-        "parse_status": "parsed",
+        "parse_status": "pending",
         "uploaded_at": now,
     }
 
@@ -268,7 +274,11 @@ async def create_project(db: AsyncIOMotorDatabase, user_id: str, title: str) -> 
             "uploaded_at": None,
         },
         "current_script": default_script(),
+        "platform_context": "xiaohongshu",
         "brand_insights": [],
+        "brand_perspective_result": None,
+        "audience_perspective_result": None,
+        "expert_perspective_result": None,
         "personas": [],
         "active_persona_id": None,
         "audience_analysis": {},

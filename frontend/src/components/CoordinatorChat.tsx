@@ -21,7 +21,7 @@ const INITIAL_MESSAGES: ChatMessage[] = [
   {
     id: "welcome",
     role: "assistant",
-    text: "Hi, I'm the Coordinator Agent. Ask me about your script or node graph — brand, audience, and expert perspectives run in the background (real LLM in Phase 2)."
+    text: "Hi, I'm the Coordinator Agent. Upload a Brief to run brand + expert initial parse; use Personas → From Analytics for audience nodes. Full streaming chat arrives in Phase 3."
   }
 ];
 

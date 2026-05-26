@@ -1,9 +1,13 @@
+import { normalizeProject } from "@/lib/normalizeProject";
 import type {
   BrandInsightCategory,
   BrandInsightConfidence,
   BrandInsightStatus,
   PersonaAdSensitivity,
+  PlatformContext,
   Project,
+  RationaleEdge,
+  RationaleNode,
   Script,
   ScriptSnapshotReason,
   ScriptSnapshotSummary
@@ -11,10 +15,11 @@ import type {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
 const REQUEST_TIMEOUT_MS = 15000;
+const PROJECT_TIMEOUT_MS = 60000;
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -69,7 +74,19 @@ export async function createProject(userId: string, title: string): Promise<Proj
 }
 
 export async function fetchProject(projectId: string, userId: string): Promise<Project> {
-  return request(`/projects/${projectId}?user_id=${encodeURIComponent(userId)}`);
+  const project = await request<Project>(
+    `/projects/${projectId}?user_id=${encodeURIComponent(userId)}`,
+    undefined,
+    PROJECT_TIMEOUT_MS
+  );
+  return normalizeProject(project)!;
+}
+
+export async function fetchProjectGraph(
+  projectId: string,
+  userId: string
+): Promise<{ rationale_nodes: RationaleNode[]; rationale_edges: RationaleEdge[]; updated_at: string }> {
+  return request(`/projects/${projectId}/graph?user_id=${encodeURIComponent(userId)}`, undefined, PROJECT_TIMEOUT_MS);
 }
 
 export async function saveScript(projectId: string, userId: string, script: Script): Promise<Project> {
@@ -109,6 +126,43 @@ export async function saveBrief(projectId: string, userId: string, text: string,
   return request(`/projects/${projectId}/brief`, {
     method: "POST",
     body: JSON.stringify({ user_id: userId, text, filename })
+  });
+}
+
+export async function parseBrief(
+  projectId: string,
+  userId: string
+): Promise<{ project: Project; parse_summary: Record<string, number> }> {
+  const data = await request<{ project: Project; parse_summary: Record<string, number> }>(
+    `/projects/${projectId}/brief/parse`,
+    {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId })
+    },
+    PROJECT_TIMEOUT_MS
+  );
+  return { ...data, project: normalizeProject(data.project)! };
+}
+
+export async function provisionPersonasFromAnalytics(
+  projectId: string,
+  userId: string,
+  payload: {
+    platform_context?: PlatformContext;
+    content_category?: string;
+    brand_name?: string;
+    video_topic?: string;
+    run_audience_parse?: boolean;
+  } = {}
+): Promise<{
+  personas: Project["personas"];
+  active_persona_id: string | null;
+  project: Project;
+  analytics_meta?: Record<string, unknown>;
+}> {
+  return request(`/projects/${projectId}/persona/provision-from-analytics`, {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId, ...payload })
   });
 }
 

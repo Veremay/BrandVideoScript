@@ -8,7 +8,7 @@ import { PersonaPanel } from "@/components/PersonaPanel";
 import { ScriptGrid } from "@/components/ScriptGrid";
 import { ScriptSnapshotsPanel } from "@/components/ScriptSnapshotsPanel";
 import { staleSummary } from "@/lib/stale";
-import { saveBrief, saveScript } from "@/lib/api";
+import { fetchProjectGraph, parseBrief, saveBrief, saveScript } from "@/lib/api";
 import { useAppStore } from "@/store/appStore";
 
 const MapView = dynamic(() => import("@/components/MapView").then((mod) => mod.MapView), {
@@ -32,6 +32,7 @@ export function EditorShell() {
   } = useAppStore();
   const hasHydrated = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [parsingBrief, setParsingBrief] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
   const [activeView, setActiveView] = useState<"editor" | "map">("editor");
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -62,6 +63,27 @@ export function EditorShell() {
 
     return () => window.clearTimeout(timeoutId);
   }, [editor.saveStatus, project, script, setProject, setSaveStatus]);
+
+  useEffect(() => {
+    if (activeView !== "map" || !project?._id || !project.user_id) return;
+    let cancelled = false;
+    fetchProjectGraph(project._id, project.user_id)
+      .then((graph) => {
+        if (cancelled) return;
+        const current = useAppStore.getState().project;
+        if (!current) return;
+        setProject({
+          ...current,
+          rationale_nodes: graph.rationale_nodes,
+          rationale_edges: graph.rationale_edges,
+          updated_at: graph.updated_at
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [activeView, project?._id, project?.user_id, setProject]);
 
   useEffect(() => {
     if (!settingsOpen) return;
@@ -101,9 +123,18 @@ export function EditorShell() {
 
   async function persistBrief(text: string, filename?: string) {
     if (!project) return;
-    const savedProject = await saveBrief(project._id, project.user_id, text, filename);
-    setProject(savedProject);
-    setCoordinatorChatOpen(true);
+    setParsingBrief(true);
+    try {
+      const savedProject = await saveBrief(project._id, project.user_id, text, filename);
+      setProject(savedProject);
+      setCoordinatorChatOpen(true);
+      const parsed = await parseBrief(savedProject._id, savedProject.user_id);
+      setProject(parsed.project);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Brief parse failed");
+    } finally {
+      setParsingBrief(false);
+    }
   }
 
   async function handleBriefFile(event: React.ChangeEvent<HTMLInputElement>) {
@@ -155,11 +186,19 @@ export function EditorShell() {
 
         <div className="figma-topnav-right">
           <input ref={fileInputRef} accept=".md,.txt,text/markdown,text/plain" hidden onChange={handleBriefFile} type="file" />
-          <button className="figma-nav-btn figma-nav-outline" onClick={() => fileInputRef.current?.click()} type="button">
+          <button
+            className="figma-nav-btn figma-nav-outline"
+            disabled={parsingBrief}
+            onClick={() => fileInputRef.current?.click()}
+            type="button"
+          >
             <IconUpload />
-            Upload Brief
+            {parsingBrief ? "Parsing…" : "Upload Brief"}
           </button>
           {project.brief.filename ? <span className="figma-brief-tag">{project.brief.filename}</span> : null}
+          {project.brief.parse_status ? (
+            <span className="figma-brief-tag figma-brief-tag--status">{project.brief.parse_status}</span>
+          ) : null}
           <button className="figma-nav-btn figma-nav-outline" onClick={handlePersonasClick} type="button">
             <IconPersonas />
             Personas

@@ -104,17 +104,60 @@ export type Persona = {
   trust_trigger: string[];
   reject_trigger: string[];
   data_source: "manual" | "system_generated" | "imported_data";
+  analytics_meta?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 };
+
+export type RationaleSourceType =
+  | "brand_brief"
+  | "brand_feedback"
+  | "brand_inferred"
+  | "audience_persona"
+  | "audience_simulation"
+  | "expert_strategy"
+  | "creator_manual"
+  | "external_reference";
+
+export type RationaleNodeType = "issue" | "position" | "argument" | "reference";
+
+export type RationaleNode = {
+  node_id: string;
+  project_id: string;
+  node_type: RationaleNodeType;
+  title: string;
+  content: string;
+  source_type: RationaleSourceType;
+  source_perspective: string;
+  layout?: { x: number; y: number };
+  status?: string;
+  created_by: string;
+  updated_at: string;
+};
+
+export type RationaleEdge = {
+  edge_id: string;
+  project_id: string;
+  from_node_id: string;
+  to_node_id: string;
+  relation_type: string;
+};
+
+export type PlatformContext = "xiaohongshu" | "douyin" | "bilibili" | "other";
 
 export type Project = {
   _id: string;
   user_id: string;
   title: string;
+  platform_context?: PlatformContext;
   brief: Brief;
   current_script: Script;
   brand_insights: BrandInsight[];
+  brand_perspective_result?: Record<string, unknown> | null;
+  audience_perspective_result?: Record<string, unknown> | null;
+  expert_perspective_result?: Record<string, unknown> | null;
+  rationale_nodes?: RationaleNode[];
+  rationale_edges?: RationaleEdge[];
   personas: Persona[];
   active_persona_id: string | null;
   audience_analysis: Record<string, unknown>;

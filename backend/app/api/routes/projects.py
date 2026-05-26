@@ -4,10 +4,15 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.db.mongo import database_dependency
 from app.models.schemas import (
     ActivePersonaUpdateRequest,
+    BriefParseRequest,
+    BriefParseResponse,
     BriefUpdateRequest,
+    GraphResponse,
     BrandInsightCreateRequest,
     BrandInsightUpdateRequest,
     PersonaCreateRequest,
+    PersonaProvisionRequest,
+    PersonaProvisionResponse,
     PersonaUpdateRequest,
     ProjectCreateRequest,
     ProjectListResponse,
@@ -23,6 +28,7 @@ from app.models.schemas import (
     ScriptSnapshotListResponse,
 )
 from app.repositories.script_snapshots import create_script_snapshot, list_script_snapshots, restore_script_snapshot
+from app.services.coordinator_service import provision_personas_from_analytics, run_brief_initial_parse
 from app.repositories.projects import (
     create_brand_insight,
     create_persona,
@@ -105,6 +111,59 @@ async def save_brief(
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
     return project
+
+
+@router.get("/{project_id}/graph", response_model=GraphResponse)
+async def get_project_graph(
+    project_id: str,
+    user_id: str = Query(min_length=1),
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> dict:
+    project = await get_project(db, project_id, user_id.strip())
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {
+        "rationale_nodes": project.get("rationale_nodes", []),
+        "rationale_edges": project.get("rationale_edges", []),
+        "updated_at": project.get("updated_at", ""),
+    }
+
+
+@router.post("/{project_id}/brief/parse", response_model=BriefParseResponse)
+async def parse_brief(
+    project_id: str,
+    payload: BriefParseRequest,
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> dict:
+    try:
+        return await run_brief_initial_parse(db, project_id, payload.user_id.strip())
+    except ValueError as exc:
+        message = str(exc)
+        status_code = 404 if message == "Project not found" else 400
+        raise HTTPException(status_code=status_code, detail=message) from exc
+
+
+@router.post("/{project_id}/persona/provision-from-analytics", response_model=PersonaProvisionResponse)
+async def provision_persona_from_analytics(
+    project_id: str,
+    payload: PersonaProvisionRequest,
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> dict:
+    try:
+        return await provision_personas_from_analytics(
+            db,
+            project_id,
+            payload.user_id.strip(),
+            platform_context=payload.platform_context,
+            content_category=payload.content_category,
+            brand_name=payload.brand_name,
+            video_topic=payload.video_topic,
+            run_audience_parse=payload.run_audience_parse,
+        )
+    except ValueError as exc:
+        message = str(exc)
+        status_code = 404 if message == "Project not found" else 400
+        raise HTTPException(status_code=status_code, detail=message) from exc
 
 
 @router.post("/{project_id}/agents/brand/insights", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)

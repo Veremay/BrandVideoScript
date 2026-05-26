@@ -21,6 +21,9 @@ import {
 import "@xyflow/react/dist/style.css";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
+import type { RationaleEdge, RationaleNode, RationaleSourceType } from "@/lib/types";
+import { useAppStore } from "@/store/appStore";
+
 type MapNodeType = "issue" | "position" | "argument";
 
 type IbisNodeData = {
@@ -28,6 +31,7 @@ type IbisNodeData = {
   title: string;
   content: string;
   width: number;
+  sourceType?: RationaleSourceType;
   proposalCount?: number;
   reference?: string;
 } & Record<string, unknown>;
@@ -50,68 +54,64 @@ type EdgeMenuState = {
 };
 
 
-const MAP_NODE_SEEDS: MapNodeSeed[] = [
-  {
-    id: "issue-root",
-    nodeType: "issue",
-    title: "Brand Identity Issue",
-    content: "Lack of consistent visual narrative across social channels leads to fragmentation.",
-    x: 164,
-    y: 250,
-    width: 224,
-    proposalCount: 2
-  },
-  {
-    id: "position-audience",
-    nodeType: "position",
-    title: "Audience Preference",
-    content: "Gen-Z segments prioritize raw, unpolished aesthetics over high-gloss production.",
-    x: 564,
-    y: 100,
-    width: 224
-  },
-  {
-    id: "position-technical",
-    nodeType: "position",
-    title: "Technical Feasibility",
-    content: "Internal rendering pipeline can't support 4K 60fps for all weekly content drops.",
-    x: 564,
-    y: 400,
-    width: 224
-  },
-  {
-    id: "argument-expert",
-    nodeType: "argument",
-    title: "Expert Refinement",
-    content: "Creative Director suggests blending lo-fi textures with high-quality typography for contrast.",
-    x: 964,
-    y: 153,
-    width: 256
-  },
-  {
-    id: "argument-hardware",
-    nodeType: "argument",
-    title: "Hardware Constraint",
-    content: "Current GPU farm load peaks at 88%, causing thermal throttling during multi-pass exports.",
-    x: 964,
-    y: 400,
-    width: 256,
-    reference: "ref: system_audit_v4.json"
-  }
-];
-
-const MAP_EDGE_SEEDS: MapEdgeSeed[] = [
-  { from: "issue-root", to: "position-audience" },
-  { from: "issue-root", to: "position-technical" },
-  { from: "position-audience", to: "argument-expert" },
-  { from: "position-technical", to: "argument-hardware" }
-];
-
 const LEGEND_ITEMS: Array<{ type: MapNodeType; label: string }> = [
   { type: "issue", label: "Issue" },
   { type: "position", label: "Position" },
   { type: "argument", label: "Argument" }
 ];
+
+const SOURCE_LEGEND: Array<{ source: RationaleSourceType; label: string }> = [
+  { source: "brand_brief", label: "Brand · Brief" },
+  { source: "brand_inferred", label: "Brand · Inferred" },
+  { source: "audience_persona", label: "Audience · Persona" },
+  { source: "audience_simulation", label: "Audience · Simulation" },
+  { source: "expert_strategy", label: "Expert" }
+];
+
+function sourceLabel(source?: RationaleSourceType): string {
+  if (!source) return "";
+  return SOURCE_LEGEND.find((item) => item.source === source)?.label ?? source;
+}
+
+const EDGE_STYLE = { stroke: "#7ed4fd", strokeWidth: 2 };
+
+function rationaleToFlowNode(node: RationaleNode, index: number): Node<IbisNodeData> | null {
+  if (!node.node_id || !node.title) return null;
+  const rawType = node.node_type === "reference" ? "argument" : node.node_type;
+  const nodeType = (["issue", "position", "argument"].includes(rawType) ? rawType : "issue") as MapNodeType;
+  const width = nodeType === "argument" ? 256 : 224;
+  const height = 132;
+  const position = {
+    x: 120 + (index % 4) * 300,
+    y: 80 + Math.floor(index / 4) * 200
+  };
+  return {
+    id: node.node_id,
+    type: "ibis",
+    position,
+    width,
+    height,
+    style: { width, height },
+    data: {
+      nodeType,
+      title: node.title,
+      content: node.content,
+      width,
+      sourceType: node.source_type
+    }
+  };
+}
+
+function rationaleToFlowEdge(edge: RationaleEdge): Edge {
+  return {
+    id: edge.edge_id,
+    source: edge.from_node_id,
+    target: edge.to_node_id,
+    type: "smoothstep",
+    style: EDGE_STYLE,
+    reconnectable: true
+  };
+}
 
 const NODE_DEFAULTS: Record<MapNodeType, Pick<IbisNodeData, "title" | "content" | "width">> = {
   issue: {
@@ -130,8 +130,6 @@ const NODE_DEFAULTS: Record<MapNodeType, Pick<IbisNodeData, "title" | "content" 
     width: 256
   }
 };
-
-const EDGE_STYLE = { stroke: "#7ed4fd", strokeWidth: 2 };
 
 const MapGraphActionsContext = createContext<{
   editingNodeId: string | null;
@@ -179,20 +177,33 @@ function createFlowEdge(connection: Connection): Edge {
   };
 }
 
-const initialNodes = MAP_NODE_SEEDS.map(toFlowNode);
-const initialEdges = MAP_EDGE_SEEDS.map(toFlowEdge);
-
 export function MapView() {
+  const project = useAppStore((state) => state.project);
+  const graphKey = `${project?._id ?? "none"}:${project?.updated_at ?? ""}:${project?.rationale_nodes?.length ?? 0}`;
+
   return (
     <ReactFlowProvider>
-      <MapViewContent />
+      <MapViewContent key={graphKey} />
     </ReactFlowProvider>
   );
 }
 
 function MapViewContent() {
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const project = useAppStore((state) => state.project);
+  const flowNodes = useMemo(() => {
+    return (project?.rationale_nodes ?? [])
+      .map(rationaleToFlowNode)
+      .filter((node): node is Node<IbisNodeData> => node !== null);
+  }, [project?.rationale_nodes]);
+  const flowNodeIds = useMemo(() => new Set(flowNodes.map((node) => node.id)), [flowNodes]);
+  const flowEdges = useMemo(() => {
+    return (project?.rationale_edges ?? [])
+      .map(rationaleToFlowEdge)
+      .filter((edge) => flowNodeIds.has(edge.source) && flowNodeIds.has(edge.target));
+  }, [flowNodeIds, project?.rationale_edges]);
+
+  const [nodes, setNodes, onNodesChange] = useNodesState(flowNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(flowEdges);
   const [addNodeMenuOpen, setAddNodeMenuOpen] = useState(false);
   const [edgeMenu, setEdgeMenu] = useState<EdgeMenuState | null>(null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
@@ -213,6 +224,12 @@ function MapViewContent() {
     fitView({ padding: 0.25, duration: 150 });
     hasFittedRef.current = true;
   }, [fitView]);
+
+  useEffect(() => {
+    setNodes(flowNodes);
+    setEdges(flowEdges);
+    hasFittedRef.current = false;
+  }, [flowNodes, flowEdges, setEdges, setNodes]);
 
   const handleFlowInit = useCallback(() => {
     requestAnimationFrame(() => runFitView());
@@ -374,8 +391,20 @@ function MapViewContent() {
     [editingNodeId, handleCancelEdit, handleDeleteNode, handleSaveEdit, handleStartEdit]
   );
 
+  const emptyGraph = flowNodes.length === 0;
+
   return (
     <section className="map-workspace" ref={workspaceRef}>
+      {!emptyGraph ? (
+        <div className="map-graph-status" aria-live="polite">
+          {flowNodes.length} nodes · {flowEdges.length} edges
+        </div>
+      ) : null}
+      {emptyGraph ? (
+        <div className="map-empty-state">
+          <p>Upload a Brief and run parse, or provision Personas from analytics, to populate the IBIS graph.</p>
+        </div>
+      ) : null}
       <MapGraphActionsContext.Provider value={graphActions}>
         <ReactFlow
           className="map-flow"
@@ -560,7 +589,10 @@ function IbisNode({ data, id }: NodeProps) {
         style={{ width: nodeData.width }}
       >
         <header className="map-node-header">
-          <span className="map-node-label">{nodeData.nodeType}</span>
+          <span className="map-node-label">
+            {nodeData.nodeType}
+            {nodeData.sourceType ? <em className="map-node-source">{sourceLabel(nodeData.sourceType)}</em> : null}
+          </span>
           <div className="map-node-menu-wrap" ref={menuRef}>
             <button
               aria-expanded={isEditing ? undefined : menuOpen}

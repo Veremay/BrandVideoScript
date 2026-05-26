@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { createPersona, deletePersona, setActivePersona, updatePersona } from "@/lib/api";
+import { createPersona, deletePersona, provisionPersonasFromAnalytics, setActivePersona, updatePersona } from "@/lib/api";
+import type { PlatformContext } from "@/lib/types";
 import { getPersonaEmoji, randomPersonaEmoji } from "@/lib/personaEmoji";
 import type { Persona, PersonaAdSensitivity } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
@@ -72,6 +73,7 @@ export function PersonaPanel({ open, onClose }: PersonaPanelProps) {
   const [baselineDraft, setBaselineDraft] = useState<PersonaDraft>(EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [provisioning, setProvisioning] = useState(false);
 
   const personas = project?.personas ?? [];
   const selectedPersona = useMemo(
@@ -149,6 +151,33 @@ export function PersonaPanel({ open, onClose }: PersonaPanelProps) {
       return false;
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleProvisionFromAnalytics() {
+    setProvisioning(true);
+    try {
+      const platform = (currentProject.platform_context ?? "xiaohongshu") as PlatformContext;
+      const result = await provisionPersonasFromAnalytics(currentProject._id, currentProject.user_id, {
+        platform_context: platform,
+        run_audience_parse: true
+      });
+      if (result.project) {
+        setProject(result.project);
+        const activeId = result.active_persona_id ?? result.project.personas[0]?.persona_id ?? null;
+        setPendingActiveId(activeId);
+        setSelectedId(activeId);
+        const persona = result.project.personas.find((item) => item.persona_id === activeId);
+        if (persona) {
+          const nextDraft = personaToDraft(persona);
+          setDraft(nextDraft);
+          setBaselineDraft(nextDraft);
+        }
+      }
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Persona provision failed");
+    } finally {
+      setProvisioning(false);
     }
   }
 
@@ -236,10 +265,20 @@ export function PersonaPanel({ open, onClose }: PersonaPanelProps) {
               Define and refine your target audience profiles to optimize BrandVideo&apos;s engagement feedback loop.
             </p>
           </div>
-          <button className="persona-add-btn" disabled={creating} onClick={handleAddPersona} type="button">
-            <IconPlus />
-            Add New Persona
-          </button>
+          <div className="persona-panel-actions">
+            <button
+              className="persona-add-btn persona-add-btn-secondary"
+              disabled={provisioning}
+              onClick={handleProvisionFromAnalytics}
+              type="button"
+            >
+              {provisioning ? "Generating…" : "From Analytics"}
+            </button>
+            <button className="persona-add-btn" disabled={creating} onClick={handleAddPersona} type="button">
+              <IconPlus />
+              Add New Persona
+            </button>
+          </div>
         </header>
 
         <div className="persona-panel-body">

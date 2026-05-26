@@ -141,15 +141,53 @@ class ActivePersonaUpdateRequest(BaseModel):
     persona_id: str | None = None
 
 
+class BriefParseRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+
+
+class PersonaProvisionRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    platform_context: Literal["xiaohongshu", "douyin", "bilibili", "other"] = "xiaohongshu"
+    content_category: str | None = Field(default=None, max_length=120)
+    brand_name: str | None = Field(default=None, max_length=120)
+    video_topic: str | None = Field(default=None, max_length=200)
+    run_audience_parse: bool = True
+
+
+class GraphResponse(BaseModel):
+    rationale_nodes: list[dict[str, Any]] = Field(default_factory=list)
+    rationale_edges: list[dict[str, Any]] = Field(default_factory=list)
+    updated_at: str
+
+
+class BriefParseResponse(BaseModel):
+    project: dict[str, Any]
+    parse_summary: dict[str, Any]
+
+
+class PersonaProvisionResponse(BaseModel):
+    personas: list[dict[str, Any]]
+    active_persona_id: str | None
+    analytics_meta: dict[str, Any] | None = None
+    project: dict[str, Any] | None = None
+    audience_parse: dict[str, Any] | None = None
+
+
 class ProjectResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str = Field(alias="_id")
     user_id: str
     title: str
+    platform_context: str = "other"
     brief: dict[str, Any]
     current_script: dict[str, Any]
     brand_insights: list[dict[str, Any]]
+    brand_perspective_result: dict[str, Any] | None = None
+    audience_perspective_result: dict[str, Any] | None = None
+    expert_perspective_result: dict[str, Any] | None = None
+    rationale_nodes: list[dict[str, Any]] = Field(default_factory=list)
+    rationale_edges: list[dict[str, Any]] = Field(default_factory=list)
     personas: list[dict[str, Any]]
     active_persona_id: str | None
     audience_analysis: dict[str, Any]

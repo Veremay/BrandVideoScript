@@ -17,7 +17,7 @@ class BrandOpsTest(unittest.TestCase):
 
         self.assertEqual(brief["filename"], "launch.md")
         self.assertEqual(brief["text"], "Main selling point: quiet motor.\nCreator must show a real commute.\nAvoid hard-sell language.")
-        self.assertEqual(brief["parse_status"], "parsed")
+        self.assertEqual(brief["parse_status"], "pending")
         self.assertIn("Main selling point", brief["summary"])
         self.assertIsNotNone(brief["uploaded_at"])
 

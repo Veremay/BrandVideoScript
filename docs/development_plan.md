@@ -297,9 +297,9 @@ BrandVideo/
 
 ### 7.3 Phase 2 — Brief 与初始解析
 
-- [ ] Brief MD/TXT/粘贴入库
-- [ ] 初始 Persona 与 IBIS 节点生成
-- [ ] 节点 `source_type` 可区分 Brand / Audience / Expert
+- [x] Brief MD/TXT/粘贴入库
+- [x] 初始 Persona 与 IBIS 节点生成
+- [x] 节点 `source_type` 可区分 Brand / Audience / Expert
 
 ### 7.4 Phase 3–4 — Coordinator + Graph + Persona
 

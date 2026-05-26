@@ -425,6 +425,11 @@ textarea {
   white-space: nowrap;
 }
 
+.figma-brief-tag--status {
+  max-width: none;
+  text-transform: capitalize;
+}
+
 .figma-save-pill {
   padding: 4px 10px;
   border-radius: 20px;
@@ -492,15 +497,36 @@ textarea {
 
 .map-workspace {
   position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
   width: 100%;
+  min-height: 0;
   overflow: hidden;
   background-color: #faf8ff;
 }
 
 .map-flow {
+  flex: 1;
   width: 100%;
+  min-height: 320px;
   height: 100%;
   background: transparent;
+}
+
+.map-graph-status {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  z-index: 6;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--figma-border);
+  color: var(--figma-text-secondary);
+  font-size: 11px;
+  transform: translateX(-50%);
+  pointer-events: none;
 }
 
 .map-flow .react-flow__background {
@@ -588,6 +614,31 @@ textarea {
 
 .map-node-argument {
   border-color: #7ed4fd;
+}
+
+.map-node-source {
+  display: block;
+  margin-top: 2px;
+  color: var(--figma-text-secondary);
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.map-empty-state {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  pointer-events: none;
+  text-align: center;
+  color: var(--figma-text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .map-node-header {
@@ -2995,6 +3046,20 @@ textarea {
 .persona-add-btn svg {
   width: 14px;
   height: 14px;
+}
+
+.persona-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.persona-add-btn-secondary {
+  background: #fff;
+  border: 1px solid var(--figma-border);
+  box-shadow: none;
+  color: var(--figma-text-primary);
 }
 
 .persona-panel-body {

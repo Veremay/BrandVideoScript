@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 
+import { mergeProjectPreservingGraph, normalizeProject } from "@/lib/normalizeProject";
 import { insertColumn, insertRow, removeColumn, removeRow, renameColumn, updateCellValue } from "@/lib/scriptEditor";
 import type { Project, SaveStatus, Script } from "@/lib/types";
 
@@ -51,12 +52,16 @@ export const useAppStore = create<AppState>((set) => ({
     personaPanelOpen: false
   },
   setUserId: (userId) => set({ userId }),
-  setProjects: (projects) => set({ projects }),
+  setProjects: (projects) => set({ projects: projects.map((p) => normalizeProject(p)!).filter(Boolean) }),
   setProject: (project) =>
-    set({
-      project,
-      script: project?.current_script ?? null,
-      editor: { saveStatus: "saved" }
+    set((state) => {
+      const normalized = normalizeProject(project);
+      const merged = normalized ? mergeProjectPreservingGraph(state.project, normalized) : null;
+      return {
+        project: merged,
+        script: merged?.current_script ?? null,
+        editor: { saveStatus: "saved" }
+      };
     }),
   setScript: (script) => set({ script }),
   updateCell: (rowId, columnId, value) =>
