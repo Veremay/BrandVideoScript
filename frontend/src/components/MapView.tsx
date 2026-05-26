@@ -24,7 +24,6 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 
 import {
   computeIbisLayout,
-  columnX,
   isValidVisualConnection,
   layoutForNode,
   normalizeNodeType,
@@ -259,12 +258,13 @@ function MapViewContent() {
   const [edgeMenu, setEdgeMenu] = useState<EdgeMenuState | null>(null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [syncingMap, setSyncingMap] = useState(false);
-  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
-  const { zoomIn, zoomOut, fitView, screenToFlowPosition } = useReactFlow();
+  const [applyingLayout, setApplyingLayout] = useState(false);
+  const { zoomIn, zoomOut, fitView } = useReactFlow();
   const workspaceRef = useRef<HTMLElement>(null);
   const controlsRef = useRef<HTMLDivElement>(null);
   const edgeMenuRef = useRef<HTMLDivElement>(null);
   const hasFittedRef = useRef(false);
+  const prevNodeCountRef = useRef(0);
 
   const closeMenus = useCallback(() => {
     setAddNodeMenuOpen(false);
@@ -283,6 +283,14 @@ function MapViewContent() {
     setEdges(flowEdges);
     hasFittedRef.current = false;
   }, [flowNodes, flowEdges, setEdges, setNodes]);
+
+  useEffect(() => {
+    const count = rationaleNodes.length;
+    if (count > prevNodeCountRef.current) {
+      requestAnimationFrame(() => runFitView());
+    }
+    prevNodeCountRef.current = count;
+  }, [rationaleNodes.length, runFitView]);
 
   const handleFlowInit = useCallback(() => {
     requestAnimationFrame(() => runFitView());
@@ -380,7 +388,6 @@ function MapViewContent() {
       }
 
       setEditingNodeId((current) => (current && uniqueIds.includes(current) ? null : current));
-      setSelectedNodeIds((current) => current.filter((id) => !uniqueIds.includes(id)));
 
       try {
         let updated = project;
@@ -423,10 +430,6 @@ function MapViewContent() {
     [handleDeleteNodes]
   );
 
-  const handleSelectionChange = useCallback(({ nodes: selected }: { nodes: Node[] }) => {
-    setSelectedNodeIds(selected.map((node) => node.id));
-  }, []);
-
   const handleToggleNegotiation = useCallback(
     async (nodeId: string, inQueue: boolean) => {
       if (!project) return;
@@ -444,32 +447,59 @@ function MapViewContent() {
     async (nodeType: MapNodeType) => {
       if (!project) return;
       const defaults = NODE_DEFAULTS[nodeType];
-      const pane = document.querySelector(".map-flow");
-      const rect = pane?.getBoundingClientRect();
-      const center = rect
-        ? screenToFlowPosition({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 })
-        : { x: 320, y: 240 };
-      const column = normalizeNodeType(nodeType);
-      const sameColumnCount = nodes.filter((node) => normalizeNodeType(node.data.nodeType) === column).length;
-      const offset = (sameColumnCount % 6) * 28;
-      const layout = {
-        x: columnX(column),
-        y: center.y - NODE_HEIGHT / 2 + offset
-      };
       setAddNodeMenuOpen(false);
       try {
         const updated = await createGraphNode(project._id, project.user_id, {
           node_type: nodeType,
           title: defaults.title,
-          content: defaults.content,
-          layout
+          content: defaults.content
         });
         setProject(updated);
       } catch (error) {
         window.alert(error instanceof Error ? error.message : "Failed to create node");
       }
     },
-    [nodes.length, project, screenToFlowPosition, setProject]
+    [project, setProject]
+  );
+
+  const handleAutoLayout = useCallback(
+    async (options?: { fitView?: boolean }) => {
+      if (!project || applyingLayout) return;
+      const layouts = computeIbisLayout(rationaleNodes, rationaleEdges);
+      if (layouts.size === 0) return;
+
+      setApplyingLayout(true);
+      setNodes((current) =>
+        current.map((node) => {
+          const next = layouts.get(node.id);
+          return next ? { ...node, position: next } : node;
+        })
+      );
+
+      try {
+        await Promise.all(
+          [...layouts.entries()].map(([nodeId, layout]) =>
+            updateGraphNode(project._id, project.user_id, nodeId, { layout })
+          )
+        );
+        setProject({
+          ...project,
+          rationale_nodes: (project.rationale_nodes ?? []).map((node) => {
+            const layout = layouts.get(node.node_id);
+            return layout ? { ...node, layout } : node;
+          })
+        });
+        if (options?.fitView !== false) {
+          window.setTimeout(() => runFitView(), 80);
+        }
+      } catch (error) {
+        window.alert(error instanceof Error ? error.message : "Failed to apply layout");
+        setProject(project);
+      } finally {
+        setApplyingLayout(false);
+      }
+    },
+    [applyingLayout, project, rationaleEdges, rationaleNodes, runFitView, setNodes, setProject]
   );
 
   const handleConnect = useCallback(
@@ -581,7 +611,25 @@ function MapViewContent() {
     setSyncingMap(true);
     try {
       const updated = await syncMapFromScript(project._id, project.user_id);
-      setProject(updated);
+      const nextNodes = updated.rationale_nodes ?? [];
+      const nextEdges = updated.rationale_edges ?? [];
+      const layouts = computeIbisLayout(nextNodes, nextEdges);
+      if (layouts.size > 0) {
+        await Promise.all(
+          [...layouts.entries()].map(([nodeId, layout]) =>
+            updateGraphNode(project._id, project.user_id, nodeId, { layout })
+          )
+        );
+        setProject({
+          ...updated,
+          rationale_nodes: nextNodes.map((node) => {
+            const layout = layouts.get(node.node_id);
+            return layout ? { ...node, layout } : node;
+          })
+        });
+      } else {
+        setProject(updated);
+      }
       window.setTimeout(() => runFitView(), 80);
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "Failed to update map");
@@ -632,6 +680,7 @@ function MapViewContent() {
           panOnDrag={[1, 2]}
           selectionMode={SelectionMode.Partial}
           selectionOnDrag
+          selectNodesOnDrag={false}
           isValidConnection={isValidConnection}
           onConnect={handleConnect}
           onBeforeDelete={handleBeforeDelete}
@@ -644,7 +693,6 @@ function MapViewContent() {
           onNodeDragStop={handleNodeDragStop}
           onPaneClick={closeMenus}
           onReconnect={handleReconnect}
-          onSelectionChange={handleSelectionChange}
           proOptions={{ hideAttribution: true }}
         >
           <Background color="#d4efff" gap={30} size={1.5} variant={BackgroundVariant.Dots} />
@@ -723,23 +771,19 @@ function MapViewContent() {
               <IconMinus />
             </button>
             <div className="map-control-divider" />
+            <button
+              aria-label="Auto layout"
+              className="map-control-btn"
+              disabled={applyingLayout || emptyGraph}
+              onClick={() => void handleAutoLayout()}
+              title="Auto layout"
+              type="button"
+            >
+              <IconAutoLayout />
+            </button>
             <button aria-label="Fit view" className="map-control-btn" onClick={() => fitView({ padding: 0.25 })} type="button">
               <IconFocus />
             </button>
-            {selectedNodeIds.length > 0 ? (
-              <>
-                <div className="map-control-divider" />
-                <button
-                  aria-label={`Delete ${selectedNodeIds.length} selected nodes`}
-                  className="map-control-btn map-control-btn-delete"
-                  onClick={() => void handleDeleteNodes(selectedNodeIds)}
-                  type="button"
-                >
-                  <IconTrash />
-                  <span className="map-control-btn-badge">{selectedNodeIds.length}</span>
-                </button>
-              </>
-            ) : null}
           </div>
 
           {addNodeMenuOpen ? (
@@ -944,17 +988,6 @@ function IbisNode({ data, id }: NodeProps) {
   );
 }
 
-function IconTrash() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <polyline points="3 6 5 6 21 6" />
-      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-      <line x1="10" y1="11" x2="10" y2="17" />
-      <line x1="14" y1="11" x2="14" y2="17" />
-    </svg>
-  );
-}
-
 function IconAddNode() {
   return (
     <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
@@ -987,6 +1020,17 @@ function IconFocus() {
     <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
       <rect height="12" rx="1.5" width="12" x="3" y="3" />
       <circle cx="9" cy="9" r="1.5" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function IconAutoLayout() {
+  return (
+    <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+      <rect height="4" rx="1" width="4" x="2" y="2" />
+      <rect height="4" rx="1" width="4" x="12" y="2" />
+      <rect height="4" rx="1" width="4" x="7" y="12" />
+      <path d="M6 4h6M9 6v6" strokeLinecap="round" />
     </svg>
   );
 }
