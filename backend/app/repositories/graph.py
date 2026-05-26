@@ -5,7 +5,7 @@ from typing import Any
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.artifact_stale import stale_set_fields
-from app.models.rationale_ops import build_rationale_edge, build_rationale_node
+from app.models.rationale_ops import build_rationale_edge, build_rationale_node, validate_ibis_edge
 from app.models.script import now_iso
 from app.repositories.projects import get_project
 
@@ -115,6 +115,13 @@ async def create_graph_edge(
     project = await get_project(db, project_id, user_id)
     if project is None:
         return None
+
+    nodes_by_id = {n.get("node_id"): n for n in project.get("rationale_nodes", []) if n.get("node_id")}
+    from_node = nodes_by_id.get(from_node_id)
+    to_node = nodes_by_id.get(to_node_id)
+    if from_node is None or to_node is None:
+        raise ValueError("Node not found")
+    validate_ibis_edge(from_node, to_node, relation_type)
 
     edge = build_rationale_edge(
         project_id=project_id,

@@ -21,6 +21,16 @@ import {
 import "@xyflow/react/dist/style.css";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
+import {
+  computeIbisLayout,
+  columnX,
+  isValidVisualConnection,
+  layoutForNode,
+  normalizeNodeType,
+  NODE_HEIGHT,
+  resolveFlowEndpoints,
+  visualConnectionToStored
+} from "@/lib/ibisLayout";
 import type { RationaleEdge, RationaleNode, RationaleSourceType } from "@/lib/types";
 import {
   createGraphEdge,
@@ -84,19 +94,19 @@ function sourceLabel(source?: RationaleSourceType): string {
 }
 
 const EDGE_STYLE = { stroke: "#7ed4fd", strokeWidth: 2 };
+const FLOW_EDGE_TYPE = "default";
 
-function rationaleToFlowNode(node: RationaleNode, index: number): Node<IbisNodeData> | null {
+function rationaleToFlowNode(
+  node: RationaleNode,
+  index: number,
+  autoLayouts: Map<string, { x: number; y: number }>
+): Node<IbisNodeData> | null {
   if (!node.node_id || !node.title) return null;
   const rawType = node.node_type === "reference" ? "argument" : node.node_type;
   const nodeType = (["issue", "position", "argument"].includes(rawType) ? rawType : "issue") as MapNodeType;
   const width = nodeType === "argument" ? 256 : 224;
-  const height = 132;
-  const position = node.layout
-    ? { x: node.layout.x, y: node.layout.y }
-    : {
-        x: 120 + (index % 4) * 300,
-        y: 80 + Math.floor(index / 4) * 200
-      };
+  const height = NODE_HEIGHT;
+  const position = layoutForNode(node, index, autoLayouts);
   return {
     id: node.node_id,
     type: "ibis",
@@ -116,12 +126,14 @@ function rationaleToFlowNode(node: RationaleNode, index: number): Node<IbisNodeD
   };
 }
 
-function rationaleToFlowEdge(edge: RationaleEdge): Edge {
+function rationaleToFlowEdge(edge: RationaleEdge, nodeById: Map<string, RationaleNode>): Edge | null {
+  const endpoints = resolveFlowEndpoints(edge, nodeById);
+  if (!endpoints) return null;
   return {
     id: edge.edge_id,
-    source: edge.from_node_id,
-    target: edge.to_node_id,
-    type: "smoothstep",
+    source: endpoints.source,
+    target: endpoints.target,
+    type: FLOW_EDGE_TYPE,
     style: EDGE_STYLE,
     reconnectable: true
   };
@@ -173,7 +185,7 @@ function toFlowEdge(seed: MapEdgeSeed): Edge {
     id: `${seed.from}-${seed.to}`,
     source: seed.from,
     target: seed.to,
-    type: "smoothstep",
+    type: FLOW_EDGE_TYPE,
     style: EDGE_STYLE,
     reconnectable: true
   };
@@ -186,7 +198,7 @@ function createFlowEdge(connection: Connection): Edge {
     target: connection.target,
     sourceHandle: connection.sourceHandle,
     targetHandle: connection.targetHandle,
-    type: "smoothstep",
+    type: FLOW_EDGE_TYPE,
     style: EDGE_STYLE,
     reconnectable: true
   };
@@ -206,17 +218,37 @@ export function MapView() {
 function MapViewContent() {
   const project = useAppStore((state) => state.project);
   const setProject = useAppStore((state) => state.setProject);
+  const rationaleNodes = project?.rationale_nodes ?? [];
+  const rationaleEdges = project?.rationale_edges ?? [];
+  const nodeById = useMemo(
+    () => new Map(rationaleNodes.map((node) => [node.node_id, node])),
+    [rationaleNodes]
+  );
+  const autoLayouts = useMemo(
+    () => computeIbisLayout(rationaleNodes, rationaleEdges),
+    [rationaleNodes, rationaleEdges]
+  );
   const flowNodes = useMemo(() => {
-    return (project?.rationale_nodes ?? [])
-      .map(rationaleToFlowNode)
+    return rationaleNodes
+      .map((node, index) => rationaleToFlowNode(node, index, autoLayouts))
       .filter((node): node is Node<IbisNodeData> => node !== null);
-  }, [project?.rationale_nodes]);
+  }, [autoLayouts, rationaleNodes]);
   const flowNodeIds = useMemo(() => new Set(flowNodes.map((node) => node.id)), [flowNodes]);
   const flowEdges = useMemo(() => {
-    return (project?.rationale_edges ?? [])
-      .map(rationaleToFlowEdge)
-      .filter((edge) => flowNodeIds.has(edge.source) && flowNodeIds.has(edge.target));
-  }, [flowNodeIds, project?.rationale_edges]);
+    return rationaleEdges
+      .map((edge) => rationaleToFlowEdge(edge, nodeById))
+      .filter((edge): edge is Edge => edge !== null && flowNodeIds.has(edge.source) && flowNodeIds.has(edge.target));
+  }, [flowNodeIds, nodeById, rationaleEdges]);
+
+  const isValidConnection = useCallback(
+    (connection: Connection | Edge) => {
+      const source = connection.source;
+      const target = connection.target;
+      if (!source || !target || source === target) return false;
+      return isValidVisualConnection(source, target, nodeById);
+    },
+    [nodeById]
+  );
 
   const [nodes, setNodes, onNodesChange] = useNodesState(flowNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(flowEdges);
@@ -364,8 +396,13 @@ function MapViewContent() {
       const center = rect
         ? screenToFlowPosition({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 })
         : { x: 320, y: 240 };
-      const offset = (nodes.length % 6) * 28;
-      const layout = { x: center.x - defaults.width / 2 + offset, y: center.y - 80 + offset };
+      const column = normalizeNodeType(nodeType);
+      const sameColumnCount = nodes.filter((node) => normalizeNodeType(node.data.nodeType) === column).length;
+      const offset = (sameColumnCount % 6) * 28;
+      const layout = {
+        x: columnX(column),
+        y: center.y - NODE_HEIGHT / 2 + offset
+      };
       setAddNodeMenuOpen(false);
       try {
         const updated = await createGraphNode(project._id, project.user_id, {
@@ -384,7 +421,10 @@ function MapViewContent() {
 
   const handleConnect = useCallback(
     async (connection: Connection) => {
-      if (!connection.source || !connection.target || connection.source === connection.target || !project) return;
+      if (!connection.source || !connection.target || !project) return;
+      const stored = visualConnectionToStored(connection.source, connection.target, nodeById);
+      if (!stored) return;
+
       setEdges((current) => {
         const exists = current.some((edge) => edge.source === connection.source && edge.target === connection.target);
         if (exists) return current;
@@ -394,21 +434,23 @@ function MapViewContent() {
         const updated = await createGraphEdge(
           project._id,
           project.user_id,
-          connection.source,
-          connection.target,
-          "responds_to"
+          stored.from_node_id,
+          stored.to_node_id,
+          stored.relation_type
         );
         setProject(updated);
       } catch (error) {
+        setEdges(flowEdges);
         window.alert(error instanceof Error ? error.message : "Failed to create edge");
       }
     },
-    [project, setEdges, setProject]
+    [flowEdges, nodeById, project, setEdges, setProject]
   );
 
   const handleReconnect = useCallback(
     (oldEdge: Edge, newConnection: Connection) => {
-      if (!newConnection.source || !newConnection.target || newConnection.source === newConnection.target) return;
+      if (!newConnection.source || !newConnection.target) return;
+      if (!isValidVisualConnection(newConnection.source, newConnection.target, nodeById)) return;
       setEdges((current) => {
         const withoutOld = current.filter((edge) => edge.id !== oldEdge.id);
         if (withoutOld.some((edge) => edge.source === newConnection.source && edge.target === newConnection.target)) {
@@ -418,7 +460,7 @@ function MapViewContent() {
       });
       closeMenus();
     },
-    [closeMenus, setEdges]
+    [closeMenus, nodeById, setEdges]
   );
 
   const handleDeleteEdge = useCallback(
@@ -495,7 +537,7 @@ function MapViewContent() {
         <ReactFlow
           className="map-flow"
           connectionLineStyle={EDGE_STYLE}
-          defaultEdgeOptions={{ style: EDGE_STYLE, type: "smoothstep", reconnectable: true }}
+          defaultEdgeOptions={{ style: EDGE_STYLE, type: FLOW_EDGE_TYPE, reconnectable: true }}
           deleteKeyCode={["Backspace", "Delete"]}
           edges={edges}
           edgesReconnectable
@@ -506,6 +548,7 @@ function MapViewContent() {
           nodes={nodes}
           nodesConnectable
           nodesDraggable={!editingNodeId}
+          isValidConnection={isValidConnection}
           onConnect={handleConnect}
           onEdgeContextMenu={handleEdgeContextMenu}
           onEdgesChange={onEdgesChange}
@@ -548,15 +591,6 @@ function MapViewContent() {
             {LEGEND_ITEMS.map((item) => (
               <li key={item.type}>
                 <span className={`map-legend-dot dot-${item.type}`} />
-                <span>{item.label}</span>
-              </li>
-            ))}
-          </ul>
-          <h3 className="map-legend-subtitle">Source colors</h3>
-          <ul className="map-legend-list map-legend-sources">
-            {SOURCE_LEGEND.map((item) => (
-              <li key={item.source}>
-                <span className={`map-source-dot source-${item.source}`} />
                 <span>{item.label}</span>
               </li>
             ))}
@@ -693,9 +727,14 @@ function IbisNode({ data, id }: NodeProps) {
     actions?.onSaveEdit(id, draftTitle, draftContent);
   };
 
+  const showTargetHandle = nodeData.nodeType === "position" || nodeData.nodeType === "argument";
+  const showSourceHandle = nodeData.nodeType === "issue" || nodeData.nodeType === "position";
+
   return (
     <>
-      <Handle className="map-node-handle map-node-handle-target" position={Position.Left} type="target" />
+      {showTargetHandle ? (
+        <Handle className="map-node-handle map-node-handle-target" position={Position.Left} type="target" />
+      ) : null}
       <article
         className={`map-node map-node-${nodeData.nodeType}${isEditing ? " map-node-editing" : ""}`}
         style={{ width: nodeData.width }}
@@ -797,7 +836,9 @@ function IbisNode({ data, id }: NodeProps) {
           </div>
         ) : null}
       </article>
-      <Handle className="map-node-handle map-node-handle-source" position={Position.Right} type="source" />
+      {showSourceHandle ? (
+        <Handle className="map-node-handle map-node-handle-source" position={Position.Right} type="source" />
+      ) : null}
     </>
   );
 }

@@ -1,6 +1,6 @@
 import unittest
 
-from app.models.rationale_ops import build_rationale_node, merge_proposed_graph
+from app.models.rationale_ops import build_rationale_node, merge_proposed_graph, validate_ibis_edge
 
 
 class GraphMergeTest(unittest.TestCase):
@@ -32,6 +32,24 @@ class GraphMergeTest(unittest.TestCase):
         titles = {node["title"] for node in nodes}
         self.assertIn("User issue", titles)
         self.assertIn("Agent issue", titles)
+
+
+class IbisEdgeValidationTest(unittest.TestCase):
+    def test_validate_allowed_links(self) -> None:
+        issue = {"node_type": "issue"}
+        position = {"node_type": "position"}
+        argument = {"node_type": "argument"}
+        validate_ibis_edge(position, issue, "responds_to")
+        validate_ibis_edge(argument, position, "supports")
+
+    def test_validate_rejects_invalid_links(self) -> None:
+        issue = {"node_type": "issue"}
+        position = {"node_type": "position"}
+        argument = {"node_type": "argument"}
+        with self.assertRaises(ValueError):
+            validate_ibis_edge(position, position, "responds_to")
+        with self.assertRaises(ValueError):
+            validate_ibis_edge(issue, argument, "responds_to")
 
 
 if __name__ == "__main__":

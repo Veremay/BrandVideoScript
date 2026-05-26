@@ -3740,42 +3740,6 @@ textarea {
   color: #b42318;
 }
 
-.map-legend-subtitle {
-  margin: 16px 0 8px;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--figma-text-secondary);
-}
-
-.map-legend-sources {
-  margin-bottom: 8px;
-}
-
-.map-source-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-}
-
-.map-source-dot.source-brand_brief,
-.map-source-dot.source-brand_inferred,
-.map-source-dot.source-brand_feedback {
-  background: #2563eb;
-}
-
-.map-source-dot.source-audience_persona,
-.map-source-dot.source-audience_simulation {
-  background: #16a34a;
-}
-
-.map-source-dot.source-expert_strategy {
-  background: #9333ea;
-}
-
-.map-source-dot.source-creator_manual {
-  background: #64748b;
-}
-
 .map-negotiation-panel {
   margin-top: 12px;
   padding: 14px;

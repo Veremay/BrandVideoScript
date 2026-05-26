@@ -65,11 +65,6 @@ export function RequirementsPanel({ open, onClose }: RequirementsPanelProps) {
     setActiveList((items) => items.filter((item) => item.id !== id));
   }
 
-  function resetDraft() {
-    setExplicit(baselineExplicit);
-    setImplicit(baselineImplicit);
-  }
-
   async function handleSave() {
     const payloadExplicit = toApiRequirements(explicit);
     const payloadImplicit = toApiRequirements(implicit);
@@ -121,9 +116,6 @@ export function RequirementsPanel({ open, onClose }: RequirementsPanelProps) {
             </p>
           </div>
           <div className="persona-panel-actions">
-            <button className="persona-add-btn persona-add-btn-secondary" disabled={saving || !isDirty} onClick={resetDraft} type="button">
-              Reset
-            </button>
             <button className="persona-add-btn" disabled={saving || !isDirty} onClick={handleSave} type="button">
               {saving ? "Saving…" : "Save Changes"}
             </button>

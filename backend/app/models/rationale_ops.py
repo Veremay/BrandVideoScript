@@ -73,6 +73,27 @@ def build_rationale_node(
     }
 
 
+def _ibis_column(node_type: str) -> str:
+    if node_type == "position":
+        return "position"
+    if node_type in {"argument", "reference"}:
+        return "argument"
+    return "issue"
+
+
+def validate_ibis_edge(from_node: dict[str, Any], to_node: dict[str, Any], relation_type: str) -> None:
+    """Canonical storage: position→issue (responds_to), argument→position (supports/opposes)."""
+    from_type = _ibis_column(str(from_node.get("node_type", "issue")))
+    to_type = _ibis_column(str(to_node.get("node_type", "issue")))
+    if from_type == "position" and to_type == "issue" and relation_type == "responds_to":
+        return
+    if from_type == "argument" and to_type == "position" and relation_type in {"supports", "opposes"}:
+        return
+    raise ValueError(
+        "Invalid IBIS link: only position→issue (responds_to) or argument→position (supports/opposes) are allowed"
+    )
+
+
 def build_rationale_edge(
     *,
     project_id: str,

@@ -20,6 +20,8 @@ import type {
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
 const REQUEST_TIMEOUT_MS = 15000;
 const PROJECT_TIMEOUT_MS = 60000;
+/** Brief parse runs Brand + Expert agents sequentially; each LLM call can take ~60s. */
+const BRIEF_PARSE_TIMEOUT_MS = 180000;
 
 async function request<T>(path: string, init?: RequestInit, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
   const controller = new AbortController();
@@ -47,7 +49,10 @@ async function request<T>(path: string, init?: RequestInit, timeoutMs = REQUEST_
     return response.json() as Promise<T>;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error("Backend request timed out. Make sure the API is running at http://localhost:8000.");
+      const seconds = Math.round(timeoutMs / 1000);
+      throw new Error(
+        `Request timed out after ${seconds}s. If you just uploaded a brief, parsing can take 1–2 minutes — wait and retry, or check the backend terminal for progress.`
+      );
     }
     if (error instanceof TypeError) {
       throw new Error("Cannot reach backend. Make sure the API is running at http://localhost:8000.");
@@ -149,7 +154,7 @@ export async function parseBrief(
       method: "POST",
       body: JSON.stringify({ user_id: userId })
     },
-    PROJECT_TIMEOUT_MS
+    BRIEF_PARSE_TIMEOUT_MS
   );
   return { ...data, project: normalizeProject(data.project)! };
 }
