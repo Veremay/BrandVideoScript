@@ -11,6 +11,7 @@ from app.services.agent_llm import (
     perspective_result_json,
     script_excerpt_for_rows,
 )
+from app.services.pipeline_log import log_step
 from app.services.tools.expert_kb import domain_case_retriever, script_structure_kb
 from app.services.tools.ibis_graph import persist_rationale_graph
 
@@ -32,6 +33,7 @@ async def run_expert_for_brief(
     brand_issue_ids = [
         n["node_id"] for n in brand_result.get("proposed_nodes", []) if n.get("node_type") == "issue"
     ]
+    log_step("expert_agent.brief_initial", phase="IN", project_id=project_id, brand_issue_ids=brand_issue_ids)
     context_block = "\n\n".join(
         [
             f"## 场景\nbrief_initial — 为 Brand issue 补 position/argument",
@@ -87,7 +89,7 @@ async def run_expert_for_brief(
         allowed_source_types=EXPERT_SOURCES,
     )
 
-    return {
+    result = {
         "brief_impact_summary": payload.get("brief_impact_summary", ""),
         "creation_constraints": payload.get("creation_constraints") or brand_result.get("constraints") or [],
         "strategy_notes": payload.get("strategy_notes") or kb.get("patterns", []),
@@ -99,6 +101,13 @@ async def run_expert_for_brief(
         "node_updates": graph.node_updates,
         "tool_calls_used": ["domain_case_retriever", "script_structure_kb", "persist_rationale_graph"],
     }
+    log_step(
+        "expert_agent.brief_initial",
+        phase="OUT",
+        project_id=project_id,
+        proposed_nodes=len(result["proposed_nodes"]),
+    )
+    return result
 
 
 async def run_expert_for_audience(
@@ -114,6 +123,12 @@ async def run_expert_for_audience(
     audience_issue_ids = [
         n["node_id"] for n in audience_result.get("proposed_nodes", []) if n.get("node_type") == "issue"
     ]
+    log_step(
+        "expert_agent.audience_persona",
+        phase="IN",
+        project_id=project_id,
+        audience_issue_ids=audience_issue_ids,
+    )
     context_block = "\n\n".join(
         [
             f"## 场景\naudience_persona — 为 Audience issue 补 position/argument",
@@ -157,7 +172,7 @@ async def run_expert_for_audience(
         allowed_source_types=EXPERT_SOURCES,
     )
 
-    return {
+    result = {
         "brief_impact_summary": context.get("brief_summary", "")[:200],
         "creation_constraints": [],
         "strategy_notes": payload.get("strategy_notes") or audience_result.get("suggestions") or [],
@@ -169,6 +184,13 @@ async def run_expert_for_audience(
         "node_updates": graph.node_updates,
         "tool_calls_used": ["persist_rationale_graph"],
     }
+    log_step(
+        "expert_agent.audience_persona",
+        phase="OUT",
+        project_id=project_id,
+        proposed_nodes=len(result["proposed_nodes"]),
+    )
+    return result
 
 
 async def run_expert_coordinator(
@@ -200,6 +222,14 @@ async def run_expert_coordinator(
                 n["node_id"] for n in result.get("proposed_nodes", []) if n.get("node_type") == "issue"
             )
 
+    log_step(
+        "expert_agent.coordinator",
+        phase="IN",
+        project_id=project_id,
+        expert_only=expert_only,
+        user_message=user_message,
+        new_issue_ids=new_issue_ids,
+    )
     context_block = "\n\n".join(
         [
             f"## 场景\ncoordinator — {'Expert 单独分析' if expert_only else '综合 Expert 补图'}",
@@ -274,7 +304,7 @@ async def run_expert_coordinator(
         allowed_source_types=EXPERT_SOURCES,
     )
 
-    return {
+    result = {
         "assistant_reply": payload.get("assistant_reply", ""),
         "strategy_notes": payload.get("strategy_notes") or [],
         "recommended_directions": payload.get("recommended_directions") or [],
@@ -283,3 +313,11 @@ async def run_expert_coordinator(
         "node_updates": graph.node_updates,
         "tool_calls_used": ["persist_rationale_graph"],
     }
+    log_step(
+        "expert_agent.coordinator",
+        phase="OUT",
+        project_id=project_id,
+        proposed_nodes=len(result["proposed_nodes"]),
+        assistant_reply=result["assistant_reply"][:500],
+    )
+    return result

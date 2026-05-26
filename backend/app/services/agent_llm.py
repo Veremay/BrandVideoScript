@@ -4,6 +4,7 @@ import json
 from typing import Any, Callable
 
 from app.services.llm_client import LLMClient
+from app.services.pipeline_log import log_llm_mock, log_step
 from app.services.prompt_loader import load_prompt, render_prompt
 
 
@@ -24,9 +25,17 @@ async def invoke_agent_json(
     system = _agent_system_prompt(agent_prompt_file)
     user = f"根据以下上下文完成分析并输出 JSON。\n\n{context}"
 
+    log_step(
+        f"agent_llm.{agent_prompt_file}",
+        phase="IN",
+        task_type=task_type,
+        system_prompt=system,
+        user_context=context,
+    )
+
     if client.settings.siliconflow_api_key:
         try:
-            return await client.complete_json(
+            result = await client.complete_json(
                 messages=[
                     {"role": "system", "content": system},
                     {"role": "user", "content": user},
@@ -34,9 +43,36 @@ async def invoke_agent_json(
                 task_type=task_type,
                 complexity="high",
             )
-        except Exception:
-            return mock_payload()
-    return mock_payload()
+            log_step(
+                f"agent_llm.{agent_prompt_file}",
+                phase="OUT",
+                task_type=task_type,
+                source="llm",
+                payload=result,
+            )
+            return result
+        except Exception as exc:
+            log_llm_mock(task_type, reason=f"LLM failed, using mock: {exc}")
+            result = mock_payload()
+            log_step(
+                f"agent_llm.{agent_prompt_file}",
+                phase="OUT",
+                task_type=task_type,
+                source="mock_fallback",
+                payload=result,
+            )
+            return result
+
+    log_llm_mock(task_type, reason="no API key")
+    result = mock_payload()
+    log_step(
+        f"agent_llm.{agent_prompt_file}",
+        phase="OUT",
+        task_type=task_type,
+        source="mock_no_key",
+        payload=result,
+    )
+    return result
 
 
 def existing_nodes_summary(project: dict[str, Any], limit: int = 24) -> str:

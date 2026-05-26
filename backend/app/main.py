@@ -6,10 +6,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import coordinator, health, llm, projects, research, users
 from app.core.config import get_cors_origins, get_settings
 from app.db.mongo import close_mongo, connect_mongo
+from app.services.pipeline_log import setup_pipeline_logging
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_pipeline_logging()
     await connect_mongo()
     yield
     await close_mongo()

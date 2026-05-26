@@ -10,6 +10,7 @@ from app.services.agents.expert_agent import (
     run_expert_for_audience,
     run_expert_for_brief,
 )
+from app.services.pipeline_log import log_step
 from app.services.tools.ibis_graph import apply_node_updates
 
 
@@ -30,29 +31,71 @@ def _extend_graph(result: AgentPipelineResult, agent_output: dict[str, Any]) -> 
     result.node_updates.extend(agent_output.get("node_updates") or [])
 
 
+def _log_agent_output(step: str, output: dict[str, Any]) -> None:
+    log_step(
+        step,
+        phase="OUT",
+        proposed_nodes=len(output.get("proposed_nodes") or []),
+        proposed_edges=len(output.get("proposed_edges") or []),
+        node_updates=len(output.get("node_updates") or []),
+        assistant_reply=(output.get("assistant_reply") or "")[:500],
+        summary={k: v for k, v in output.items() if k not in {"proposed_nodes", "proposed_edges", "node_updates"}},
+    )
+
+
 async def run_brief_initial_pipeline(project: dict[str, Any]) -> AgentPipelineResult:
     """Brand Agent → Expert Agent；图节点经 persist_rationale_graph 工具落库。"""
+    project_id = str(project.get("_id") or "")
+    log_step("pipeline.brief_initial", phase="IN", project_id=project_id)
+
     pipeline = AgentPipelineResult()
+    log_step("pipeline.brief_initial.brand_agent", phase="IN", project_id=project_id)
     brand_result = await run_brand_agent(project)
+    _log_agent_output("pipeline.brief_initial.brand_agent", brand_result)
     pipeline.brand_result = brand_result
     _extend_graph(pipeline, brand_result)
 
+    log_step("pipeline.brief_initial.expert_for_brief", phase="IN", project_id=project_id)
     expert_result = await run_expert_for_brief(project, brand_result)
+    _log_agent_output("pipeline.brief_initial.expert_for_brief", expert_result)
     pipeline.expert_result = expert_result
     _extend_graph(pipeline, expert_result)
+
+    log_step(
+        "pipeline.brief_initial",
+        phase="OUT",
+        project_id=project_id,
+        total_nodes=len(pipeline.proposed_nodes),
+        total_edges=len(pipeline.proposed_edges),
+    )
     return pipeline
 
 
 async def run_audience_pipeline(project: dict[str, Any]) -> AgentPipelineResult:
     """Audience Agent → Expert Agent。"""
+    project_id = str(project.get("_id") or "")
+    log_step("pipeline.audience", phase="IN", project_id=project_id)
+
     pipeline = AgentPipelineResult()
+    log_step("pipeline.audience.audience_agent", phase="IN", project_id=project_id)
     audience_result = await run_audience_agent(project)
+    _log_agent_output("pipeline.audience.audience_agent", audience_result)
     pipeline.audience_result = audience_result
     _extend_graph(pipeline, audience_result)
 
+    log_step("pipeline.audience.expert_for_audience", phase="IN", project_id=project_id)
     expert_result = await run_expert_for_audience(project, audience_result)
+    _log_agent_output("pipeline.audience.expert_for_audience", expert_result)
     pipeline.expert_result = expert_result
     _extend_graph(pipeline, expert_result)
+
+    log_step(
+        "pipeline.audience",
+        phase="OUT",
+        project_id=project_id,
+        total_nodes=len(pipeline.proposed_nodes),
+        total_edges=len(pipeline.proposed_edges),
+    )
     return pipeline
 
 
@@ -65,6 +108,17 @@ async def run_coordinator_pipeline(
     changed_row_ids: set[str] | None = None,
 ) -> AgentPipelineResult:
     """Coordinator 调度 Brand / Audience / Expert（方案 A）。"""
+    project_id = str(project.get("_id") or "")
+    log_step(
+        "pipeline.coordinator",
+        phase="IN",
+        project_id=project_id,
+        perspectives=sorted(perspectives),
+        user_message=user_message,
+        quotes=quotes,
+        changed_row_ids=sorted(changed_row_ids or []),
+    )
+
     pipeline = AgentPipelineResult()
     row_ids = set(changed_row_ids or [])
 
@@ -72,28 +126,38 @@ async def run_coordinator_pipeline(
     audience_result = None
 
     if "brand" in perspectives:
+        log_step("pipeline.coordinator.brand_agent", phase="IN", project_id=project_id)
         brand_result = await run_brand_agent(
             project,
             user_message=user_message,
             quotes=quotes,
             changed_row_ids=row_ids,
         )
+        _log_agent_output("pipeline.coordinator.brand_agent", brand_result)
         pipeline.brand_result = brand_result
         _extend_graph(pipeline, brand_result)
 
     if "audience" in perspectives:
         if project.get("active_persona_id"):
+            log_step("pipeline.coordinator.audience_agent", phase="IN", project_id=project_id)
             audience_result = await run_audience_agent(
                 project,
                 quotes=quotes,
                 changed_row_ids=row_ids,
             )
+            _log_agent_output("pipeline.coordinator.audience_agent", audience_result)
             pipeline.audience_result = audience_result
             _extend_graph(pipeline, audience_result)
 
     run_expert = "expert" in perspectives or brand_result is not None or audience_result is not None
     if run_expert:
         expert_only = "expert" in perspectives and brand_result is None and audience_result is None
+        log_step(
+            "pipeline.coordinator.expert",
+            phase="IN",
+            project_id=project_id,
+            expert_only=expert_only,
+        )
         expert_result = await run_expert_coordinator(
             project,
             brand_result=brand_result,
@@ -103,10 +167,19 @@ async def run_coordinator_pipeline(
             changed_row_ids=row_ids,
             expert_only=expert_only,
         )
+        _log_agent_output("pipeline.coordinator.expert", expert_result)
         pipeline.expert_result = expert_result
         _extend_graph(pipeline, expert_result)
         pipeline.assistant_reply = expert_result.get("assistant_reply", "")
 
+    log_step(
+        "pipeline.coordinator",
+        phase="OUT",
+        project_id=project_id,
+        total_nodes=len(pipeline.proposed_nodes),
+        total_edges=len(pipeline.proposed_edges),
+        assistant_reply=pipeline.assistant_reply[:500],
+    )
     return pipeline
 
 

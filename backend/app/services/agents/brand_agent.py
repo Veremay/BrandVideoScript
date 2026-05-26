@@ -12,6 +12,7 @@ from app.services.agent_llm import (
 )
 from app.services.tools.brand_wiki import brand_wiki_lookup
 from app.services.tools.ibis_graph import persist_rationale_graph
+from app.services.pipeline_log import log_step
 from app.services.tavily_client import TavilyClient
 
 BRAND_SOURCES = {"brand_brief", "brand_inferred"}
@@ -46,6 +47,15 @@ async def run_brand_agent(
         for q in quotes:
             if q.get("row_id"):
                 row_ids.add(str(q["row_id"]))
+
+    log_step(
+        "brand_agent",
+        phase="IN",
+        project_id=project_id,
+        user_message=user_message,
+        quotes=quotes,
+        changed_row_ids=sorted(row_ids),
+    )
 
     context_block = "\n\n".join(
         [
@@ -120,7 +130,7 @@ async def run_brand_agent(
             )
         )
 
-    return {
+    result = {
         "explicit_requirements": payload.get("explicit_requirements") or [],
         "implicit_requirements": payload.get("implicit_requirements") or [],
         "constraints": payload.get("constraints") or [],
@@ -131,3 +141,11 @@ async def run_brand_agent(
         "brand_insights": brand_insights,
         "tool_calls_used": ["tavily_search", "brand_wiki_lookup", "persist_rationale_graph"],
     }
+    log_step(
+        "brand_agent",
+        phase="OUT",
+        project_id=project_id,
+        proposed_nodes=len(result["proposed_nodes"]),
+        brand_insights=len(result["brand_insights"]),
+    )
+    return result

@@ -9,6 +9,7 @@ from app.services.agent_llm import (
     invoke_agent_json,
     script_excerpt_for_rows,
 )
+from app.services.pipeline_log import log_step
 from app.services.tools.ibis_graph import persist_rationale_graph
 
 AUDIENCE_SOURCES = {"audience_persona", "audience_simulation"}
@@ -35,6 +36,15 @@ async def run_audience_agent(
         for q in quotes:
             if q.get("row_id"):
                 row_ids.add(str(q["row_id"]))
+
+    log_step(
+        "audience_agent",
+        phase="IN",
+        project_id=project_id,
+        persona_id=persona.get("persona_id"),
+        quotes=quotes,
+        changed_row_ids=sorted(row_ids),
+    )
 
     context_block = "\n\n".join(
         [
@@ -83,7 +93,7 @@ async def run_audience_agent(
         allowed_source_types=AUDIENCE_SOURCES,
     )
 
-    return {
+    result = {
         "naturalness": payload.get("naturalness", ""),
         "ad_sense": payload.get("ad_sense", ""),
         "trust": payload.get("trust", ""),
@@ -95,3 +105,11 @@ async def run_audience_agent(
         "node_updates": graph.node_updates,
         "tool_calls_used": ["persist_rationale_graph"],
     }
+    log_step(
+        "audience_agent",
+        phase="OUT",
+        project_id=project_id,
+        proposed_nodes=len(result["proposed_nodes"]),
+        suggestions=result["suggestions"],
+    )
+    return result
