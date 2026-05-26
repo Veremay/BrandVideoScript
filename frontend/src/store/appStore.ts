@@ -19,8 +19,7 @@ type AppState = {
   script: Script | null;
   editor: EditorState;
   layout: {
-    activePanel: AgentType | null;
-    agentsColWidth: number;
+    coordinatorChatOpen: boolean;
     personaPanelOpen: boolean;
   };
   brand: {
@@ -44,14 +43,13 @@ type AppState = {
   setScript: (script: Script | null) => void;
   updateCell: (rowId: string, columnId: string, value: string) => void;
   setSaveStatus: (saveStatus: SaveStatus) => void;
-  openPanel: (agent: AgentType | null) => void;
-  setActivePanel: (agent: AgentType | null) => void;
+  setCoordinatorChatOpen: (open: boolean) => void;
+  openCoordinatorWithQuote: (selection: { rowId: string; columnId: string; text: string }) => void;
   insertRowAfter: (rowId?: string) => void;
   deleteRow: (rowId: string) => void;
   insertColumnAfter: (columnId?: string, label?: string, multiline?: boolean) => void;
   deleteColumn: (columnId: string) => void;
   renameColumn: (columnId: string, label: string) => void;
-  setAgentColumnWidth: (width: number) => void;
   setSelection: (selection?: { rowId?: string; columnId?: string; text: string }) => void;
   setBrandPinnedTab: (tab: BrandInsightCategory) => void;
   setPersonaPanelOpen: (open: boolean) => void;
@@ -65,8 +63,7 @@ export const useAppStore = create<AppState>((set) => ({
     saveStatus: "saved"
   },
   layout: {
-    activePanel: null,
-    agentsColWidth: 360,
+    coordinatorChatOpen: false,
     personaPanelOpen: false
   },
   brand: {
@@ -106,13 +103,19 @@ export const useAppStore = create<AppState>((set) => ({
     set((state) => ({
       editor: { ...state.editor, saveStatus }
     })),
-  openPanel: (agent) =>
+  setCoordinatorChatOpen: (open) =>
     set((state) => ({
-      layout: { ...state.layout, activePanel: state.layout.activePanel === agent ? null : agent }
+      layout: { ...state.layout, coordinatorChatOpen: open }
     })),
-  setActivePanel: (agent) =>
+  openCoordinatorWithQuote: (selection) =>
     set((state) => ({
-      layout: { ...state.layout, activePanel: agent }
+      editor: {
+        ...state.editor,
+        selectedRowId: selection.rowId,
+        selectedColumnId: selection.columnId,
+        selectedText: selection.text
+      },
+      layout: { ...state.layout, coordinatorChatOpen: true }
     })),
   insertRowAfter: (rowId) =>
     set((state) => {
@@ -154,10 +157,6 @@ export const useAppStore = create<AppState>((set) => ({
         editor: { ...state.editor, saveStatus: "editing" }
       };
     }),
-  setAgentColumnWidth: (width) =>
-    set((state) => ({
-      layout: { ...state.layout, agentsColWidth: Math.min(520, Math.max(280, width)) }
-    })),
   setSelection: (selection) =>
     set((state) => ({
       editor: {

@@ -2349,6 +2349,11 @@ textarea {
   white-space: nowrap;
 }
 
+.sel-btn-coordinator:hover {
+  background: var(--figma-primary-dim);
+  color: var(--figma-primary);
+}
+
 .sel-btn-brand:hover {
   background: var(--brand-blue-dim);
   color: var(--brand-blue);

@@ -22,23 +22,16 @@ export function EditorShell() {
     layout,
     project,
     script,
-    setBrandPinnedTab,
+    setCoordinatorChatOpen,
     setProject,
     setSaveStatus,
     setUserId,
-    setActivePanel,
     setPersonaPanelOpen
   } = useAppStore();
   const hasHydrated = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [agentDrawerOpen, setAgentDrawerOpen] = useState(false);
   const [activeView, setActiveView] = useState<"editor" | "map">("editor");
-
-  useEffect(() => {
-    if (layout.activePanel) {
-      setAgentDrawerOpen(true);
-    }
-  }, [layout.activePanel]);
+  const coordinatorOpen = layout.coordinatorChatOpen;
 
   useEffect(() => {
     if (!project || !script) return;
@@ -75,14 +68,7 @@ export function EditorShell() {
   }
 
   function handleFabClick() {
-    if (agentDrawerOpen) {
-      setAgentDrawerOpen(false);
-      return;
-    }
-    setAgentDrawerOpen(true);
-    if (!layout.activePanel) {
-      setActivePanel("brand");
-    }
+    setCoordinatorChatOpen(!coordinatorOpen);
   }
 
   function handlePersonasClick() {
@@ -93,9 +79,7 @@ export function EditorShell() {
     if (!project) return;
     const savedProject = await saveBrief(project._id, project.user_id, text, filename);
     setProject(savedProject);
-    setBrandPinnedTab("explicit_requirement");
-    setAgentDrawerOpen(true);
-    setActivePanel("brand");
+    setCoordinatorChatOpen(true);
   }
 
   async function handleBriefFile(event: React.ChangeEvent<HTMLInputElement>) {
@@ -190,18 +174,18 @@ export function EditorShell() {
       </section>
 
       <button
-        className={`figma-fab ${agentDrawerOpen ? "figma-fab--open" : ""}`}
+        className={`figma-fab ${coordinatorOpen ? "figma-fab--open" : ""}`}
         onClick={handleFabClick}
         type="button"
-        aria-label={agentDrawerOpen ? "关闭 Glacier Assistant" : "打开 Glacier Assistant"}
-        aria-expanded={agentDrawerOpen}
+        aria-label={coordinatorOpen ? "关闭 Coordinator Chat" : "打开 Coordinator Chat"}
+        aria-expanded={coordinatorOpen}
       >
         <IconLightning />
       </button>
 
       <GlacierAssistant
-        open={agentDrawerOpen}
-        onClose={() => setAgentDrawerOpen(false)}
+        open={coordinatorOpen}
+        onClose={() => setCoordinatorChatOpen(false)}
         selectedText={editor.selectedText}
         userInitial={project.title.slice(0, 1).toUpperCase()}
       />

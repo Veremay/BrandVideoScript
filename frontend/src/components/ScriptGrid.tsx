@@ -27,9 +27,8 @@ export function ScriptGrid({ script }: { script: Script }) {
     deleteRow,
     insertColumnAfter,
     insertRowAfter,
-    openPanel,
+    openCoordinatorWithQuote,
     renameColumn,
-    setSelection,
     updateCell
   } = useAppStore();
   const [quoteMenu, setQuoteMenu] = useState<{ x: number; y: number; rowId: string; columnId: string; text: string } | null>(null);
@@ -89,10 +88,13 @@ export function ScriptGrid({ script }: { script: Script }) {
     setQuoteMenu({ x: event.clientX, y: event.clientY, rowId, columnId, text: selectedText });
   }
 
-  function askAgent(agent: "brand" | "audience" | "expert") {
+  function quoteToCoordinator() {
     if (!quoteMenu) return;
-    setSelection({ rowId: quoteMenu.rowId, columnId: quoteMenu.columnId, text: quoteMenu.text });
-    openPanel(agent);
+    openCoordinatorWithQuote({
+      rowId: quoteMenu.rowId,
+      columnId: quoteMenu.columnId,
+      text: quoteMenu.text
+    });
     setQuoteMenu(null);
   }
 
@@ -310,9 +312,9 @@ export function ScriptGrid({ script }: { script: Script }) {
 
       {quoteMenu ? (
         <div className="sel-popup show" style={{ left: quoteMenu.x, top: quoteMenu.y }}>
-          <button className="sel-btn sel-btn-brand" onClick={() => askAgent("brand")} type="button">问品牌</button>
-          <button className="sel-btn sel-btn-audience" onClick={() => askAgent("audience")} type="button">问观众</button>
-          <button className="sel-btn sel-btn-expert" onClick={() => askAgent("expert")} type="button">问专家</button>
+          <button className="sel-btn sel-btn-coordinator" onClick={quoteToCoordinator} type="button">
+            问 Coordinator
+          </button>
         </div>
       ) : null}
     </div>

@@ -2,9 +2,6 @@
 
 import { useEffect, useState } from "react";
 
-import { createBrandInsight } from "@/lib/api";
-import { useAppStore } from "@/store/appStore";
-
 type AssistantTab = "chat" | "plans";
 
 type ChatMessage = {
@@ -24,12 +21,7 @@ const INITIAL_MESSAGES: ChatMessage[] = [
   {
     id: "welcome",
     role: "assistant",
-    text: "Hello! I'm your Glacier AI assistant. I can help you refine your script, suggest visual cues, or manage your production timeline. How can I assist today?"
-  },
-  {
-    id: "sample-user",
-    role: "user",
-    text: "Can you suggest a more dramatic visual for the transition in scene 02?"
+    text: "你好，我是 Coordinator Agent。你可以就脚本与节点图向我提问；品牌 / 观众 / 专家视角会在后台按需调度（Phase 2 接入真实 LLM）。"
   }
 ];
 
@@ -62,7 +54,6 @@ type GlacierAssistantProps = {
 };
 
 export function GlacierAssistant({ open, onClose, userInitial = "U", selectedText }: GlacierAssistantProps) {
-  const { project, setProject } = useAppStore();
   const [tab, setTab] = useState<AssistantTab>("chat");
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
   const [activePlanId, setActivePlanId] = useState("a");
@@ -74,26 +65,26 @@ export function GlacierAssistant({ open, onClose, userInitial = "U", selectedTex
 
   if (!open) return null;
 
-  async function handleSend() {
+  function handleSend() {
     const text = draft.trim();
     if (!text) return;
 
-    setMessages((prev) => [...prev, { id: `user-${Date.now()}`, role: "user", text }]);
+    const userMessage: ChatMessage = { id: `user-${Date.now()}`, role: "user", text };
+    setMessages((prev) => [...prev, userMessage]);
     setDraft("");
     setTab("chat");
 
-    if (project) {
-      const savedProject = await createBrandInsight(project._id, project.user_id, {
-        category: "brand_feedback",
-        title: "PR feedback",
-        content: text,
-        reason: selectedText ? "用户基于选中脚本片段补充的品牌反馈。" : "用户在 Glacier Assistant 对话中输入的反馈。",
-        evidence: selectedText ? [{ source_type: "script", quote: selectedText }] : [{ source_type: "chat", quote: text }],
-        confidence: "medium",
-        status: "pending"
-      });
-      setProject(savedProject);
-    }
+    const contextHint = selectedText ? `（已引用脚本片段：「${selectedText.slice(0, 80)}${selectedText.length > 80 ? "…" : ""}」）` : "";
+    window.setTimeout(() => {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `assistant-${Date.now()}`,
+          role: "assistant",
+          text: `收到你的问题。${contextHint} Phase 0 为 mock 回复；Phase 2 将通过 SSE 接入 Coordinator 与多视角分析。`
+        }
+      ]);
+    }, 400);
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -105,15 +96,15 @@ export function GlacierAssistant({ open, onClose, userInitial = "U", selectedTex
 
   return (
     <>
-      <button className="glacier-backdrop" onClick={onClose} type="button" aria-label="关闭 Glacier Assistant" />
-      <aside className="glacier-assistant" aria-label="Glacier Assistant">
+      <button className="glacier-backdrop" onClick={onClose} type="button" aria-label="关闭 Coordinator Chat" />
+      <aside className="glacier-assistant" aria-label="Coordinator Agent Chat">
         <header className="glacier-header">
           <div className="glacier-header-top">
             <div className="glacier-title-row">
               <span className="glacier-icon-badge" aria-hidden="true">
                 <IconLightning />
               </span>
-              <span className="glacier-title">Glacier Assistant</span>
+              <span className="glacier-title">Coordinator Agent</span>
             </div>
             <button className="glacier-close" onClick={onClose} type="button" aria-label="关闭">
               <IconClose />
@@ -136,7 +127,7 @@ export function GlacierAssistant({ open, onClose, userInitial = "U", selectedTex
               aria-selected={tab === "plans"}
               type="button"
             >
-              Plans
+              Revision Proposals
             </button>
           </div>
         </header>
@@ -218,12 +209,12 @@ export function GlacierAssistant({ open, onClose, userInitial = "U", selectedTex
           <div className="glacier-input-wrap">
             <textarea
               className="glacier-input"
-              placeholder="Ask anything..."
+              placeholder="向 Coordinator 提问…"
               rows={1}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={handleKeyDown}
-              aria-label="Message Glacier Assistant"
+              aria-label="Coordinator 消息输入"
             />
             <button className="glacier-send" onClick={handleSend} type="button" aria-label="发送">
               <IconSend />
