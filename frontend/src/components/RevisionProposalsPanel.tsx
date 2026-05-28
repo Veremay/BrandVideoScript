@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode
+} from "react";
 
 import { applyModificationSchemeHunks } from "@/lib/api";
 import {
@@ -13,21 +21,58 @@ import type { HunkDecision, ModificationScheme, ModificationSchemeDirection, Scr
 import { useAppStore } from "@/store/appStore";
 
 const DIRECTION_LABELS: Record<ModificationSchemeDirection, string> = {
-  conservative: "保守 · 品牌优先",
-  balanced: "平衡",
-  creator_led: "创作者主导",
-  audience_friendly: "观众友好",
-  custom: "自定义"
+  conservative: "Conservative · Brand-first",
+  balanced: "Balanced",
+  creator_led: "Creator-led",
+  audience_friendly: "Audience-friendly",
+  custom: "Custom"
 };
 
 type PreviewMode = "all_proposed" | "accepted_only";
 
-type RevisionProposalsPanelProps = {
+type RevisionProposalsContextValue = {
   projectId: string;
   userId: string;
+  schemes: ModificationScheme[];
+  schemesStale: boolean;
+  selectedSchemeId: string | null;
+  setSelectedSchemeId: (id: string) => void;
+  selectedScheme: ModificationScheme | null;
+  activeScript: Script | null;
+  previewOpen: boolean;
+  setPreviewOpen: (open: boolean) => void;
+  hunkDecisions: Record<string, HunkDecision>;
+  setHunkDecision: (hunkId: string, decision: HunkDecision) => void;
+  previewMode: PreviewMode;
+  setPreviewMode: (mode: PreviewMode) => void;
+  summary: ReturnType<typeof schemeDecisionSummary> | null;
+  previewTable: ReturnType<typeof buildPreviewTable>;
+  applying: boolean;
+  error: string | null;
+  statusMessage: string | null;
+  acceptAllAndApply: () => Promise<void>;
+  applyAcceptedOnly: () => Promise<void>;
+  rejectAllHunks: () => void;
+  selectScheme: (schemeId: string) => void;
 };
 
-export function RevisionProposalsPanel({ projectId, userId }: RevisionProposalsPanelProps) {
+const RevisionProposalsContext = createContext<RevisionProposalsContextValue | null>(null);
+
+function useRevisionProposals() {
+  const ctx = useContext(RevisionProposalsContext);
+  if (!ctx) {
+    throw new Error("RevisionProposals components must be used within RevisionProposalsProvider");
+  }
+  return ctx;
+}
+
+type RevisionProposalsProviderProps = {
+  projectId: string;
+  userId: string;
+  children: ReactNode;
+};
+
+export function RevisionProposalsProvider({ projectId, userId, children }: RevisionProposalsProviderProps) {
   const project = useAppStore((state) => state.project);
   const script = useAppStore((state) => state.script);
   const setProject = useAppStore((state) => state.setProject);
@@ -37,6 +82,7 @@ export function RevisionProposalsPanel({ projectId, userId }: RevisionProposalsP
   const schemesStale = isStaleStatus(project?.stale?.modification_schemes);
 
   const [selectedSchemeId, setSelectedSchemeId] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [hunkDecisions, setHunkDecisions] = useState<Record<string, HunkDecision>>({});
   const [previewMode, setPreviewMode] = useState<PreviewMode>("all_proposed");
   const [applying, setApplying] = useState(false);
@@ -69,6 +115,7 @@ export function RevisionProposalsPanel({ projectId, userId }: RevisionProposalsP
   useEffect(() => {
     if (!selectedScheme) {
       setHunkDecisions({});
+      setPreviewOpen(false);
       return;
     }
     const initial: Record<string, HunkDecision> = {};
@@ -77,57 +124,65 @@ export function RevisionProposalsPanel({ projectId, userId }: RevisionProposalsP
     }
     setHunkDecisions(initial);
     setPreviewMode("all_proposed");
+    setPreviewOpen(false);
   }, [selectedScheme?.scheme_id]);
 
-  const acceptedHunkIds = useMemo(
-    () => Object.entries(hunkDecisions).filter(([, value]) => value === true).map(([id]) => id),
-    [hunkDecisions]
+  const applyHunks = useCallback(
+    async (acceptedIds: string[], rejectedIds: string[]) => {
+      if (!selectedScheme || !acceptedIds.length) return;
+      setApplying(true);
+      setError(null);
+      setStatusMessage(null);
+      try {
+        const updated = await applyModificationSchemeHunks(
+          projectId,
+          userId,
+          selectedScheme.scheme_id,
+          acceptedIds,
+          rejectedIds
+        );
+        setProject(updated);
+        setScript(updated.current_script);
+        const total = selectedScheme.hunks.length;
+        setStatusMessage(
+          acceptedIds.length >= total
+            ? "All changes applied to the script."
+            : `Applied ${acceptedIds.length} of ${total} changes. Roll back from version history if needed.`
+        );
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to apply changes");
+      } finally {
+        setApplying(false);
+      }
+    },
+    [projectId, selectedScheme, setProject, setScript, userId]
   );
 
-  const rejectedHunkIds = useMemo(
-    () => Object.entries(hunkDecisions).filter(([, value]) => value === false).map(([id]) => id),
-    [hunkDecisions]
-  );
-
-  async function handleApplyPartial() {
-    if (!selectedScheme || !acceptedHunkIds.length) return;
-    setApplying(true);
-    setError(null);
-    setStatusMessage(null);
-    try {
-      const updated = await applyModificationSchemeHunks(
-        projectId,
-        userId,
-        selectedScheme.scheme_id,
-        acceptedHunkIds,
-        rejectedHunkIds
-      );
-      setProject(updated);
-      setScript(updated.current_script);
-      const total = selectedScheme.hunks.length;
-      const label =
-        acceptedHunkIds.length >= total
-          ? "已全部写入脚本"
-          : `已部分写入（${acceptedHunkIds.length}/${total} 处），可在版本历史中回退`;
-      setStatusMessage(label);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "写入脚本失败");
-    } finally {
-      setApplying(false);
-    }
-  }
-
-  function acceptAllHunks() {
-    if (!selectedScheme) return;
+  const acceptAllAndApply = useCallback(async () => {
+    if (!selectedScheme?.hunks.length) return;
+    const acceptedIds = selectedScheme.hunks.map((hunk) => hunk.hunk_id);
     const next: Record<string, HunkDecision> = {};
-    for (const hunk of selectedScheme.hunks) {
-      next[hunk.hunk_id] = true;
-    }
+    for (const id of acceptedIds) next[id] = true;
     setHunkDecisions(next);
     setPreviewMode("accepted_only");
-  }
+    await applyHunks(acceptedIds, []);
+  }, [applyHunks, selectedScheme]);
 
-  function rejectAllHunks() {
+  const applyAcceptedOnly = useCallback(async () => {
+    const acceptedIds = Object.entries(hunkDecisions)
+      .filter(([, value]) => value === true)
+      .map(([id]) => id);
+    const rejectedIds = Object.entries(hunkDecisions)
+      .filter(([, value]) => value === false)
+      .map(([id]) => id);
+    if (!acceptedIds.length) {
+      setError("Accept individual changes in the preview below, or use Accept All.");
+      return;
+    }
+    await applyHunks(acceptedIds, rejectedIds);
+  }, [applyHunks, hunkDecisions]);
+
+  const rejectAllHunks = useCallback(() => {
     if (!selectedScheme) return;
     const next: Record<string, HunkDecision> = {};
     for (const hunk of selectedScheme.hunks) {
@@ -135,115 +190,198 @@ export function RevisionProposalsPanel({ projectId, userId }: RevisionProposalsP
     }
     setHunkDecisions(next);
     setPreviewMode("accepted_only");
-  }
+    setStatusMessage(null);
+    setError(null);
+  }, [selectedScheme]);
 
-  function setHunkDecision(hunkId: string, decision: HunkDecision) {
+  const setHunkDecision = useCallback((hunkId: string, decision: HunkDecision) => {
     setHunkDecisions((prev) => ({ ...prev, [hunkId]: decision }));
-  }
+  }, []);
+
+  const selectScheme = useCallback(
+    (schemeId: string) => {
+      if (schemeId === selectedSchemeId && previewOpen) {
+        setPreviewOpen(false);
+        return;
+      }
+      setSelectedSchemeId(schemeId);
+      setPreviewOpen(true);
+    },
+    [previewOpen, selectedSchemeId]
+  );
+
+  const value: RevisionProposalsContextValue = {
+    projectId,
+    userId,
+    schemes,
+    schemesStale,
+    selectedSchemeId,
+    setSelectedSchemeId,
+    selectedScheme,
+    activeScript,
+    previewOpen,
+    setPreviewOpen,
+    hunkDecisions,
+    setHunkDecision,
+    previewMode,
+    setPreviewMode,
+    summary,
+    previewTable,
+    applying,
+    error,
+    statusMessage,
+    acceptAllAndApply,
+    applyAcceptedOnly,
+    rejectAllHunks,
+    selectScheme
+  };
+
+  return <RevisionProposalsContext.Provider value={value}>{children}</RevisionProposalsContext.Provider>;
+}
+
+/** Scrollable plan cards + optional preview (mock-style list area). */
+export function RevisionProposalsList() {
+  const {
+    schemes,
+    schemesStale,
+    selectedSchemeId,
+    selectedScheme,
+    activeScript,
+    previewOpen,
+    previewMode,
+    previewTable,
+    summary,
+    hunkDecisions,
+    setHunkDecision,
+    setPreviewMode,
+    error,
+    statusMessage,
+    selectScheme
+  } = useRevisionProposals();
 
   return (
-    <>
-      <div className="glacier-plans-list">
-        {schemesStale ? (
-          <p className="glacier-plans-stale-banner">
-            脚本已变更。请在 Chat 请 Coordinator「重新生成修改方案」，再预览并写入。
-          </p>
-        ) : null}
-        {error ? <p className="glacier-stream-error">{error}</p> : null}
-        {statusMessage ? <p className="glacier-plans-status">{statusMessage}</p> : null}
-
-        {!schemes.length ? (
-          <p className="glacier-plans-placeholder">
-            尚无修改方案。在 Chat 告诉 Coordinator：「请生成多方向修改方案」——会在此预览稿子并逐条接受/拒绝，也可只写入部分修改。
-          </p>
-        ) : null}
-
-        {schemes.map((scheme) => (
-          <SchemeCard
-            key={scheme.scheme_id}
-            active={scheme.scheme_id === selectedSchemeId}
-            scheme={scheme}
-            onSelect={() => setSelectedSchemeId(scheme.scheme_id)}
-          />
-        ))}
-
-        {selectedScheme && activeScript ? (
-          <>
-            <ScriptSchemePreview
-              previewMode={previewMode}
-              previewTable={previewTable}
-              summary={summary}
-              onPreviewModeChange={setPreviewMode}
-            />
-            <SchemeDetail
-              scheme={selectedScheme}
-              script={activeScript}
-              hunkDecisions={hunkDecisions}
-              onHunkDecision={setHunkDecision}
-            />
-          </>
-        ) : null}
-      </div>
-
-      {selectedScheme?.hunks.length ? (
-        <div className="glacier-plans-actions">
-          <p className="glacier-plans-actions-hint">
-            {summary
-              ? `已选 ${summary.accepted} 接受 · ${summary.rejected} 拒绝 · ${summary.pending} 待定（共 ${summary.total} 处）`
-              : null}
-          </p>
-          <div className="glacier-plans-actions-row">
-            <button className="glacier-btn glacier-btn--outline" onClick={acceptAllHunks} type="button" disabled={applying}>
-              全部接受
-            </button>
-            <button className="glacier-btn glacier-btn--outline" onClick={rejectAllHunks} type="button" disabled={applying}>
-              全部拒绝
-            </button>
-            <button
-              className="glacier-btn glacier-btn--primary"
-              disabled={applying || !acceptedHunkIds.length}
-              onClick={() => void handleApplyPartial()}
-              type="button"
-            >
-              {applying
-                ? "写入中…"
-                : acceptedHunkIds.length === selectedScheme.hunks.length
-                  ? "写入全部修改"
-                  : `部分写入（${acceptedHunkIds.length} 处）`}
-            </button>
-          </div>
-        </div>
+    <div className="glacier-plans-list">
+      {schemesStale ? (
+        <p className="glacier-plans-stale-banner">
+          Script changed. Ask Coordinator to regenerate revision proposals before applying.
+        </p>
       ) : null}
-    </>
+      {error ? <p className="glacier-stream-error">{error}</p> : null}
+      {statusMessage ? <p className="glacier-plans-status">{statusMessage}</p> : null}
+
+      {!schemes.length ? (
+        <p className="glacier-plans-placeholder">
+          No revision proposals yet. In Chat, ask Coordinator to generate multi-direction modification schemes.
+        </p>
+      ) : null}
+
+      {schemes.map((scheme) => (
+        <SchemeCard
+          key={scheme.scheme_id}
+          active={scheme.scheme_id === selectedSchemeId}
+          previewing={scheme.scheme_id === selectedSchemeId && previewOpen}
+          scheme={scheme}
+          onSelect={() => selectScheme(scheme.scheme_id)}
+        />
+      ))}
+
+      {previewOpen && selectedScheme && activeScript ? (
+        <>
+          <ScriptSchemePreview
+            previewMode={previewMode}
+            previewTable={previewTable}
+            summary={summary}
+            onPreviewModeChange={setPreviewMode}
+          />
+          <SchemeDetail
+            scheme={selectedScheme}
+            script={activeScript}
+            hunkDecisions={hunkDecisions}
+            onHunkDecision={setHunkDecision}
+          />
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+/** Fixed footer actions (mock-style), rendered outside glacier-body scroll. */
+export function RevisionProposalsActions() {
+  const { schemes, schemesStale, selectedScheme, applying, acceptAllAndApply, applyAcceptedOnly, rejectAllHunks } =
+    useRevisionProposals();
+
+  if (!schemes.length) return null;
+
+  const hasHunks = Boolean(selectedScheme?.hunks.length);
+  const disabled = applying || schemesStale || !selectedScheme;
+
+  return (
+    <div className="glacier-plans-actions">
+      <div className="glacier-plans-actions-row">
+        <button
+          className="glacier-btn glacier-btn--primary"
+          disabled={disabled || !hasHunks}
+          onClick={() => void acceptAllAndApply()}
+          type="button"
+        >
+          {applying ? "Applying…" : "Accept All"}
+        </button>
+        <button
+          className="glacier-btn glacier-btn--outline"
+          disabled={disabled || !hasHunks}
+          onClick={() => void applyAcceptedOnly()}
+          type="button"
+        >
+          Accept Map Only
+        </button>
+      </div>
+      <button
+        className="glacier-reject-all"
+        disabled={disabled || !hasHunks}
+        onClick={rejectAllHunks}
+        type="button"
+      >
+        Reject All
+      </button>
+    </div>
+  );
+}
+
+/** @deprecated Use Provider + List + Actions in CoordinatorChat */
+export function RevisionProposalsPanel({ projectId, userId }: { projectId: string; userId: string }) {
+  return (
+    <RevisionProposalsProvider projectId={projectId} userId={userId}>
+      <RevisionProposalsList />
+      <RevisionProposalsActions />
+    </RevisionProposalsProvider>
   );
 }
 
 function SchemeCard({
   scheme,
   active,
+  previewing,
   onSelect
 }: {
   scheme: ModificationScheme;
   active: boolean;
+  previewing: boolean;
   onSelect: () => void;
 }) {
-  const hunkCount = scheme.hunks.length;
   return (
     <article className={`glacier-plan-card ${active ? "glacier-plan-card--active" : ""}`}>
       <div className="glacier-plan-head">
         <h3 className="glacier-plan-title">{scheme.title}</h3>
-        <span className="glacier-plan-badge">{DIRECTION_LABELS[scheme.direction] ?? scheme.direction}</span>
+        {active ? <span className="glacier-plan-badge">ACTIVE</span> : null}
       </div>
       <p className="glacier-plan-desc">{scheme.changes_summary || scheme.rationale}</p>
-      <p className="glacier-plan-meta">
-        {hunkCount ? `${hunkCount} 处脚本修改` : "策略说明（无具体 cell 修改）"}
-      </p>
+      <p className="glacier-plan-meta">{DIRECTION_LABELS[scheme.direction] ?? scheme.direction}</p>
       <button
-        className={`glacier-plan-btn ${active ? "glacier-plan-btn--active" : ""}`}
+        className={`glacier-plan-btn ${active && previewing ? "glacier-plan-btn--active" : ""}`}
         onClick={onSelect}
         type="button"
       >
-        {active ? "预览稿子" : "选中并预览"}
+        {active && previewing ? "Currently Previewing" : "Preview Plan"}
       </button>
     </article>
   );
@@ -260,17 +398,19 @@ function ScriptSchemePreview({
   summary: ReturnType<typeof schemeDecisionSummary> | null;
   onPreviewModeChange: (mode: PreviewMode) => void;
 }) {
+  if (!previewTable.length) return null;
+
   return (
     <section className="glacier-script-preview">
       <div className="glacier-script-preview-head">
-        <h4 className="glacier-scheme-detail-title">稿子预览</h4>
+        <h4 className="glacier-scheme-detail-title">Script preview</h4>
         <div className="glacier-preview-mode" role="tablist" aria-label="Preview mode">
           <button
             className={previewMode === "all_proposed" ? "active" : ""}
             onClick={() => onPreviewModeChange("all_proposed")}
             type="button"
           >
-            方案全文
+            Full proposal
           </button>
           <button
             className={previewMode === "accepted_only" ? "active" : ""}
@@ -278,12 +418,12 @@ function ScriptSchemePreview({
             type="button"
             disabled={!summary?.accepted}
           >
-            仅已接受
+            Accepted only
           </button>
         </div>
       </div>
       <p className="glacier-script-preview-note">
-        下方为受影响分镜的预览（非节点图）。绿色为将写入的修改，灰色删除线为保留原文。
+        Affected script rows only. Green highlights will be written; strikethrough is the current text.
       </p>
       <div className="glacier-script-preview-table-wrap">
         <table className="glacier-script-preview-table">
@@ -313,10 +453,10 @@ function ScriptSchemePreview({
                     key={cell.column.column_id}
                   >
                     {cell.change && cell.change !== "rejected" ? (
-                      <span className="glacier-preview-value">{cell.value || "（空）"}</span>
+                      <span className="glacier-preview-value">{cell.value || "(empty)"}</span>
                     ) : (
                       <span className="glacier-preview-value glacier-preview-value--unchanged">
-                        {cell.value || "（空）"}
+                        {cell.value || "(empty)"}
                       </span>
                     )}
                   </td>
@@ -345,24 +485,22 @@ function SchemeDetail({
 
   return (
     <section className="glacier-scheme-detail">
-      <h4 className="glacier-scheme-detail-title">修改说明</h4>
+      <h4 className="glacier-scheme-detail-title">Change details</h4>
       {scheme.rationale ? <p className="glacier-scheme-detail-text">{scheme.rationale}</p> : null}
       {scheme.sacrifice ? (
         <p className="glacier-scheme-detail-meta">
-          <strong>牺牲点：</strong>
-          {scheme.sacrifice}
+          <strong>Trade-off:</strong> {scheme.sacrifice}
         </p>
       ) : null}
       {scheme.response_script ? (
         <p className="glacier-scheme-detail-meta">
-          <strong>回应话术：</strong>
-          {scheme.response_script}
+          <strong>Response script:</strong> {scheme.response_script}
         </p>
       ) : null}
 
       {cells.length ? (
         <>
-          <h5 className="glacier-hunk-list-title">逐条决定（接受 / 拒绝）</h5>
+          <h5 className="glacier-hunk-list-title">Review each change</h5>
           <ul className="glacier-hunk-list">
             {cells.map((cell) => (
               <li
@@ -376,10 +514,10 @@ function SchemeDetail({
                 key={cell.hunkId}
               >
                 <p className="glacier-hunk-context">
-                  第 {cell.rowOrder} 镜 · {cell.columnLabel}
+                  Row {cell.rowOrder} · {cell.columnLabel}
                 </p>
                 <div className="glacier-hunk-diff">
-                  <del className="glacier-hunk-removed">{cell.removed || "（空）"}</del>
+                  <del className="glacier-hunk-removed">{cell.removed || "(empty)"}</del>
                   <span className="glacier-hunk-arrow" aria-hidden="true">
                     →
                   </span>
@@ -391,14 +529,14 @@ function SchemeDetail({
                     onClick={() => onHunkDecision(cell.hunkId, true)}
                     type="button"
                   >
-                    接受
+                    Accept
                   </button>
                   <button
                     className={`glacier-hunk-btn ${cell.decision === false ? "active reject" : ""}`}
                     onClick={() => onHunkDecision(cell.hunkId, false)}
                     type="button"
                   >
-                    拒绝
+                    Reject
                   </button>
                 </div>
               </li>
@@ -406,7 +544,7 @@ function SchemeDetail({
           </ul>
         </>
       ) : (
-        <p className="glacier-plans-placeholder">本方案仅含策略说明，无可写入脚本的 cell 修改。</p>
+        <p className="glacier-plans-placeholder">Strategy-only proposal with no script cell edits.</p>
       )}
     </section>
   );

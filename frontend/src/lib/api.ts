@@ -19,12 +19,13 @@ import type {
 } from "@/lib/types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
-const REQUEST_TIMEOUT_MS = 15000;
-const PROJECT_TIMEOUT_MS = 60000;
-/** Brief parse runs Brand + Expert agents sequentially; each LLM call can take ~60s. */
-const BRIEF_PARSE_TIMEOUT_MS = 180000;
-const SCHEME_GENERATE_TIMEOUT_MS = 180000;
-const GRAPH_SYNC_TIMEOUT_MS = 180000;
+const REQUEST_TIMEOUT_MS = 120000;
+const PROJECT_TIMEOUT_MS = 180000;
+/** Brand + Expert (and optional repair) with 32B; backend allows ~300s per LLM call. */
+const AGENT_PIPELINE_TIMEOUT_MS = 900000;
+const BRIEF_PARSE_TIMEOUT_MS = AGENT_PIPELINE_TIMEOUT_MS;
+const SCHEME_GENERATE_TIMEOUT_MS = AGENT_PIPELINE_TIMEOUT_MS;
+const GRAPH_SYNC_TIMEOUT_MS = 300000;
 
 async function request<T>(path: string, init?: RequestInit, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
   const controller = new AbortController();
@@ -194,10 +195,14 @@ export async function provisionPersonasFromAnalytics(
   project: Project;
   analytics_meta?: Record<string, unknown>;
 }> {
-  return request(`/projects/${projectId}/persona/provision-from-analytics`, {
-    method: "POST",
-    body: JSON.stringify({ user_id: userId, ...payload })
-  });
+  return request(
+    `/projects/${projectId}/persona/provision-from-analytics`,
+    {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId, ...payload })
+    },
+    payload.run_audience_parse ? AGENT_PIPELINE_TIMEOUT_MS : PROJECT_TIMEOUT_MS
+  );
 }
 
 export async function createBrandInsight(

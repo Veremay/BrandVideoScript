@@ -2,7 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { RevisionProposalsPanel } from "@/components/RevisionProposalsPanel";
+import {
+  RevisionProposalsActions,
+  RevisionProposalsList,
+  RevisionProposalsProvider
+} from "@/components/RevisionProposalsPanel";
 import { fetchCoordinatorMessages, streamCoordinatorMessage } from "@/lib/api";
 import { resolveCoordinatorTaskType } from "@/lib/coordinatorIntent";
 import type { CoordinatorMessage, RequestedPerspective } from "@/lib/types";
@@ -282,57 +286,66 @@ export function CoordinatorChat({
           </div>
         </header>
 
-        <div className="glacier-body">
-          {tab === "chat" ? (
-            <div className="glacier-chat-thread" ref={threadRef} role="log" aria-live="polite">
-              {messages.map((message) =>
-                message.role === "assistant" ? (
-                  <div className="glacier-msg-row glacier-msg-row--assistant" key={message.message_id}>
-                    <span className="glacier-avatar glacier-avatar--bot" aria-hidden="true">
-                      <IconSpark />
-                    </span>
-                    <div className="glacier-bubble glacier-bubble--assistant">
-                      {message.content || (streaming ? "…" : "")}
-                      {message.related_node_ids.length > 0 ? (
-                        <p className="glacier-related-nodes">
-                          Related nodes: {message.related_node_ids.join(", ")}
-                        </p>
-                      ) : null}
+        {tab === "plans" && projectId && userId ? (
+          <RevisionProposalsProvider projectId={projectId} userId={userId}>
+            <div className="glacier-body">
+              <RevisionProposalsList />
+            </div>
+            <RevisionProposalsActions />
+          </RevisionProposalsProvider>
+        ) : (
+          <div className="glacier-body">
+            {tab === "chat" ? (
+              <div className="glacier-chat-thread" ref={threadRef} role="log" aria-live="polite">
+                {messages.map((message) =>
+                  message.role === "assistant" ? (
+                    <div className="glacier-msg-row glacier-msg-row--assistant" key={message.message_id}>
+                      <span className="glacier-avatar glacier-avatar--bot" aria-hidden="true">
+                        <IconSpark />
+                      </span>
+                      <div className="glacier-bubble glacier-bubble--assistant">
+                        {message.content || (streaming ? "…" : "")}
+                        {message.related_node_ids.length > 0 ? (
+                          <p className="glacier-related-nodes">
+                            Related nodes: {message.related_node_ids.join(", ")}
+                          </p>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="glacier-msg-row glacier-msg-row--user" key={message.message_id}>
-                    <div className="glacier-bubble glacier-bubble--user">{message.content}</div>
-                    <span className="glacier-avatar glacier-avatar--user" aria-hidden="true">
-                      {userInitial}
-                    </span>
-                  </div>
-                )
-              )}
-              {streamError ? <p className="glacier-stream-error">{streamError}</p> : null}
-            </div>
-          ) : projectId && userId ? (
-            <RevisionProposalsPanel projectId={projectId} userId={userId} />
-          ) : (
-            <div className="glacier-plans-list">
-              <p className="glacier-plans-placeholder">Open a project to view revision proposals.</p>
-            </div>
-          )}
-        </div>
+                  ) : (
+                    <div className="glacier-msg-row glacier-msg-row--user" key={message.message_id}>
+                      <div className="glacier-bubble glacier-bubble--user">{message.content}</div>
+                      <span className="glacier-avatar glacier-avatar--user" aria-hidden="true">
+                        {userInitial}
+                      </span>
+                    </div>
+                  )
+                )}
+                {streamError ? <p className="glacier-stream-error">{streamError}</p> : null}
+              </div>
+            ) : (
+              <div className="glacier-plans-list">
+                <p className="glacier-plans-placeholder">Open a project to view revision proposals.</p>
+              </div>
+            )}
+          </div>
+        )}
 
         <footer className="glacier-input-area">
-          <div className="glacier-perspective-chips" role="group" aria-label="Requested perspectives">
-            {PERSPECTIVE_CHIPS.map((chip) => (
-              <button
-                className={`glacier-perspective-chip ${perspectives.includes(chip.id) ? "active" : ""}`}
-                key={chip.id}
-                onClick={() => togglePerspective(chip.id)}
-                type="button"
-              >
-                {chip.label}
-              </button>
-            ))}
-          </div>
+          {tab === "chat" ? (
+            <div className="glacier-perspective-chips" role="group" aria-label="Requested perspectives">
+              {PERSPECTIVE_CHIPS.map((chip) => (
+                <button
+                  className={`glacier-perspective-chip ${perspectives.includes(chip.id) ? "active" : ""}`}
+                  key={chip.id}
+                  onClick={() => togglePerspective(chip.id)}
+                  type="button"
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
           {selectedText ? (
             <div className="glacier-quote">
               <span className="glacier-quote-icon" aria-hidden="true">

@@ -59,7 +59,8 @@ class LLMClient:
             log_llm_mock(task_type, reason="mock=True or missing API key")
             return {"mock": True, "payload": payload}
 
-        async with httpx.AsyncClient(base_url=self.settings.siliconflow_base_url, timeout=60) as client:
+        timeout = self.settings.siliconflow_request_timeout_seconds
+        async with httpx.AsyncClient(base_url=self.settings.siliconflow_base_url, timeout=timeout) as client:
             response = await client.post(
                 "/chat/completions",
                 headers={"Authorization": f"Bearer {self.settings.siliconflow_api_key}"},
@@ -105,7 +106,8 @@ class LLMClient:
             "enable_thinking": should_enable_thinking(task_type, complexity),
         }
         collected: list[str] = []
-        async with httpx.AsyncClient(base_url=self.settings.siliconflow_base_url, timeout=120) as client:
+        stream_timeout = self.settings.siliconflow_stream_timeout_seconds
+        async with httpx.AsyncClient(base_url=self.settings.siliconflow_base_url, timeout=stream_timeout) as client:
             async with client.stream(
                 "POST",
                 "/chat/completions",

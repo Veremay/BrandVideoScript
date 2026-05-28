@@ -52,7 +52,10 @@ async def invoke_agent_json(
             )
             return result
         except Exception as exc:
-            log_llm_mock(task_type, reason=f"LLM failed, using mock: {exc}")
+            log_llm_mock(
+                task_type,
+                reason=f"LLM failed, using mock: {type(exc).__name__}: {exc!r}",
+            )
             result = mock_payload()
             log_step(
                 f"agent_llm.{agent_prompt_file}",

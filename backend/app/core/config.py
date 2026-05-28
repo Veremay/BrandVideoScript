@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     siliconflow_base_url: str = "https://api.siliconflow.cn/v1"
     siliconflow_default_model: str = "Qwen/Qwen3-8B"
     siliconflow_advanced_model: str = "Qwen/Qwen3-32B"
+    # SiliconFlow: 32B + thinking can exceed 60s; keep margins for multi-agent pipelines.
+    siliconflow_request_timeout_seconds: float = 300.0
+    siliconflow_stream_timeout_seconds: float = 600.0
     tavily_api_key: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
