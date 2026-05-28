@@ -194,10 +194,18 @@ export function CoordinatorChat({
               if (event.modification_schemes) {
                 next = {
                   ...next,
-                  modification_schemes: event.modification_schemes,
+                  modification_schemes: event.modification_schemes.slice(-1),
                   stale: { ...next.stale, modification_schemes: "up_to_date" }
                 };
                 setTab("plans");
+                const focusId =
+                  event.new_scheme_ids?.[event.new_scheme_ids.length - 1] ??
+                  event.modification_schemes[event.modification_schemes.length - 1]?.scheme_id;
+                if (focusId) {
+                  const store = useAppStore.getState();
+                  store.setEditorSchemeFocusId(focusId);
+                  store.setWorkspaceView("editor");
+                }
               }
               if (next !== current) setProject(next);
             }

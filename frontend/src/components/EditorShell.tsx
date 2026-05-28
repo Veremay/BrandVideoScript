@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from "react";
 
 import { CoordinatorChat } from "@/components/CoordinatorChat";
 import { RevisionProposalsProvider } from "@/components/RevisionProposalsPanel";
-import { ScriptModificationBar } from "@/components/ScriptCellModification";
 import { PersonaPanel } from "@/components/PersonaPanel";
 import { RequirementsPanel } from "@/components/RequirementsPanel";
 import { ScriptGrid } from "@/components/ScriptGrid";
@@ -103,11 +102,13 @@ export function EditorShell() {
   }, [settingsOpen]);
 
   function handleBack() {
+    window.localStorage.removeItem("brandvideo:project_id");
     setProject(null);
   }
 
   function handleLogout() {
     window.localStorage.removeItem("brandvideo:user_id");
+    window.localStorage.removeItem("brandvideo:project_id");
     setUserId(undefined);
     setProject(null);
     setSettingsOpen(false);
@@ -263,7 +264,6 @@ export function EditorShell() {
               <div className="editor-page-header">
                 <h1 className="editor-page-title">Script Editor</h1>
               </div>
-              <ScriptModificationBar />
               <ScriptGrid script={script} />
             </div>
           ) : (

@@ -9,6 +9,7 @@ from app.services.agent_llm import (
     format_quotes,
     invoke_agent_json,
     perspective_result_json,
+    format_script_for_prompt,
     script_excerpt_for_rows,
 )
 from app.services.pipeline_log import log_step
@@ -129,7 +130,7 @@ def _mock_modification_schemes(
             return f"{current}｜补充可协商说明".strip() if current else "创作者补充说明（可协商）"
         return f"{current}（平衡品牌与叙事）".strip() if current else "兼顾品牌信息与观众体验"
 
-    for direction in directions[:3]:
+    for direction in directions[:1]:
         hunks: list[dict[str, Any]] = []
         for row_index, row in enumerate(rows):
             targets: list[tuple[dict, str]] = []
@@ -542,11 +543,11 @@ async def run_expert_generate_modification_schemes(
 
     context_block = "\n\n".join(
         [
-            "## 场景\ngenerate_modification_schemes — 为创作者采纳的 Position 生成至少 2 个不同方向的修改方案",
-            f"## 用户说明\n{user_message or '请针对 TO BE CONSIDERED 列表中的立场给出多方向脚本修改方案'}",
+            "## 场景\ngenerate_modification_schemes — 为创作者采纳的 Position 生成 1 个修改方案",
+            f"## 用户说明\n{user_message or '请针对 TO BE CONSIDERED 列表中的立场给出脚本修改方案'}",
             f"## 采纳的 Position\n{positions_block}",
             f"## 关联 Issue\n{issues_block}",
-            f"## 脚本摘要\n{context.get('script_excerpt', '')[:1200]}",
+            f"## 当前脚本（全文，hunk 须使用下列 row_id / column_id）\n{format_script_for_prompt(project)}",
             f"## 已有节点\n{existing_nodes_summary(project)}",
         ]
     )
@@ -583,13 +584,14 @@ async def run_expert_generate_modification_schemes(
         for item in (payload.get("modification_schemes") or [])
         if isinstance(item, dict)
     ]
-    if len(schemes) < 2:
+    if not schemes:
         schemes = _mock_modification_schemes(
             project,
             target_issues=target_issues,
             target_positions=target_positions,
             user_message=user_message,
         )
+    schemes = schemes[:1]
 
     result = {
         "assistant_reply": payload.get("assistant_reply", ""),

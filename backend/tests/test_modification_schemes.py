@@ -4,6 +4,7 @@ from app.models.modification_scheme_ops import (
     apply_hunk_to_script,
     get_cell_value,
     normalize_scheme,
+    resolve_hunk_identifiers,
     validate_hunk_apply,
 )
 from app.models.script import default_script
@@ -41,7 +42,23 @@ class ModificationSchemeOpsTests(unittest.TestCase):
         next_script = apply_hunk_to_script(self.script, hunk)
         self.assertEqual(get_cell_value(next_script, self.row_id, self.column_id), "更新后的开场")
 
-    def test_normalize_scheme_requires_at_least_two_directions_in_mock_flow(self) -> None:
+    def test_resolve_hunk_identifiers_maps_column_key_and_removed_text(self) -> None:
+        resolved = resolve_hunk_identifiers(
+            self.script,
+            {
+                "row_id": "ignored",
+                "column_id": "scene",
+                "removed": "开场镜头",
+                "added": "更新后的开场",
+            },
+        )
+        self.assertIsNotNone(resolved)
+        assert resolved is not None
+        self.assertEqual(resolved["row_id"], self.row_id)
+        self.assertEqual(resolved["column_id"], self.column_id)
+        self.assertEqual(resolved["removed"], "开场镜头")
+
+    def test_normalize_scheme_accepts_resolved_aliases(self) -> None:
         scheme = normalize_scheme(
             {
                 "title": "平衡方案",

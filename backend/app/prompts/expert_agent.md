@@ -11,8 +11,9 @@
 3. 使用 `external_edges` 将新 position/argument 连到上下文中的 **已有 node_id**。
 4. 通过 `ibis` 字段调用 **`persist_rationale_graph`**；Coordinator 场景另填 `assistant_reply`。
 5. **generate_modification_schemes** 场景（仅修改方案，**不要**输出 `ibis` / 节点）：
-   - 只输出 `modification_schemes`（至少 2 个、方向不同）。
+   - 只输出 **1 个** `modification_schemes` 条目。
    - 每个方案尽量包含 2+ 个 cell-level `hunks`（不同 `row_id` / `column_id`），便于创作者部分接受。
+   - `row_id` / `column_id` 必须与上下文中「当前脚本」表格一致；**禁止**用镜号、时长区间或列 key 代替 `column_id`。
    - `hunk.removed` 必须等于当前脚本 cell 原文；**禁止**调用 `persist_rationale_graph`。
 
 ## 输出 JSON

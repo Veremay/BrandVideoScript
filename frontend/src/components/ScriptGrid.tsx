@@ -60,7 +60,7 @@ export function ScriptGrid({ script }: { script: Script }) {
     return issueMap;
   }, [durationAnalysis.issues, project?.rationale_nodes]);
   const totalSeconds = Math.max(0, ...durationAnalysis.timeline.map((segment) => segment.end));
-  const { hunkByCell, hunkDecisions, setHunkDecision } = useCellHunkMap();
+  const { hunkByCell, hunkDecisions, setHunkDecision, acceptAndApplyHunk } = useCellHunkMap();
 
   useEffect(() => {
     function handleDocumentPointerDown(event: globalThis.MouseEvent) {
@@ -339,7 +339,8 @@ export function ScriptGrid({ script }: { script: Script }) {
                   key={row.row_id}
                   onAddRow={() => insertRowAfter(row.row_id)}
                   onDeleteRow={() => handleDeleteRow(row.row_id)}
-                  onHunkDecision={setHunkDecision}
+                  onHunkAccept={(hunkId) => void acceptAndApplyHunk(hunkId)}
+                  onHunkReject={(hunkId) => setHunkDecision(hunkId, false)}
                   onResizeRow={(event) => startRowResize(event, row.row_id)}
                   onSelection={handleSelection}
                   onSelectRow={() => {
@@ -396,7 +397,8 @@ function RowBlock({
   issueTitle,
   onAddRow,
   onDeleteRow,
-  onHunkDecision,
+  onHunkAccept,
+  onHunkReject,
   onResizeRow,
   onSelection,
   onSelectRow,
@@ -414,7 +416,8 @@ function RowBlock({
   issueTitle?: string;
   onAddRow: () => void;
   onDeleteRow: () => void;
-  onHunkDecision: (hunkId: string, decision: HunkDecision) => void;
+  onHunkAccept: (hunkId: string) => void;
+  onHunkReject: (hunkId: string) => void;
   onResizeRow: (event: PointerEvent<HTMLElement>) => void;
   onSelection: (event: MouseEvent<HTMLElement>, rowId: string, columnId: string) => void;
   onSelectRow: () => void;
@@ -470,8 +473,8 @@ function RowBlock({
                 <CellHunkDiff
                   decision={hunkDecision}
                   hunk={hunk}
-                  onAccept={() => onHunkDecision(hunk.hunk_id, true)}
-                  onReject={() => onHunkDecision(hunk.hunk_id, false)}
+                  onAccept={() => onHunkAccept(hunk.hunk_id)}
+                  onReject={() => onHunkReject(hunk.hunk_id)}
                 />
               ) : column.type === "duration" ? (
                 <div className="editor-duration-wrap">

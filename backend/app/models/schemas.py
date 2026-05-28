@@ -207,6 +207,7 @@ class ProjectResponse(BaseModel):
     rationale_nodes: list[dict[str, Any]] = Field(default_factory=list)
     rationale_edges: list[dict[str, Any]] = Field(default_factory=list)
     consideration_queue: list[str] = Field(default_factory=list)
+    modification_schemes: list[dict[str, Any]] = Field(default_factory=list)
     personas: list[dict[str, Any]]
     active_persona_id: str | None
     audience_analysis: dict[str, Any]

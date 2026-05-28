@@ -29,6 +29,7 @@ export function ProjectList() {
       const project = await createProject(userId, title, videoCategory);
       const nextProjects = await fetchProjects(userId);
       setProjects(nextProjects);
+      window.localStorage.setItem("brandvideo:project_id", project._id);
       setProject(project);
       setCreateDialogOpen(false);
     } catch (err) {
@@ -43,6 +44,7 @@ export function ProjectList() {
 
     setError(null);
     try {
+      window.localStorage.setItem("brandvideo:project_id", projectId);
       setProject(await fetchProject(projectId, userId));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to open project");

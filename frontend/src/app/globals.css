@@ -4628,9 +4628,19 @@ textarea {
   border: 1px solid var(--figma-border);
   border-radius: 6px;
   background: #fff;
+  color: var(--editor-text);
   font-size: 11px;
   font-weight: 600;
+  line-height: 1.2;
   cursor: pointer;
+}
+
+.editor-cell-hunk-btn--accept {
+  color: #027a48;
+}
+
+.editor-cell-hunk-btn--reject {
+  color: #b42318;
 }
 
 .editor-cell-hunk-btn.active.accept {

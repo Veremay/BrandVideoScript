@@ -53,6 +53,7 @@ type RevisionProposalsContextValue = {
   acceptAllAndApply: () => Promise<void>;
   applyAcceptedOnly: () => Promise<void>;
   rejectAllHunks: () => void;
+  acceptAndApplyHunk: (hunkId: string) => Promise<void>;
   selectScheme: (schemeId: string) => void;
 };
 
@@ -78,7 +79,10 @@ export function RevisionProposalsProvider({ projectId, userId, children }: Revis
   const setProject = useAppStore((state) => state.setProject);
   const setScript = useAppStore((state) => state.setScript);
 
-  const schemes = project?.modification_schemes ?? [];
+  const schemes = useMemo(() => {
+    const all = project?.modification_schemes ?? [];
+    return all.length ? [all[all.length - 1]] : [];
+  }, [project?.modification_schemes]);
   const schemesStale = isStaleStatus(project?.stale?.modification_schemes);
 
   const [selectedSchemeId, setSelectedSchemeId] = useState<string | null>(null);
@@ -209,6 +213,18 @@ export function RevisionProposalsProvider({ projectId, userId, children }: Revis
     setHunkDecisions((prev) => ({ ...prev, [hunkId]: decision }));
   }, []);
 
+  const acceptAndApplyHunk = useCallback(
+    async (hunkId: string) => {
+      if (schemesStale) {
+        setError("Script changed — regenerate the plan before applying.");
+        return;
+      }
+      setHunkDecisions((prev) => ({ ...prev, [hunkId]: true }));
+      await applyHunks([hunkId], []);
+    },
+    [applyHunks, schemesStale]
+  );
+
   const selectScheme = useCallback(
     (schemeId: string) => {
       if (schemeId === selectedSchemeId && previewOpen) {
@@ -244,6 +260,7 @@ export function RevisionProposalsProvider({ projectId, userId, children }: Revis
     acceptAllAndApply,
     applyAcceptedOnly,
     rejectAllHunks,
+    acceptAndApplyHunk,
     selectScheme
   };
 
@@ -282,7 +299,7 @@ export function RevisionProposalsList() {
 
       {!schemes.length ? (
         <p className="glacier-plans-placeholder">
-          No revision proposals yet. In Chat, ask Coordinator to generate multi-direction modification schemes.
+          No revision proposals yet. In Chat, ask Coordinator to generate a modification scheme for adopted positions.
         </p>
       ) : null}
 

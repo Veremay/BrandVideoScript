@@ -53,9 +53,8 @@ async def generate_modification_schemes(
             target_position_ids=target_position_ids,
             user_message=user_message,
         )
-        new_schemes = result.get("modification_schemes") or []
-        existing = list(project.get("modification_schemes") or [])
-        combined = [*existing, *new_schemes]
+        new_schemes = (result.get("modification_schemes") or [])[:1]
+        combined = new_schemes
 
         await db.projects.update_one(
             {"_id": project_id, "user_id": user_id},

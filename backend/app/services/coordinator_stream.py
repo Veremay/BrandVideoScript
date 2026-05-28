@@ -231,7 +231,7 @@ async def _stream_generate_modification_schemes(
     )
 
     reply = result.get("assistant_reply") or (
-        f"已生成 {len(new_schemes)} 套脚本修改方案（非节点图）。请在 Revision Proposals 中预览稿子，"
+        f"已生成脚本修改方案（非节点图）。请在 Revision Proposals / Script Editor 中预览 diff，"
         f"对每处修改选择接受或拒绝，可只写入部分修改。"
     )
     for index in range(0, len(reply), 12):
@@ -246,7 +246,7 @@ async def _stream_generate_modification_schemes(
         requested_perspectives=requested_perspectives,
         active_persona_id=project.get("active_persona_id"),
         quotes=quotes,
-        related_node_ids=issue_targets,
+        related_node_ids=position_targets,
         generated_artifact_ids=scheme_ids,
     )
     await save_coordinator_message(db, assistant_doc)

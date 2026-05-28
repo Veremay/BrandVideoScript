@@ -101,6 +101,45 @@ def script_excerpt_for_rows(project: dict[str, Any], row_ids: set[str]) -> str:
     return " | ".join(parts)[:800]
 
 
+def format_script_for_prompt(project: dict[str, Any]) -> str:
+    """Full script table for LLM prompts (row_id + column_id + keys, not a truncated excerpt)."""
+    script = project.get("current_script") or {}
+    columns = sorted(script.get("columns", []), key=lambda item: item.get("order", 0))
+    rows = sorted(script.get("rows", []), key=lambda item: item.get("order", 0))
+    if not rows:
+        return "（无脚本行）"
+
+    col_by_id = {str(column.get("column_id", "")): column for column in columns}
+    lines: list[str] = [
+        "列定义（hunk 必须使用 column_id，可参考 key/label）：",
+        *[
+            f"- column_id={column.get('column_id')} key={column.get('key')} label={column.get('label')}"
+            for column in columns
+            if column.get("key") != "feedback"
+        ],
+        "",
+        "脚本全文：",
+    ]
+
+    for index, row in enumerate(rows, start=1):
+        row_id = str(row.get("row_id", ""))
+        cells = {str(cell.get("column_id", "")): str(cell.get("value", "")) for cell in row.get("cells", [])}
+        lines.append(f"### 第 {index} 行 row_id={row_id}")
+        for column in columns:
+            key = str(column.get("key", ""))
+            if key == "feedback":
+                continue
+            column_id = str(column.get("column_id", ""))
+            label = str(column.get("label", key))
+            value = cells.get(column_id, "").strip()
+            if not value:
+                continue
+            lines.append(f"- {label} (column_id={column_id}, key={key}): {value}")
+        lines.append("")
+
+    return "\n".join(lines).strip()
+
+
 def format_quotes(quotes: list[dict[str, Any]] | None) -> str:
     if not quotes:
         return ""

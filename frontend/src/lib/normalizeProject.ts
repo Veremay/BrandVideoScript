@@ -12,7 +12,7 @@ export function normalizeProject(raw: ProjectPayload | null): Project | null {
     rationale_nodes: (raw.rationale_nodes ?? []) as RationaleNode[],
     rationale_edges: (raw.rationale_edges ?? []) as RationaleEdge[],
     consideration_queue: raw.consideration_queue ?? raw.negotiation_queue ?? [],
-    modification_schemes: raw.modification_schemes ?? [],
+    modification_schemes: (raw.modification_schemes ?? []).slice(-1),
     brand_perspective_result: raw.brand_perspective_result ?? null,
     audience_perspective_result: raw.audience_perspective_result ?? null,
     expert_perspective_result: raw.expert_perspective_result ?? null,

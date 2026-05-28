@@ -10,6 +10,96 @@ SCHEME_DIRECTIONS = frozenset({"conservative", "balanced", "creator_led", "audie
 SCHEME_STATUSES = frozenset({"draft", "previewed", "partially_applied", "applied", "dismissed"})
 
 
+def _columns_by_key(script: dict) -> dict[str, dict]:
+    return {str(column.get("key", "")): column for column in script.get("columns", []) if column.get("key")}
+
+
+def _columns_by_id(script: dict) -> dict[str, dict]:
+    return {str(column.get("column_id", "")): column for column in script.get("columns", []) if column.get("column_id")}
+
+
+def _sorted_rows(script: dict) -> list[dict]:
+    return sorted(script.get("rows", []), key=lambda row: row.get("order", 0))
+
+
+def resolve_hunk_identifiers(script: dict, raw: dict[str, Any]) -> dict[str, Any] | None:
+    """Map LLM row/column aliases (keys, row order, removed-text match) to real script ids."""
+    resolved = dict(raw)
+    columns_by_id = _columns_by_id(script)
+    columns_by_key = _columns_by_key(script)
+
+    column_ref = str(resolved.get("column_id", "")).strip()
+    column: dict | None = columns_by_id.get(column_ref)
+    if column is None and column_ref:
+        column = columns_by_key.get(column_ref)
+    if column is None and column_ref:
+        lowered = column_ref.lower()
+        for item in script.get("columns", []):
+            label = str(item.get("label", "")).lower()
+            key = str(item.get("key", "")).lower()
+            if lowered in {label, key}:
+                column = item
+                break
+    if column is None:
+        return None
+    resolved["column_id"] = str(column["column_id"])
+
+    row_ref = str(resolved.get("row_id", "")).strip()
+    rows = _sorted_rows(script)
+    row: dict | None = next((item for item in rows if item.get("row_id") == row_ref), None)
+
+    if row is None and row_ref.isdigit():
+        order = int(row_ref)
+        if 1 <= order <= len(rows):
+            row = rows[order - 1]
+
+    removed_hint = str(resolved.get("removed", "")).strip()
+
+    def _text_matches(current: str) -> bool:
+        if not current or not removed_hint:
+            return False
+        return removed_hint == current or removed_hint in current or current in removed_hint
+
+    if row is None and removed_hint:
+        matches: list[dict] = []
+        column_id = str(column["column_id"])
+        for candidate in rows:
+            current = get_cell_value(script, str(candidate.get("row_id", "")), column_id) or ""
+            if _text_matches(current):
+                matches.append(candidate)
+        if len(matches) == 1:
+            row = matches[0]
+
+    if row is None and removed_hint:
+        for candidate in rows:
+            for item in script.get("columns", []):
+                if str(item.get("key", "")) == "feedback":
+                    continue
+                column_id = str(item.get("column_id", ""))
+                current = get_cell_value(script, str(candidate.get("row_id", "")), column_id) or ""
+                if _text_matches(current):
+                    row = candidate
+                    column = item
+                    resolved["column_id"] = column_id
+                    break
+            if row is not None:
+                break
+
+    if row is None:
+        return None
+
+    resolved["row_id"] = str(row["row_id"])
+    column_id = str(column["column_id"])
+    current = get_cell_value(script, resolved["row_id"], column_id) or ""
+    if removed_hint and current and removed_hint != current:
+        if removed_hint in current or current.startswith(removed_hint[:80]):
+            resolved["removed"] = current
+    elif "removed" not in raw and current:
+        resolved["removed"] = current
+
+    return resolved
+
+
 def get_cell_value(script: dict, row_id: str, column_id: str) -> str | None:
     for row in script.get("rows", []):
         if row.get("row_id") != row_id:
@@ -79,8 +169,11 @@ def normalize_scheme(
     for item in raw.get("hunks") or []:
         if not isinstance(item, dict):
             continue
+        resolved = resolve_hunk_identifiers(script, item)
+        if resolved is None:
+            continue
         try:
-            hunks.append(normalize_hunk(item, script=script))
+            hunks.append(normalize_hunk(resolved, script=script))
         except ValueError:
             continue
 
