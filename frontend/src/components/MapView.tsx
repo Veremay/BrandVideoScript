@@ -96,7 +96,67 @@ function sourceLabel(source?: RationaleSourceType): string {
 }
 
 const EDGE_STYLE = { stroke: "#7ed4fd", strokeWidth: 2 };
+const EDGE_FOCUS_STYLE = { stroke: "#006591", strokeWidth: 3 };
 const FLOW_EDGE_TYPE = "default";
+
+function buildUndirectedAdjacency(edgeList: Edge[]): Map<string, Set<string>> {
+  const adjacency = new Map<string, Set<string>>();
+  const link = (a: string, b: string) => {
+    if (!adjacency.has(a)) adjacency.set(a, new Set());
+    adjacency.get(a)!.add(b);
+  };
+  for (const edge of edgeList) {
+    link(edge.source, edge.target);
+    link(edge.target, edge.source);
+  }
+  return adjacency;
+}
+
+function reachableNodeIds(startId: string, adjacency: Map<string, Set<string>>): Set<string> {
+  const visited = new Set<string>([startId]);
+  const queue = [startId];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    for (const neighbor of adjacency.get(current) ?? []) {
+      if (visited.has(neighbor)) continue;
+      visited.add(neighbor);
+      queue.push(neighbor);
+    }
+  }
+  return visited;
+}
+
+function applyGraphFocus(
+  nodeList: Node<IbisNodeData>[],
+  edgeList: Edge[],
+  focusId: string | null,
+  reachable: Set<string> | null
+): { nodes: Node<IbisNodeData>[]; edges: Edge[] } {
+  if (!focusId || !reachable) {
+    return { nodes: nodeList, edges: edgeList };
+  }
+
+  const nodes = nodeList.map((node) => {
+    const inComponent = reachable.has(node.id);
+    const className = inComponent
+      ? node.id === focusId
+        ? "map-graph-focused map-graph-focus-root"
+        : "map-graph-focused"
+      : "map-graph-dimmed";
+    return { ...node, className };
+  });
+
+  const edges = edgeList.map((edge) => {
+    const inComponent = reachable.has(edge.source) && reachable.has(edge.target);
+    return {
+      ...edge,
+      className: inComponent ? "map-graph-edge-focused" : "map-graph-edge-dimmed",
+      style: inComponent ? EDGE_FOCUS_STYLE : { ...EDGE_STYLE, opacity: 0.22 }
+    };
+  });
+
+  return { nodes, edges };
+}
 
 function rationaleToFlowNode(
   node: RationaleNode,
@@ -257,6 +317,7 @@ function MapViewContent() {
   const [addNodeMenuOpen, setAddNodeMenuOpen] = useState(false);
   const [edgeMenu, setEdgeMenu] = useState<EdgeMenuState | null>(null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+  const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
   const [syncingMap, setSyncingMap] = useState(false);
   const [applyingLayout, setApplyingLayout] = useState(false);
   const { zoomIn, zoomOut, fitView } = useReactFlow();
@@ -271,6 +332,31 @@ function MapViewContent() {
     setEdgeMenu(null);
   }, []);
 
+  const clearGraphFocus = useCallback(() => {
+    setFocusNodeId(null);
+  }, []);
+
+  const handlePaneClick = useCallback(() => {
+    closeMenus();
+    clearGraphFocus();
+  }, [clearGraphFocus, closeMenus]);
+
+  const handleNodeClick = useCallback((_event: React.MouseEvent, node: Node<IbisNodeData>) => {
+    setFocusNodeId((current) => (current === node.id ? null : node.id));
+  }, []);
+
+  const graphAdjacency = useMemo(() => buildUndirectedAdjacency(edges), [edges]);
+
+  const focusReachable = useMemo(() => {
+    if (!focusNodeId) return null;
+    return reachableNodeIds(focusNodeId, graphAdjacency);
+  }, [focusNodeId, graphAdjacency]);
+
+  const { nodes: displayNodes, edges: displayEdges } = useMemo(
+    () => applyGraphFocus(nodes, edges, focusNodeId, focusReachable),
+    [edges, focusNodeId, focusReachable, nodes]
+  );
+
   const runFitView = useCallback(() => {
     const workspace = workspaceRef.current;
     if (!workspace || workspace.clientWidth < 64 || workspace.clientHeight < 64) return;
@@ -281,8 +367,15 @@ function MapViewContent() {
   useEffect(() => {
     setNodes(flowNodes);
     setEdges(flowEdges);
+    setFocusNodeId(null);
     hasFittedRef.current = false;
   }, [flowNodes, flowEdges, setEdges, setNodes]);
+
+  useEffect(() => {
+    if (focusNodeId && !flowNodeIds.has(focusNodeId)) {
+      setFocusNodeId(null);
+    }
+  }, [focusNodeId, flowNodeIds]);
 
   useEffect(() => {
     const count = rationaleNodes.length;
@@ -667,14 +760,14 @@ function MapViewContent() {
           connectionLineStyle={EDGE_STYLE}
           defaultEdgeOptions={{ style: EDGE_STYLE, type: FLOW_EDGE_TYPE, reconnectable: true }}
           deleteKeyCode={["Backspace", "Delete"]}
-          edges={edges}
+          edges={displayEdges}
           edgesReconnectable
           fitViewOptions={{ padding: 0.25 }}
           maxZoom={2}
           minZoom={0.25}
           multiSelectionKeyCode={["Control", "Meta", "Shift"]}
           nodeTypes={nodeTypes}
-          nodes={nodes}
+          nodes={displayNodes}
           nodesConnectable
           nodesDraggable={!editingNodeId}
           panOnDrag={[1, 2]}
@@ -687,11 +780,12 @@ function MapViewContent() {
           onEdgeContextMenu={handleEdgeContextMenu}
           onEdgesChange={onEdgesChange}
           onInit={handleFlowInit}
+          onNodeClick={handleNodeClick}
           onNodeContextMenu={(event) => event.preventDefault()}
           onNodesChange={onNodesChange}
           onNodesDelete={handleNodesDelete}
           onNodeDragStop={handleNodeDragStop}
-          onPaneClick={closeMenus}
+          onPaneClick={handlePaneClick}
           onReconnect={handleReconnect}
           proOptions={{ hideAttribution: true }}
         >
