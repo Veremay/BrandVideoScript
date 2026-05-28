@@ -2,11 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import {
-  RevisionProposalsActions,
-  RevisionProposalsList,
-  RevisionProposalsProvider
-} from "@/components/RevisionProposalsPanel";
+import { RevisionProposalsActions, RevisionProposalsList } from "@/components/RevisionProposalsPanel";
 import { fetchCoordinatorMessages, streamCoordinatorMessage } from "@/lib/api";
 import { resolveCoordinatorTaskType } from "@/lib/coordinatorIntent";
 import type { CoordinatorMessage, RequestedPerspective } from "@/lib/types";
@@ -286,13 +282,13 @@ export function CoordinatorChat({
           </div>
         </header>
 
-        {tab === "plans" && projectId && userId ? (
-          <RevisionProposalsProvider projectId={projectId} userId={userId}>
+        {tab === "plans" ? (
+          <>
             <div className="glacier-body">
               <RevisionProposalsList />
             </div>
             <RevisionProposalsActions />
-          </RevisionProposalsProvider>
+          </>
         ) : (
           <div className="glacier-body">
             {tab === "chat" ? (

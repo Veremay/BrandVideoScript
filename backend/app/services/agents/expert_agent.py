@@ -30,19 +30,69 @@ DIRECTION_LABELS = {
 }
 
 
-def _pick_target_issues(project: dict[str, Any], target_issue_ids: list[str] | None) -> list[dict[str, Any]]:
+def _issues_for_positions(
+    project: dict[str, Any],
+    positions: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if not positions:
+        return []
+    nodes_by_id = {n.get("node_id"): n for n in (project.get("rationale_nodes") or []) if n.get("node_id")}
+    issue_ids: list[str] = []
+    for edge in project.get("rationale_edges") or []:
+        if edge.get("relation_type") != "responds_to":
+            continue
+        position_id = edge.get("from_node_id")
+        issue_id = edge.get("to_node_id")
+        if position_id in {p.get("node_id") for p in positions} and issue_id:
+            issue_ids.append(str(issue_id))
+    seen: set[str] = set()
+    issues: list[dict[str, Any]] = []
+    for issue_id in issue_ids:
+        if issue_id in seen:
+            continue
+        seen.add(issue_id)
+        issue = nodes_by_id.get(issue_id)
+        if issue and issue.get("node_type") == "issue":
+            issues.append(issue)
+    return issues
+
+
+def _pick_target_positions(
+    project: dict[str, Any],
+    target_position_ids: list[str] | None,
+) -> list[dict[str, Any]]:
+    nodes = project.get("rationale_nodes") or []
+    positions = [n for n in nodes if n.get("node_type") == "position"]
+    if target_position_ids:
+        wanted = set(target_position_ids)
+        filtered = [n for n in positions if n.get("node_id") in wanted]
+        return filtered or positions[:3]
+    queue = set(project.get("consideration_queue") or [])
+    prioritized = [
+        n
+        for n in positions
+        if n.get("in_consideration_queue") or n.get("node_id") in queue or n.get("status") == "to_be_considered"
+    ]
+    return prioritized[:5] or positions[:2]
+
+
+def _pick_target_issues(
+    project: dict[str, Any],
+    target_issue_ids: list[str] | None,
+    *,
+    target_positions: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    if target_positions:
+        linked = _issues_for_positions(project, target_positions)
+        if linked:
+            return linked
     nodes = project.get("rationale_nodes") or []
     issues = [n for n in nodes if n.get("node_type") == "issue"]
     if target_issue_ids:
         wanted = set(target_issue_ids)
         filtered = [n for n in issues if n.get("node_id") in wanted]
         return filtered or issues[:3]
-    prioritized = [
-        n
-        for n in issues
-        if n.get("status") in {"open", "needs_negotiation", "in_review"}
-        or n.get("in_negotiation_queue")
-    ]
+    prioritized = [n for n in issues if n.get("status") in {"open", "in_review"}]
     return prioritized[:3] or issues[:2]
 
 
@@ -50,6 +100,7 @@ def _mock_modification_schemes(
     project: dict[str, Any],
     *,
     target_issues: list[dict[str, Any]],
+    target_positions: list[dict[str, Any]] | None = None,
     user_message: str | None,
 ) -> list[dict[str, Any]]:
     project_id = str(project.get("_id") or "")
@@ -60,7 +111,9 @@ def _mock_modification_schemes(
     notes_col = columns_by_key.get("notes")
     rows = sorted(script.get("rows", []), key=lambda r: r.get("order", 0))[:3]
     issue_ids = [n["node_id"] for n in target_issues if n.get("node_id")]
-    issue_title = target_issues[0].get("title", "脚本冲突") if target_issues else "整体脚本"
+    position_ids = [n["node_id"] for n in (target_positions or []) if n.get("node_id")]
+    position_title = (target_positions or [{}])[0].get("title", "") if target_positions else ""
+    issue_title = position_title or (target_issues[0].get("title", "脚本冲突") if target_issues else "整体脚本")
 
     directions = ["conservative", "balanced", "creator_led", "audience_friendly"]
     schemes: list[dict[str, Any]] = []
@@ -106,7 +159,8 @@ def _mock_modification_schemes(
                     "title": f"{DIRECTION_LABELS.get(direction, direction)}：{issue_title[:40]}",
                     "direction": direction,
                     "target_issue_ids": issue_ids,
-                    "changes_summary": f"针对「{issue_title}」的{DIRECTION_LABELS.get(direction, direction)}改法",
+                    "target_position_ids": position_ids,
+                    "changes_summary": f"落实立场「{issue_title}」的{DIRECTION_LABELS.get(direction, direction)}改法",
                     "rationale": f"基于 Expert 分析，{user_message[:120] if user_message else '在冲突点上给出可选路径'}",
                     "tradeoffs": {
                         "brand": "品牌一致性" if direction == "conservative" else "适度让步",
@@ -119,7 +173,7 @@ def _mock_modification_schemes(
                     "response_script": "我们保留了可核对的品牌锚点，同时用叙事降低广告感。",
                     "risk": "观众仍可能感知为广告" if direction == "conservative" else "品牌方或要求加戏",
                     "hunks": hunks,
-                    "related_node_ids": issue_ids,
+                    "related_node_ids": [*position_ids, *issue_ids],
                 },
                 project_id=project_id,
                 script_version_id=script_version_id,
@@ -454,6 +508,7 @@ async def run_expert_generate_modification_schemes(
     project: dict[str, Any],
     *,
     target_issue_ids: list[str] | None = None,
+    target_position_ids: list[str] | None = None,
     user_message: str | None = None,
 ) -> dict[str, Any]:
     context = build_agent_context("expert", project)
@@ -461,25 +516,36 @@ async def run_expert_generate_modification_schemes(
 
     project_id = str(context.get("project_id") or project.get("_id") or "")
     script_version_id = context.get("current_script_version_id")
-    target_issues = _pick_target_issues(project, target_issue_ids)
+    target_positions = _pick_target_positions(project, target_position_ids)
+    target_issues = _pick_target_issues(
+        project,
+        target_issue_ids,
+        target_positions=target_positions,
+    )
 
     log_step(
         "expert_agent.generate_schemes",
         phase="IN",
         project_id=project_id,
+        target_position_ids=[n.get("node_id") for n in target_positions],
         target_issue_ids=[n.get("node_id") for n in target_issues],
     )
 
+    positions_block = "\n".join(
+        f"- {n.get('node_id')}: {n.get('title', '')} | {str(n.get('content', ''))[:120]}"
+        for n in target_positions
+    ) or "（无采纳立场，请基于脚本与图整体给方案）"
     issues_block = "\n".join(
         f"- {n.get('node_id')}: {n.get('title', '')} | {str(n.get('content', ''))[:120]}"
         for n in target_issues
-    ) or "（无明确 issue，请基于脚本与图整体给方案）"
+    ) or "（无关联 issue）"
 
     context_block = "\n\n".join(
         [
-            "## 场景\ngenerate_modification_schemes — 为冲突 issue 生成至少 2 个不同方向的修改方案",
-            f"## 用户说明\n{user_message or '请针对待协商/开放 issue 给出多方向修改方案'}",
-            f"## 目标 Issue\n{issues_block}",
+            "## 场景\ngenerate_modification_schemes — 为创作者采纳的 Position 生成至少 2 个不同方向的修改方案",
+            f"## 用户说明\n{user_message or '请针对 TO BE CONSIDERED 列表中的立场给出多方向脚本修改方案'}",
+            f"## 采纳的 Position\n{positions_block}",
+            f"## 关联 Issue\n{issues_block}",
             f"## 脚本摘要\n{context.get('script_excerpt', '')[:1200]}",
             f"## 已有节点\n{existing_nodes_summary(project)}",
         ]
@@ -489,10 +555,11 @@ async def run_expert_generate_modification_schemes(
         schemes = _mock_modification_schemes(
             project,
             target_issues=target_issues,
+            target_positions=target_positions,
             user_message=user_message,
         )
         return {
-            "assistant_reply": f"已生成 {len(schemes)} 个不同方向的修改方案，请在 Revision Proposals 中查看与应用。",
+            "assistant_reply": f"已生成 {len(schemes)} 个修改方案，请在 Script Editor 中逐条审阅 diff 并 Accept/Reject。",
             "modification_schemes": schemes,
         }
 
@@ -520,6 +587,7 @@ async def run_expert_generate_modification_schemes(
         schemes = _mock_modification_schemes(
             project,
             target_issues=target_issues,
+            target_positions=target_positions,
             user_message=user_message,
         )
 

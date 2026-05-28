@@ -88,7 +88,7 @@ Node Graph 用来呈现脚本创作中的关键问题。
 * 修改节点内容
 * 删除节点
 * 增加节点
-* 标记某些ISSUE为已解决或待协商
+* 标记某些 Position 为「待考虑」（TO BE CONSIDERED），表示创作者采纳该立场并希望在修改方案中落实
 
 节点图的作用是帮助创作者看清：当前脚本中有哪些品牌需求、观众接受度和创作策略之间的冲突。
 
@@ -121,11 +121,15 @@ Brand Agent 解析反馈中的：
 
 Expert Agent 基于这些反馈提出新的修改策略。
 
-系统也会把真实品牌反馈转化为新的 IBIS 节点，和原有节点形成对照。创作者可以选择将某个issue节点加入【TO BE NEGOTIATED LIST】，用来和品牌方进行协商。
+系统也会把真实品牌反馈转化为新的 IBIS 节点，和原有节点形成对照。
 
 ## 10. Expert Agent 生成修改方案
 
-当脚本中出现冲突或创作者请求修改建议时，Expert Agent 生成不同方案。
+创作者在 Node Graph 中将采纳的 **Position** 加入 **TO BE CONSIDERED** 列表；点击列表中的「生成修改方案」后，Expert Agent 基于这些立场生成脚本修改方案。
+
+修改方案融入 **Script Editor** 脚本表格：有改动的单元格内直接展示 cell-level **diff**（原文删除线 → 建议文案），创作者可对每一处选择 **Accept** 或 **Reject**，再通过工具栏整体或部分应用到脚本。
+
+当创作者通过 Coordinator 请求修改建议时，Expert Agent 也可生成不同方案（逻辑同上）。
 
 这些方案不是简单给一个“最佳答案”，而是提供多个可选方向，例如：
 
@@ -143,7 +147,7 @@ Expert Agent 基于这些反馈提出新的修改策略。
 * 可能被品牌方质疑的点
 * 如何回应品牌方
 
-## 11. Negotiation Preparation 输出
+## 11. Negotiation Preparation 输出（暂时取消）
 
 当创作者准备与品牌方沟通时（点击按钮），系统生成 Negotiation Preparation，生成好之后出现一个popout的弹窗。
 

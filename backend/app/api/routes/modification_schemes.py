@@ -42,6 +42,7 @@ async def post_generate_modification_schemes(
             project_id,
             payload.user_id.strip(),
             target_issue_ids=payload.target_issue_ids or None,
+            target_position_ids=payload.target_position_ids or None,
             user_message=payload.message,
         )
     except ValueError as exc:

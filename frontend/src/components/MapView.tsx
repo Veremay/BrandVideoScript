@@ -38,7 +38,8 @@ import {
   deleteGraphEdge,
   deleteGraphNode,
   syncMapFromScript,
-  toggleGraphNegotiationQueue,
+  generateModificationSchemes,
+  toggleGraphConsiderationQueue,
   updateGraphNode
 } from "@/lib/api";
 import { isGraphStaleFromScript } from "@/lib/stale";
@@ -53,7 +54,7 @@ type IbisNodeData = {
   width: number;
   sourceType?: RationaleSourceType;
   status?: string;
-  inNegotiationQueue?: boolean;
+  inConsiderationQueue?: boolean;
   proposalCount?: number;
   reference?: string;
 } & Record<string, unknown>;
@@ -183,7 +184,7 @@ function rationaleToFlowNode(
       width,
       sourceType: node.source_type,
       status: node.status,
-      inNegotiationQueue: node.in_negotiation_queue
+      inConsiderationQueue: node.in_consideration_queue ?? node.in_negotiation_queue
     }
   };
 }
@@ -225,7 +226,7 @@ const MapGraphActionsContext = createContext<{
   onSaveEdit: (nodeId: string, title: string, content: string) => void;
   onCancelEdit: () => void;
   onDelete: (nodeId: string) => void;
-  onToggleNegotiation: (nodeId: string, inQueue: boolean) => void;
+  onToggleConsideration: (nodeId: string, inQueue: boolean) => void;
 } | null>(null);
 
 const nodeTypes: NodeTypes = {
@@ -523,18 +524,64 @@ function MapViewContent() {
     [handleDeleteNodes]
   );
 
-  const handleToggleNegotiation = useCallback(
+  const setWorkspaceView = useAppStore((state) => state.setWorkspaceView);
+  const setEditorSchemeFocusId = useAppStore((state) => state.setEditorSchemeFocusId);
+  const [generatingSchemes, setGeneratingSchemes] = useState(false);
+
+  const considerationPositions = useMemo(() => {
+    const queue = new Set(project?.consideration_queue ?? []);
+    return (project?.rationale_nodes ?? []).filter(
+      (node) =>
+        node.node_type === "position" &&
+        (node.in_consideration_queue || node.in_negotiation_queue || queue.has(node.node_id))
+    );
+  }, [project?.consideration_queue, project?.rationale_nodes]);
+
+  const handleToggleConsideration = useCallback(
     async (nodeId: string, inQueue: boolean) => {
       if (!project) return;
       try {
-        const updated = await toggleGraphNegotiationQueue(project._id, project.user_id, nodeId, inQueue);
+        const updated = await toggleGraphConsiderationQueue(project._id, project.user_id, nodeId, inQueue);
         setProject(updated);
       } catch (error) {
-        window.alert(error instanceof Error ? error.message : "Failed to update negotiation queue");
+        window.alert(error instanceof Error ? error.message : "Failed to update consideration queue");
       }
     },
     [project, setProject]
   );
+
+  const handleGenerateModificationPlan = useCallback(async () => {
+    if (!project?._id || !project.user_id || generatingSchemes) return;
+    const positionIds = considerationPositions.map((node) => node.node_id);
+    if (!positionIds.length) {
+      window.alert("Add at least one Position to TO BE CONSIDERED from the node menu.");
+      return;
+    }
+    setGeneratingSchemes(true);
+    try {
+      const result = await generateModificationSchemes(project._id, project.user_id, {
+        target_position_ids: positionIds,
+        message: "Generate modification schemes for adopted positions in TO BE CONSIDERED."
+      });
+      setProject(result.project);
+      const latest = result.schemes[result.schemes.length - 1];
+      if (latest?.scheme_id) {
+        setEditorSchemeFocusId(latest.scheme_id);
+      }
+      setWorkspaceView("editor");
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Failed to generate modification plan");
+    } finally {
+      setGeneratingSchemes(false);
+    }
+  }, [
+    considerationPositions,
+    generatingSchemes,
+    project,
+    setEditorSchemeFocusId,
+    setProject,
+    setWorkspaceView
+  ]);
 
   const handleAddNode = useCallback(
     async (nodeType: MapNodeType) => {
@@ -683,17 +730,10 @@ function MapViewContent() {
       onSaveEdit: handleSaveEdit,
       onCancelEdit: handleCancelEdit,
       onDelete: handleDeleteNode,
-      onToggleNegotiation: handleToggleNegotiation
+      onToggleConsideration: handleToggleConsideration
     }),
-    [editingNodeId, handleCancelEdit, handleDeleteNode, handleSaveEdit, handleStartEdit, handleToggleNegotiation]
+    [editingNodeId, handleCancelEdit, handleDeleteNode, handleSaveEdit, handleStartEdit, handleToggleConsideration]
   );
-
-  const negotiationIssues = useMemo(() => {
-    const queue = new Set(project?.negotiation_queue ?? []);
-    return (project?.rationale_nodes ?? []).filter(
-      (node) => node.node_type === "issue" && (node.in_negotiation_queue || queue.has(node.node_id))
-    );
-  }, [project?.negotiation_queue, project?.rationale_nodes]);
 
   const emptyGraph = flowNodes.length === 0;
   const scriptChanged = isGraphStaleFromScript(project?.stale);
@@ -733,6 +773,7 @@ function MapViewContent() {
 
   return (
     <section className="map-workspace" ref={workspaceRef}>
+      <div className="map-canvas-area">
       {scriptChanged || mapSyncing ? (
         <button
           className="map-update-map-btn"
@@ -826,22 +867,6 @@ function MapViewContent() {
           </ul>
         </div>
 
-        <div className="map-negotiation-panel">
-          <h2 className="map-legend-title">TO BE NEGOTIATED</h2>
-          {negotiationIssues.length === 0 ? (
-            <p className="map-negotiation-empty">Mark Issue nodes from the node menu.</p>
-          ) : (
-            <ul className="map-negotiation-list">
-              {negotiationIssues.map((issue) => (
-                <li key={issue.node_id}>
-                  <strong>{issue.title}</strong>
-                  <span>{issue.status ?? "needs_negotiation"}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
         <div className="map-controls-wrap" ref={controlsRef}>
           <div className="map-controls">
             <button
@@ -904,6 +929,34 @@ function MapViewContent() {
           ) : null}
         </div>
       </aside>
+
+      <aside className="map-overlay-right" aria-label="To be considered">
+        <div className="map-consideration-panel">
+          <h2 className="map-legend-title">TO BE CONSIDERED</h2>
+          <p className="map-consideration-hint">Positions you adopt for the next script revision.</p>
+          {considerationPositions.length === 0 ? (
+            <p className="map-consideration-empty">Mark Position nodes from the node menu.</p>
+          ) : (
+            <ul className="map-consideration-list">
+              {considerationPositions.map((position) => (
+                <li key={position.node_id}>
+                  <strong>{position.title}</strong>
+                  <span>{position.status ?? "to_be_considered"}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <button
+            className="map-consideration-generate-btn"
+            disabled={!considerationPositions.length || generatingSchemes}
+            onClick={() => void handleGenerateModificationPlan()}
+            type="button"
+          >
+            {generatingSchemes ? "Generating…" : "Generate modification plan"}
+          </button>
+        </div>
+      </aside>
+      </div>
     </section>
   );
 }
@@ -982,7 +1035,7 @@ function IbisNode({ data, id }: NodeProps) {
           <span className="map-node-label">
             {nodeData.nodeType}
             {nodeData.sourceType ? <em className="map-node-source">{sourceLabel(nodeData.sourceType)}</em> : null}
-            {nodeData.inNegotiationQueue ? <em className="map-node-negotiation">negotiate</em> : null}
+            {nodeData.inConsiderationQueue ? <em className="map-node-consideration">consider</em> : null}
           </span>
           <div className="map-node-menu-wrap" ref={menuRef}>
             <button
@@ -1014,17 +1067,17 @@ function IbisNode({ data, id }: NodeProps) {
                 >
                   Edit
                 </button>
-                {nodeData.nodeType === "issue" ? (
+                {nodeData.nodeType === "position" ? (
                   <button
                     className="map-node-dropdown-item"
                     onClick={() => {
                       setMenuOpen(false);
-                      actions?.onToggleNegotiation(id, !nodeData.inNegotiationQueue);
+                      actions?.onToggleConsideration(id, !nodeData.inConsiderationQueue);
                     }}
                     role="menuitem"
                     type="button"
                   >
-                    {nodeData.inNegotiationQueue ? "Remove from negotiation" : "Add to negotiation"}
+                    {nodeData.inConsiderationQueue ? "Remove from consideration" : "Add to consideration"}
                   </button>
                 ) : null}
                 <button

@@ -61,6 +61,7 @@ def build_rationale_node(
         "stance": stance,
         "confidence": confidence,
         "status": status,
+        "in_consideration_queue": False,
         "in_negotiation_queue": False,
         "linked_script_refs": [],
         "related_reference_ids": [],

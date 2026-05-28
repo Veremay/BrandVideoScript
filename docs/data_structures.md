@@ -58,7 +58,7 @@
 | `owner_id` | 远期正式鉴权 |
 | `platform_context` | 视频平台语境（MVP 可配置常量，后期接数据分析） |
 | `brief` | MVP 嵌入；完整版可拆 `BriefFile` |
-| `negotiation_queue` | 创作者标记的 **TO BE NEGOTIATED** Issue 列表（`pipeline.md` §9） |
+| `consideration_queue` | 创作者采纳的 **TO BE CONSIDERED** Position 列表（`pipeline.md` §10） |
 | `negotiation_preparation` | 最近一次生成的协商材料（弹窗读取） |
 
 结构化 artifact 应记录 `based_on_script_version_id`（或 `linked_script_refs[].script_version_id`）。
@@ -213,7 +213,7 @@ MVP 文件类型：`.md`、`.txt`、纯文本粘贴。PDF/DOC/PPT 等见 `develo
   "stance": "support | oppose | neutral | not_applicable",
   "confidence": "high | medium | low",
   "status": "open | in_review | resolved | needs_negotiation | deferred | dismissed",
-  "in_negotiation_queue": false,
+  "in_consideration_queue": false,
   "linked_script_refs": [
     {
       "row_id": "string",
@@ -245,7 +245,7 @@ MVP 文件类型：`.md`、`.txt`、纯文本粘贴。PDF/DOC/PPT 等见 `develo
 | `creator_manual` | 创作者手动创建 |
 | `external_reference` | 二期 References |
 
-`in_negotiation_queue: true` 表示 Issue 在 **TO BE NEGOTIATED LIST** 中（与 `project.negotiation_queue` 同步）。
+`in_consideration_queue: true` 表示 Position 在 **TO BE CONSIDERED LIST** 中（与 `project.consideration_queue` 同步）。创作者采纳该立场，并用于生成修改方案。
 
 ---
 

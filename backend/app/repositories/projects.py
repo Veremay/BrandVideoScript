@@ -50,7 +50,9 @@ def serialize_project(document: dict) -> dict:
     document.setdefault("expert_perspective_result", None)
     document.setdefault("rationale_nodes", [])
     document.setdefault("rationale_edges", [])
-    document.setdefault("negotiation_queue", [])
+    document.setdefault("consideration_queue", [])
+    if not document.get("consideration_queue") and document.get("negotiation_queue"):
+        document["consideration_queue"] = []
     document.setdefault("modification_schemes", [])
     return document
 
@@ -300,7 +302,7 @@ async def create_project(
         "rationale_nodes": [],
         "rationale_edges": [],
         "modification_schemes": [],
-        "negotiation_queue": [],
+        "consideration_queue": [],
         "negotiation_preparation": None,
         "current_script_version_id": new_id("script_ver"),
         "stale": default_stale(),

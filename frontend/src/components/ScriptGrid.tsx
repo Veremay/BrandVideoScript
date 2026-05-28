@@ -2,9 +2,10 @@
 
 import { MouseEvent, PointerEvent, useEffect, useMemo, useState } from "react";
 
+import { CellHunkDiff, useCellHunkMap } from "@/components/ScriptCellModification";
 import { createGraphNode } from "@/lib/api";
 import { analyzeDurations, isBrandFeedbackColumn } from "@/lib/scriptEditor";
-import type { Script, ScriptColumn } from "@/lib/types";
+import type { HunkDecision, ModificationSchemeHunk, Script, ScriptColumn } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
 
 const MIN_COLUMN_WIDTH = 88;
@@ -59,6 +60,7 @@ export function ScriptGrid({ script }: { script: Script }) {
     return issueMap;
   }, [durationAnalysis.issues, project?.rationale_nodes]);
   const totalSeconds = Math.max(0, ...durationAnalysis.timeline.map((segment) => segment.end));
+  const { hunkByCell, hunkDecisions, setHunkDecision } = useCellHunkMap();
 
   useEffect(() => {
     function handleDocumentPointerDown(event: globalThis.MouseEvent) {
@@ -330,11 +332,14 @@ export function ScriptGrid({ script }: { script: Script }) {
                   columns={columns}
                   columnWidths={columnWidths}
                   hasIssue={issueByRowId.has(row.row_id)}
+                  hunkByCell={hunkByCell}
+                  hunkDecisions={hunkDecisions}
                   index={rowIndex}
                   issueTitle={issueByRowId.get(row.row_id)?.join(" / ")}
                   key={row.row_id}
                   onAddRow={() => insertRowAfter(row.row_id)}
                   onDeleteRow={() => handleDeleteRow(row.row_id)}
+                  onHunkDecision={setHunkDecision}
                   onResizeRow={(event) => startRowResize(event, row.row_id)}
                   onSelection={handleSelection}
                   onSelectRow={() => {
@@ -385,10 +390,13 @@ function RowBlock({
   columns,
   columnWidths,
   hasIssue,
+  hunkByCell,
+  hunkDecisions,
   index,
   issueTitle,
   onAddRow,
   onDeleteRow,
+  onHunkDecision,
   onResizeRow,
   onSelection,
   onSelectRow,
@@ -400,10 +408,13 @@ function RowBlock({
   columns: Script["columns"];
   columnWidths: Record<string, number>;
   hasIssue: boolean;
+  hunkByCell: Map<string, ModificationSchemeHunk>;
+  hunkDecisions: Record<string, HunkDecision>;
   index: number;
   issueTitle?: string;
   onAddRow: () => void;
   onDeleteRow: () => void;
+  onHunkDecision: (hunkId: string, decision: HunkDecision) => void;
   onResizeRow: (event: PointerEvent<HTMLElement>) => void;
   onSelection: (event: MouseEvent<HTMLElement>, rowId: string, columnId: string) => void;
   onSelectRow: () => void;
@@ -426,6 +437,10 @@ function RowBlock({
         {columns.map((column) => {
           const value = row.cells.find((cell) => cell.column_id === column.column_id)?.value ?? "";
           const brandFeedback = isBrandFeedbackColumn(column);
+          const hunk = hunkByCell.get(`${row.row_id}:${column.column_id}`);
+          const hunkDecision = hunk ? (hunkDecisions[hunk.hunk_id] ?? null) : null;
+          const showHunkDiff = Boolean(hunk && hunkDecision !== false);
+
           const commonProps = {
             value,
             onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -438,8 +453,27 @@ function RowBlock({
           };
 
           return (
-            <td className={`editor-td-data col-${column.key}${brandFeedback ? " col-brand-feedback" : ""}`} key={column.column_id} style={{ width: columnWidths[column.column_id] }}>
-              {column.type === "duration" ? (
+            <td
+              className={[
+                `editor-td-data col-${column.key}`,
+                brandFeedback ? "col-brand-feedback" : "",
+                showHunkDiff ? "editor-td-has-hunk" : "",
+                hunkDecision === true ? "editor-td-hunk-accepted" : "",
+                hunkDecision === false ? "" : ""
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              key={column.column_id}
+              style={{ width: columnWidths[column.column_id] }}
+            >
+              {showHunkDiff && hunk ? (
+                <CellHunkDiff
+                  decision={hunkDecision}
+                  hunk={hunk}
+                  onAccept={() => onHunkDecision(hunk.hunk_id, true)}
+                  onReject={() => onHunkDecision(hunk.hunk_id, false)}
+                />
+              ) : column.type === "duration" ? (
                 <div className="editor-duration-wrap">
                   <input className={`editor-table-input editor-duration-input ${hasIssue ? "is-invalid" : ""}`} {...commonProps} />
                 </div>

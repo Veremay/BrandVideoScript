@@ -567,14 +567,14 @@ export async function deleteGraphEdge(projectId: string, userId: string, edgeId:
   )!;
 }
 
-export async function toggleGraphNegotiationQueue(
+export async function toggleGraphConsiderationQueue(
   projectId: string,
   userId: string,
   nodeId: string,
   inQueue: boolean
 ): Promise<Project> {
   return normalizeProject(
-    await request(`/projects/${projectId}/graph/nodes/${nodeId}/negotiation-queue`, {
+    await request(`/projects/${projectId}/graph/nodes/${nodeId}/consideration-queue`, {
       method: "PATCH",
       body: JSON.stringify({ user_id: userId, in_queue: inQueue })
     })
@@ -591,7 +591,7 @@ export async function fetchModificationSchemes(projectId: string, userId: string
 export async function generateModificationSchemes(
   projectId: string,
   userId: string,
-  options?: { target_issue_ids?: string[]; message?: string }
+  options?: { target_issue_ids?: string[]; target_position_ids?: string[]; message?: string }
 ): Promise<{ project: Project; schemes: ModificationScheme[]; assistant_reply: string }> {
   const data = await request<{
     project: Project;
@@ -604,6 +604,7 @@ export async function generateModificationSchemes(
       body: JSON.stringify({
         user_id: userId,
         target_issue_ids: options?.target_issue_ids ?? [],
+        target_position_ids: options?.target_position_ids ?? [],
         message: options?.message ?? null
       })
     },

@@ -201,16 +201,16 @@ async def _stream_generate_modification_schemes(
         message=message,
     )
 
-    issue_targets = [node_id for node_id in target_node_ids if node_id]
-    if not issue_targets:
-        issue_targets = list(project.get("negotiation_queue") or [])
+    position_targets = [node_id for node_id in target_node_ids if node_id]
+    if not position_targets:
+        position_targets = list(project.get("consideration_queue") or [])
 
     try:
         result = await generate_modification_schemes(
             db,
             project_id,
             user_id,
-            target_issue_ids=issue_targets or None,
+            target_position_ids=position_targets or None,
             user_message=message,
         )
     except ValueError as exc:

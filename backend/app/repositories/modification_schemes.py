@@ -34,6 +34,7 @@ async def generate_modification_schemes(
     user_id: str,
     *,
     target_issue_ids: list[str] | None = None,
+    target_position_ids: list[str] | None = None,
     user_message: str | None = None,
 ) -> dict[str, Any]:
     project = await get_project(db, project_id, user_id)
@@ -49,6 +50,7 @@ async def generate_modification_schemes(
         result = await run_expert_generate_modification_schemes(
             project,
             target_issue_ids=target_issue_ids,
+            target_position_ids=target_position_ids,
             user_message=user_message,
         )
         new_schemes = result.get("modification_schemes") or []

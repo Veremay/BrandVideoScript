@@ -58,7 +58,7 @@ type RevisionProposalsContextValue = {
 
 const RevisionProposalsContext = createContext<RevisionProposalsContextValue | null>(null);
 
-function useRevisionProposals() {
+export function useRevisionProposals() {
   const ctx = useContext(RevisionProposalsContext);
   if (!ctx) {
     throw new Error("RevisionProposals components must be used within RevisionProposalsProvider");
@@ -106,11 +106,23 @@ export function RevisionProposalsProvider({ projectId, userId, children }: Revis
     return buildPreviewTable(activeScript, selectedScheme, hunkDecisions, previewMode);
   }, [activeScript, selectedScheme, hunkDecisions, previewMode]);
 
+  const editorSchemeFocusId = useAppStore((state) => state.editorSchemeFocusId);
+  const setEditorSchemeFocusId = useAppStore((state) => state.setEditorSchemeFocusId);
+
   useEffect(() => {
     if (!selectedSchemeId && schemes.length) {
       setSelectedSchemeId(schemes[schemes.length - 1].scheme_id);
     }
   }, [schemes, selectedSchemeId]);
+
+  useEffect(() => {
+    if (!editorSchemeFocusId || !schemes.some((scheme) => scheme.scheme_id === editorSchemeFocusId)) {
+      return;
+    }
+    setSelectedSchemeId(editorSchemeFocusId);
+    setPreviewOpen(true);
+    setEditorSchemeFocusId(null);
+  }, [editorSchemeFocusId, schemes, setEditorSchemeFocusId]);
 
   useEffect(() => {
     if (!selectedScheme) {
@@ -124,7 +136,6 @@ export function RevisionProposalsProvider({ projectId, userId, children }: Revis
     }
     setHunkDecisions(initial);
     setPreviewMode("all_proposed");
-    setPreviewOpen(false);
   }, [selectedScheme?.scheme_id]);
 
   const applyHunks = useCallback(
@@ -467,6 +478,104 @@ function ScriptSchemePreview({
         </table>
       </div>
     </section>
+  );
+}
+
+export function EditorModificationPlan() {
+  const {
+    schemes,
+    schemesStale,
+    selectedSchemeId,
+    selectedScheme,
+    activeScript,
+    hunkDecisions,
+    setHunkDecision,
+    summary,
+    applying,
+    error,
+    statusMessage,
+    acceptAllAndApply,
+    applyAcceptedOnly,
+    rejectAllHunks,
+    setSelectedSchemeId,
+    setPreviewOpen
+  } = useRevisionProposals();
+
+  if (!schemes.length) return null;
+
+  return (
+    <aside className="editor-modification-panel" aria-label="Modification plan">
+      <header className="editor-modification-head">
+        <h2 className="editor-modification-title">Modification plan</h2>
+        {schemesStale ? (
+          <p className="editor-modification-stale">Script changed — regenerate from Map before applying.</p>
+        ) : null}
+      </header>
+      {error ? <p className="editor-modification-error">{error}</p> : null}
+      {statusMessage ? <p className="editor-modification-status">{statusMessage}</p> : null}
+
+      <div className="editor-modification-schemes" role="tablist" aria-label="Scheme options">
+        {schemes.map((scheme) => (
+          <button
+            className={`editor-modification-scheme-tab ${scheme.scheme_id === selectedSchemeId ? "active" : ""}`}
+            key={scheme.scheme_id}
+            onClick={() => {
+              setSelectedSchemeId(scheme.scheme_id);
+              setPreviewOpen(true);
+            }}
+            type="button"
+            role="tab"
+            aria-selected={scheme.scheme_id === selectedSchemeId}
+          >
+            {DIRECTION_LABELS[scheme.direction] ?? scheme.direction}
+          </button>
+        ))}
+      </div>
+
+      {selectedScheme && activeScript ? (
+        <SchemeDetail
+          scheme={selectedScheme}
+          script={activeScript}
+          hunkDecisions={hunkDecisions}
+          onHunkDecision={setHunkDecision}
+        />
+      ) : null}
+
+      {summary && selectedScheme?.hunks.length ? (
+        <p className="editor-modification-summary">
+          {summary.accepted} accepted · {summary.rejected} rejected · {summary.pending} pending
+        </p>
+      ) : null}
+
+      {selectedScheme?.hunks.length ? (
+        <div className="editor-modification-actions">
+          <button
+            className="editor-modification-btn editor-modification-btn--primary"
+            disabled={applying || schemesStale}
+            onClick={() => void acceptAllAndApply()}
+            type="button"
+          >
+            {applying ? "Applying…" : "Accept all & apply"}
+          </button>
+          <button
+            className="editor-modification-btn"
+            disabled={applying || schemesStale}
+            onClick={() => void applyAcceptedOnly()}
+            type="button"
+          >
+            Apply accepted only
+          </button>
+          <button
+            className="editor-modification-btn editor-modification-btn--ghost"
+            disabled={applying || schemesStale}
+            onClick={rejectAllHunks}
+            type="button"
+          >
+            Reject all
+          </button>
+        </div>
+      ) : null}
+    </aside>
   );
 }
 

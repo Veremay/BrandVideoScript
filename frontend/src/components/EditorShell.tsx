@@ -4,6 +4,8 @@ import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 
 import { CoordinatorChat } from "@/components/CoordinatorChat";
+import { RevisionProposalsProvider } from "@/components/RevisionProposalsPanel";
+import { ScriptModificationBar } from "@/components/ScriptCellModification";
 import { PersonaPanel } from "@/components/PersonaPanel";
 import { RequirementsPanel } from "@/components/RequirementsPanel";
 import { ScriptGrid } from "@/components/ScriptGrid";
@@ -30,13 +32,14 @@ export function EditorShell() {
     setSaveStatus,
     setUserId,
     setPersonaPanelOpen,
-    setRequirementsPanelOpen
+    setRequirementsPanelOpen,
+    setWorkspaceView
   } = useAppStore();
   const hasHydrated = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [parsingBrief, setParsingBrief] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
-  const [activeView, setActiveView] = useState<"editor" | "map">("editor");
+  const activeView = layout.workspaceView;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [snapshotsOpen, setSnapshotsOpen] = useState(false);
   const coordinatorOpen = layout.coordinatorChatOpen;
@@ -160,138 +163,141 @@ export function EditorShell() {
   if (!project || !script) return null;
 
   return (
-    <main className="app-figma">
-      <header className="figma-topnav">
-        <div className="figma-topnav-left">
-          <button className="figma-nav-btn figma-nav-back" onClick={handleBack} type="button">
-            <IconBack />
-            Back
-          </button>
-          <span className="figma-brand-logo">BrandVideo</span>
-          <div className="figma-view-toggle" role="tablist" aria-label="Switch view">
-            <button
-              className={`figma-view-tab ${activeView === "editor" ? "active" : ""}`}
-              onClick={() => setActiveView("editor")}
-              type="button"
-              aria-selected={activeView === "editor"}
-            >
-              <IconEditorList />
-              Editor
+    <RevisionProposalsProvider projectId={project._id} userId={project.user_id}>
+      <main className="app-figma">
+        <header className="figma-topnav">
+          <div className="figma-topnav-left">
+            <button className="figma-nav-btn figma-nav-back" onClick={handleBack} type="button">
+              <IconBack />
+              Back
             </button>
-            <button
-              className={`figma-view-tab ${activeView === "map" ? "active" : ""}`}
-              onClick={() => setActiveView("map")}
-              type="button"
-              aria-selected={activeView === "map"}
-            >
-              <IconMap />
-              Map
-            </button>
-          </div>
-        </div>
-
-        <div className="figma-topnav-right">
-          <input ref={fileInputRef} accept=".md,.txt,text/markdown,text/plain" hidden onChange={handleBriefFile} type="file" />
-          <button
-            className="figma-nav-btn figma-nav-outline"
-            disabled={parsingBrief}
-            onClick={() => fileInputRef.current?.click()}
-            type="button"
-          >
-            <IconUpload />
-            {parsingBrief ? "Parsing…" : "Upload Brief"}
-          </button>
-          {project.brief.filename ? <span className="figma-brief-tag">{project.brief.filename}</span> : null}
-          {project.brief.parse_status ? (
-            <span className="figma-brief-tag figma-brief-tag--status">{project.brief.parse_status}</span>
-          ) : null}
-          <button className="figma-nav-btn figma-nav-outline" onClick={handleRequirementsClick} type="button">
-            <IconRequirements />
-            Requirements
-          </button>
-          <button className="figma-nav-btn figma-nav-outline" onClick={handlePersonasClick} type="button">
-            <IconPersonas />
-            Personas
-          </button>
-          <div className="figma-settings-wrap" ref={settingsRef}>
-            <button
-              aria-expanded={settingsOpen}
-              aria-haspopup="menu"
-              aria-label="Settings"
-              className={`figma-icon-btn ${settingsOpen ? "active" : ""}`}
-              onClick={() => setSettingsOpen((open) => !open)}
-              type="button"
-            >
-              <IconSettings />
-            </button>
-            {settingsOpen ? (
-              <div className="figma-settings-menu" role="menu">
-                <button className="figma-settings-menu-item" onClick={openVersionHistory} role="menuitem" type="button">
-                  Version History
-                </button>
-                <button className="figma-settings-menu-item figma-settings-menu-item-danger" onClick={handleLogout} role="menuitem" type="button">
-                  Sign Out
-                </button>
-              </div>
-            ) : null}
-          </div>
-          <button className="figma-nav-btn figma-nav-outline figma-nav-share" type="button">
-            Share
-          </button>
-          <div
-            className={`figma-save-pill status-${savePillStatus(editor.saveStatus, staleHint)}`}
-            title={savePillTitle(editor.saveStatus, staleHint) ?? undefined}
-          >
-            {savePillLabel(editor.saveStatus, staleHint)}
-          </div>
-          <button className="figma-nav-btn figma-nav-primary" type="button">
-            Export
-          </button>
-          <button className="figma-avatar-btn" onClick={handleLogout} title={project.title} type="button" aria-label="Account">
-            <span className="figma-avatar-fallback">{project.title.slice(0, 1).toUpperCase()}</span>
-          </button>
-        </div>
-      </header>
-
-      <section className="figma-main">
-        {activeView === "editor" ? (
-          <div className="editor-workspace">
-            <div className="editor-page-header">
-              <h1 className="editor-page-title">Script Editor</h1>
+            <span className="figma-brand-logo">BrandVideo</span>
+            <div className="figma-view-toggle" role="tablist" aria-label="Switch view">
+              <button
+                className={`figma-view-tab ${activeView === "editor" ? "active" : ""}`}
+                onClick={() => setWorkspaceView("editor")}
+                type="button"
+                aria-selected={activeView === "editor"}
+              >
+                <IconEditorList />
+                Editor
+              </button>
+              <button
+                className={`figma-view-tab ${activeView === "map" ? "active" : ""}`}
+                onClick={() => setWorkspaceView("map")}
+                type="button"
+                aria-selected={activeView === "map"}
+              >
+                <IconMap />
+                Map
+              </button>
             </div>
-            <ScriptGrid script={script} />
           </div>
-        ) : (
-          <MapView key="map-workspace" />
-        )}
-      </section>
 
-      <button
-        className={`figma-fab ${coordinatorOpen ? "figma-fab--open" : ""}`}
-        onClick={handleFabClick}
-        type="button"
-        aria-label={coordinatorOpen ? "Close Coordinator Chat" : "Open Coordinator Chat"}
-        aria-expanded={coordinatorOpen}
-      >
-        <IconLightning />
-      </button>
+          <div className="figma-topnav-right">
+            <input ref={fileInputRef} accept=".md,.txt,text/markdown,text/plain" hidden onChange={handleBriefFile} type="file" />
+            <button
+              className="figma-nav-btn figma-nav-outline"
+              disabled={parsingBrief}
+              onClick={() => fileInputRef.current?.click()}
+              type="button"
+            >
+              <IconUpload />
+              {parsingBrief ? "Parsing…" : "Upload Brief"}
+            </button>
+            {project.brief.filename ? <span className="figma-brief-tag">{project.brief.filename}</span> : null}
+            {project.brief.parse_status ? (
+              <span className="figma-brief-tag figma-brief-tag--status">{project.brief.parse_status}</span>
+            ) : null}
+            <button className="figma-nav-btn figma-nav-outline" onClick={handleRequirementsClick} type="button">
+              <IconRequirements />
+              Requirements
+            </button>
+            <button className="figma-nav-btn figma-nav-outline" onClick={handlePersonasClick} type="button">
+              <IconPersonas />
+              Personas
+            </button>
+            <div className="figma-settings-wrap" ref={settingsRef}>
+              <button
+                aria-expanded={settingsOpen}
+                aria-haspopup="menu"
+                aria-label="Settings"
+                className={`figma-icon-btn ${settingsOpen ? "active" : ""}`}
+                onClick={() => setSettingsOpen((open) => !open)}
+                type="button"
+              >
+                <IconSettings />
+              </button>
+              {settingsOpen ? (
+                <div className="figma-settings-menu" role="menu">
+                  <button className="figma-settings-menu-item" onClick={openVersionHistory} role="menuitem" type="button">
+                    Version History
+                  </button>
+                  <button className="figma-settings-menu-item figma-settings-menu-item-danger" onClick={handleLogout} role="menuitem" type="button">
+                    Sign Out
+                  </button>
+                </div>
+              ) : null}
+            </div>
+            <button className="figma-nav-btn figma-nav-outline figma-nav-share" type="button">
+              Share
+            </button>
+            <div
+              className={`figma-save-pill status-${savePillStatus(editor.saveStatus, staleHint)}`}
+              title={savePillTitle(editor.saveStatus, staleHint) ?? undefined}
+            >
+              {savePillLabel(editor.saveStatus, staleHint)}
+            </div>
+            <button className="figma-nav-btn figma-nav-primary" type="button">
+              Export
+            </button>
+            <button className="figma-avatar-btn" onClick={handleLogout} title={project.title} type="button" aria-label="Account">
+              <span className="figma-avatar-fallback">{project.title.slice(0, 1).toUpperCase()}</span>
+            </button>
+          </div>
+        </header>
 
-      <CoordinatorChat
-        open={coordinatorOpen}
-        onClose={() => setCoordinatorChatOpen(false)}
-        selectedText={editor.selectedText}
-        selectedRowId={editor.selectedRowId}
-        selectedColumnId={editor.selectedColumnId}
-        projectId={project._id}
-        userId={project.user_id}
-        scriptVersionId={project.current_script_version_id}
-        userInitial={project.title.slice(0, 1).toUpperCase()}
-      />
+        <section className="figma-main">
+          {activeView === "editor" ? (
+            <div className="editor-workspace">
+              <div className="editor-page-header">
+                <h1 className="editor-page-title">Script Editor</h1>
+              </div>
+              <ScriptModificationBar />
+              <ScriptGrid script={script} />
+            </div>
+          ) : (
+            <MapView key="map-workspace" />
+          )}
+        </section>
 
-      <RequirementsPanel onClose={() => setRequirementsPanelOpen(false)} open={layout.requirementsPanelOpen} />
-      <PersonaPanel onClose={() => setPersonaPanelOpen(false)} open={layout.personaPanelOpen} />
-      <ScriptSnapshotsPanel onClose={() => setSnapshotsOpen(false)} open={snapshotsOpen} />
-    </main>
+        <button
+          className={`figma-fab ${coordinatorOpen ? "figma-fab--open" : ""}`}
+          onClick={handleFabClick}
+          type="button"
+          aria-label={coordinatorOpen ? "Close Coordinator Chat" : "Open Coordinator Chat"}
+          aria-expanded={coordinatorOpen}
+        >
+          <IconLightning />
+        </button>
+
+        <CoordinatorChat
+          open={coordinatorOpen}
+          onClose={() => setCoordinatorChatOpen(false)}
+          selectedText={editor.selectedText}
+          selectedRowId={editor.selectedRowId}
+          selectedColumnId={editor.selectedColumnId}
+          projectId={project._id}
+          userId={project.user_id}
+          scriptVersionId={project.current_script_version_id}
+          userInitial={project.title.slice(0, 1).toUpperCase()}
+        />
+
+        <RequirementsPanel onClose={() => setRequirementsPanelOpen(false)} open={layout.requirementsPanelOpen} />
+        <PersonaPanel onClose={() => setPersonaPanelOpen(false)} open={layout.personaPanelOpen} />
+        <ScriptSnapshotsPanel onClose={() => setSnapshotsOpen(false)} open={snapshotsOpen} />
+      </main>
+    </RevisionProposalsProvider>
   );
 }
 

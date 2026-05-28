@@ -119,14 +119,14 @@ async def delete_graph_node(
         for e in project.get("rationale_edges", [])
         if e.get("from_node_id") != node_id and e.get("to_node_id") != node_id
     ]
-    queue = [item for item in project.get("negotiation_queue", []) if item != node_id]
+    queue = [item for item in project.get("consideration_queue", []) if item != node_id]
     await _write_graph(
         db,
         project_id,
         user_id,
         nodes=nodes,
         edges=edges,
-        negotiation_queue=queue,
+        consideration_queue=queue,
     )
     return await get_project(db, project_id, user_id)
 
@@ -196,7 +196,7 @@ async def delete_graph_edge(
     return await get_project(db, project_id, user_id)
 
 
-async def toggle_negotiation_queue(
+async def toggle_consideration_queue(
     db: AsyncIOMotorDatabase,
     project_id: str,
     user_id: str,
@@ -211,10 +211,10 @@ async def toggle_negotiation_queue(
     node = next((n for n in project.get("rationale_nodes", []) if n.get("node_id") == node_id), None)
     if node is None:
         raise ValueError("Node not found")
-    if node.get("node_type") != "issue":
-        raise ValueError("Only Issue nodes can join the negotiation queue")
+    if node.get("node_type") != "position":
+        raise ValueError("Only Position nodes can join the consideration queue")
 
-    queue = list(project.get("negotiation_queue", []))
+    queue = list(project.get("consideration_queue", []))
     if in_queue and node_id not in queue:
         queue.append(node_id)
     if not in_queue and node_id in queue:
@@ -225,13 +225,14 @@ async def toggle_negotiation_queue(
         if item.get("node_id") != node_id:
             nodes.append(item)
             continue
-        status = "needs_negotiation" if in_queue else "open"
-        if not in_queue and item.get("status") == "needs_negotiation":
+        status = "to_be_considered" if in_queue else "open"
+        if not in_queue and item.get("status") == "to_be_considered":
             status = "open"
         nodes.append(
             {
                 **item,
-                "in_negotiation_queue": in_queue,
+                "in_consideration_queue": in_queue,
+                "in_negotiation_queue": False,
                 "status": status,
                 "updated_by": "user",
                 "updated_at": now_iso(),
@@ -244,7 +245,7 @@ async def toggle_negotiation_queue(
         user_id,
         nodes=nodes,
         edges=project.get("rationale_edges", []),
-        negotiation_queue=queue,
+        consideration_queue=queue,
     )
     return await get_project(db, project_id, user_id)
 
@@ -284,7 +285,7 @@ async def _write_graph(
     *,
     nodes: list[dict],
     edges: list[dict],
-    negotiation_queue: list[str] | None = None,
+    consideration_queue: list[str] | None = None,
     mark_stale: bool = True,
 ) -> None:
     update: dict[str, Any] = {
@@ -292,8 +293,8 @@ async def _write_graph(
         "rationale_edges": edges,
         "updated_at": now_iso(),
     }
-    if negotiation_queue is not None:
-        update["negotiation_queue"] = negotiation_queue
+    if consideration_queue is not None:
+        update["consideration_queue"] = consideration_queue
     if mark_stale:
         update.update(stale_set_fields({"modification_schemes": "stale_graph_changed"}))
     await db.projects.update_one({"_id": project_id, "user_id": user_id}, {"$set": update})

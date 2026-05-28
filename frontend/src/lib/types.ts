@@ -164,6 +164,7 @@ export type IssueStatus =
   | "in_review"
   | "resolved"
   | "needs_negotiation"
+  | "to_be_considered"
   | "deferred"
   | "dismissed";
 
@@ -189,6 +190,8 @@ export type RationaleNode = {
   source_perspective: string;
   layout?: { x: number; y: number };
   status?: IssueStatus;
+  in_consideration_queue?: boolean;
+  /** @deprecated Use in_consideration_queue on Position nodes */
   in_negotiation_queue?: boolean;
   linked_script_refs?: ScriptRefLink[];
   created_by: string;
@@ -232,6 +235,7 @@ export type ModificationScheme = {
   title: string;
   direction: ModificationSchemeDirection;
   target_issue_ids: string[];
+  target_position_ids?: string[];
   changes_summary: string;
   rationale: string;
   tradeoffs: { brand?: string; audience?: string; creator?: string };
@@ -267,6 +271,8 @@ export type Project = {
   expert_perspective_result?: Record<string, unknown> | null;
   rationale_nodes?: RationaleNode[];
   rationale_edges?: RationaleEdge[];
+  consideration_queue?: string[];
+  /** @deprecated Use consideration_queue */
   negotiation_queue?: string[];
   modification_schemes?: ModificationScheme[];
   personas: Persona[];

@@ -206,7 +206,7 @@ class ProjectResponse(BaseModel):
     expert_perspective_result: dict[str, Any] | None = None
     rationale_nodes: list[dict[str, Any]] = Field(default_factory=list)
     rationale_edges: list[dict[str, Any]] = Field(default_factory=list)
-    negotiation_queue: list[str] = Field(default_factory=list)
+    consideration_queue: list[str] = Field(default_factory=list)
     personas: list[dict[str, Any]]
     active_persona_id: str | None
     audience_analysis: dict[str, Any]
@@ -317,7 +317,9 @@ class GraphNodeCreateRequest(BaseModel):
     ] = "creator_manual"
     source_perspective: str = "creator"
     layout: dict[str, float] | None = None
-    status: Literal["open", "in_review", "resolved", "needs_negotiation", "deferred", "dismissed"] = "open"
+    status: Literal[
+        "open", "in_review", "resolved", "needs_negotiation", "to_be_considered", "deferred", "dismissed"
+    ] = "open"
     linked_script_refs: list[ScriptRefLink] = Field(default_factory=list)
 
 
@@ -325,7 +327,9 @@ class GraphNodeUpdateRequest(BaseModel):
     user_id: str = Field(min_length=1, max_length=80)
     title: str | None = Field(default=None, min_length=1, max_length=120)
     content: str | None = Field(default=None, min_length=1, max_length=2000)
-    status: Literal["open", "in_review", "resolved", "needs_negotiation", "deferred", "dismissed"] | None = None
+    status: Literal[
+        "open", "in_review", "resolved", "needs_negotiation", "to_be_considered", "deferred", "dismissed"
+    ] | None = None
     layout: dict[str, float] | None = None
 
 
@@ -345,7 +349,7 @@ class GraphEdgeCreateRequest(BaseModel):
     ] = "responds_to"
 
 
-class GraphNodeNegotiationRequest(BaseModel):
+class GraphNodeConsiderationRequest(BaseModel):
     user_id: str = Field(min_length=1, max_length=80)
     in_queue: bool
 
@@ -377,6 +381,7 @@ class ModificationSchemeItem(BaseModel):
     title: str
     direction: Literal["conservative", "balanced", "creator_led", "audience_friendly", "custom"]
     target_issue_ids: list[str] = Field(default_factory=list)
+    target_position_ids: list[str] = Field(default_factory=list)
     changes_summary: str = ""
     rationale: str = ""
     tradeoffs: dict[str, str] = Field(default_factory=dict)
@@ -399,6 +404,7 @@ class ModificationSchemeListResponse(BaseModel):
 class ModificationSchemeGenerateRequest(BaseModel):
     user_id: str = Field(min_length=1, max_length=80)
     target_issue_ids: list[str] = Field(default_factory=list)
+    target_position_ids: list[str] = Field(default_factory=list)
     message: str | None = Field(default=None, max_length=2000)
 
 

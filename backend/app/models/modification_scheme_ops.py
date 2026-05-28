@@ -62,6 +62,7 @@ def normalize_scheme(
         direction = "balanced"
 
     target_issue_ids = [str(item) for item in (raw.get("target_issue_ids") or []) if str(item).strip()]
+    target_position_ids = [str(item) for item in (raw.get("target_position_ids") or []) if str(item).strip()]
     related_node_ids = [str(item) for item in (raw.get("related_node_ids") or []) if str(item).strip()]
 
     tradeoffs_raw = raw.get("tradeoffs") or {}
@@ -93,6 +94,7 @@ def normalize_scheme(
         "title": str(raw.get("title", "修改方案"))[:120],
         "direction": direction,
         "target_issue_ids": target_issue_ids,
+        "target_position_ids": target_position_ids,
         "changes_summary": str(raw.get("changes_summary", ""))[:2000],
         "rationale": str(raw.get("rationale", ""))[:2000],
         "tradeoffs": tradeoffs,

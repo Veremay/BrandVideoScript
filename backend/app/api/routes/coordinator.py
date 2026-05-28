@@ -10,7 +10,7 @@ from app.models.schemas import (
     CoordinatorStreamRequest,
     GraphEdgeCreateRequest,
     GraphNodeCreateRequest,
-    GraphNodeNegotiationRequest,
+    GraphNodeConsiderationRequest,
     GraphNodeUpdateRequest,
     GraphSyncFromScriptRequest,
     GraphSyncFromScriptResponse,
@@ -22,7 +22,7 @@ from app.repositories.graph import (
     create_graph_node,
     delete_graph_edge,
     delete_graph_node,
-    toggle_negotiation_queue,
+    toggle_consideration_queue,
     update_graph_node,
 )
 from app.repositories.projects import get_project
@@ -190,15 +190,15 @@ async def sync_graph_from_script_route(
         raise HTTPException(status_code=404 if "not found" in str(exc).lower() else 400, detail=str(exc)) from exc
 
 
-@graph_router.patch("/nodes/{node_id}/negotiation-queue", response_model=ProjectResponse)
-async def update_negotiation_queue(
+@graph_router.patch("/nodes/{node_id}/consideration-queue", response_model=ProjectResponse)
+async def update_consideration_queue(
     project_id: str,
     node_id: str,
-    payload: GraphNodeNegotiationRequest,
+    payload: GraphNodeConsiderationRequest,
     db: AsyncIOMotorDatabase = Depends(database_dependency),
 ) -> dict:
     try:
-        project = await toggle_negotiation_queue(
+        project = await toggle_consideration_queue(
             db,
             project_id,
             payload.user_id.strip(),

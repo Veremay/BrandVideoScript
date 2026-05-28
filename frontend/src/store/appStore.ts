@@ -23,7 +23,9 @@ type AppState = {
     coordinatorChatOpen: boolean;
     personaPanelOpen: boolean;
     requirementsPanelOpen: boolean;
+    workspaceView: "editor" | "map";
   };
+  editorSchemeFocusId: string | null;
   setUserId: (userId?: string) => void;
   setProjects: (projects: Project[]) => void;
   setProject: (project: Project | null) => void;
@@ -40,6 +42,8 @@ type AppState = {
   setSelection: (selection?: { rowId?: string; columnId?: string; text: string }) => void;
   setPersonaPanelOpen: (open: boolean) => void;
   setRequirementsPanelOpen: (open: boolean) => void;
+  setWorkspaceView: (view: "editor" | "map") => void;
+  setEditorSchemeFocusId: (schemeId: string | null) => void;
 };
 
 export const useAppStore = create<AppState>((set) => ({
@@ -52,8 +56,10 @@ export const useAppStore = create<AppState>((set) => ({
   layout: {
     coordinatorChatOpen: false,
     personaPanelOpen: false,
-    requirementsPanelOpen: false
+    requirementsPanelOpen: false,
+    workspaceView: "editor"
   },
+  editorSchemeFocusId: null,
   setUserId: (userId) => set({ userId }),
   setProjects: (projects) => set({ projects: projects.map((p) => normalizeProject(p)!).filter(Boolean) }),
   setProject: (project) =>
@@ -152,5 +158,10 @@ export const useAppStore = create<AppState>((set) => ({
   setRequirementsPanelOpen: (open) =>
     set((state) => ({
       layout: { ...state.layout, requirementsPanelOpen: open }
-    }))
+    })),
+  setWorkspaceView: (view) =>
+    set((state) => ({
+      layout: { ...state.layout, workspaceView: view }
+    })),
+  setEditorSchemeFocusId: (schemeId) => set({ editorSchemeFocusId: schemeId })
 }));
