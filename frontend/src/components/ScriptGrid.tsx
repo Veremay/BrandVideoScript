@@ -60,7 +60,7 @@ export function ScriptGrid({ script }: { script: Script }) {
     return issueMap;
   }, [durationAnalysis.issues, project?.rationale_nodes]);
   const totalSeconds = Math.max(0, ...durationAnalysis.timeline.map((segment) => segment.end));
-  const { hunkByCell, hunkDecisions, setHunkDecision, acceptAndApplyHunk } = useCellHunkMap();
+  const { hunkByCell, hunkDecisions, setHunkDecision, acceptAndApplyHunk, applyError } = useCellHunkMap();
 
   useEffect(() => {
     function handleDocumentPointerDown(event: globalThis.MouseEvent) {
@@ -242,6 +242,8 @@ export function ScriptGrid({ script }: { script: Script }) {
           </div>
         ) : null}
       </div>
+
+      {applyError ? <p className="editor-hunk-apply-error">{applyError}</p> : null}
 
       <div className="script-table-container">
         <div className="script-table-panel">
@@ -442,7 +444,7 @@ function RowBlock({
           const brandFeedback = isBrandFeedbackColumn(column);
           const hunk = hunkByCell.get(`${row.row_id}:${column.column_id}`);
           const hunkDecision = hunk ? (hunkDecisions[hunk.hunk_id] ?? null) : null;
-          const showHunkDiff = Boolean(hunk && hunkDecision !== false);
+          const showHunkDiff = Boolean(hunk && hunkDecision === null);
 
           const commonProps = {
             value,

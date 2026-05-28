@@ -939,9 +939,16 @@ function MapViewContent() {
           ) : (
             <ul className="map-consideration-list">
               {considerationPositions.map((position) => (
-                <li key={position.node_id}>
-                  <strong>{position.title}</strong>
-                  <span>{position.status ?? "to_be_considered"}</span>
+                <li className="map-consideration-item" key={position.node_id}>
+                  <strong className="map-consideration-item-title">{position.title}</strong>
+                  <button
+                    aria-label={`Remove "${position.title}" from consideration`}
+                    className="requirement-delete-btn map-consideration-item-remove"
+                    onClick={() => void handleToggleConsideration(position.node_id, false)}
+                    type="button"
+                  >
+                    <IconTrash />
+                  </button>
                 </li>
               ))}
             </ul>
@@ -1035,9 +1042,12 @@ function IbisNode({ data, id }: NodeProps) {
           <span className="map-node-label">
             {nodeData.nodeType}
             {nodeData.sourceType ? <em className="map-node-source">{sourceLabel(nodeData.sourceType)}</em> : null}
-            {nodeData.inConsiderationQueue ? <em className="map-node-consideration">consider</em> : null}
           </span>
-          <div className="map-node-menu-wrap" ref={menuRef}>
+          <div className="map-node-header-actions">
+            {nodeData.inConsiderationQueue ? (
+              <span className="map-node-consideration-tag">Consider</span>
+            ) : null}
+            <div className="map-node-menu-wrap" ref={menuRef}>
             <button
               aria-expanded={isEditing ? undefined : menuOpen}
               aria-haspopup={isEditing ? undefined : "menu"}
@@ -1093,6 +1103,7 @@ function IbisNode({ data, id }: NodeProps) {
                 </button>
               </div>
             ) : null}
+            </div>
           </div>
         </header>
         {isEditing ? (
@@ -1204,6 +1215,16 @@ function IconChat() {
   return (
     <svg viewBox="0 0 12 10" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
       <path d="M1 1h10v6H4l-3 2V1z" />
+    </svg>
+  );
+}
+
+function IconTrash() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M3 6h18" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
     </svg>
   );
 }

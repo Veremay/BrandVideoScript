@@ -204,6 +204,21 @@ def normalize_scheme(
     }
 
 
+def reconcile_hunk_for_apply(script: dict, hunk: dict[str, Any]) -> dict[str, Any]:
+    """Align hunk.removed with live cell text when the script drifted slightly after the plan was generated."""
+    current = get_cell_value(script, hunk["row_id"], hunk["column_id"])
+    if current is None:
+        raise ValueError(f"Cell not found: {hunk['row_id']}/{hunk['column_id']}")
+    removed = str(hunk.get("removed", ""))
+    if current == removed:
+        return hunk
+    if removed and current and (removed in current or current in removed or current.startswith(removed[:80])):
+        return {**hunk, "removed": current}
+    raise ValueError(
+        f"Cell content changed since proposal; expected removed text mismatch (row {hunk['row_id']})"
+    )
+
+
 def validate_hunk_apply(script: dict, hunk: dict[str, Any]) -> None:
     current = get_cell_value(script, hunk["row_id"], hunk["column_id"])
     if current is None:

@@ -8,7 +8,7 @@ from app.models.artifact_stale import stale_set_fields
 from app.models.modification_scheme_ops import (
     apply_hunk_to_script,
     normalize_scheme,
-    validate_hunk_apply,
+    reconcile_hunk_for_apply,
 )
 from app.models.script import now_iso
 from app.models.script_validate import normalize_script, validate_script
@@ -123,7 +123,7 @@ async def apply_modification_scheme_hunks(
             continue
         hunk = hunks_by_id[hunk_id]
         try:
-            validate_hunk_apply(script, hunk)
+            hunk = reconcile_hunk_for_apply(script, hunk)
             script = apply_hunk_to_script(script, hunk)
             applied_ids.append(hunk_id)
         except ValueError as exc:

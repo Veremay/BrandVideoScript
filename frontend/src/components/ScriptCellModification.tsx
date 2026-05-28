@@ -14,7 +14,7 @@ export function CellHunkDiff({
 }: {
   hunk: ModificationSchemeHunk;
   decision: HunkDecision;
-  onAccept: () => void;
+  onAccept: () => void | Promise<void>;
   onReject: () => void;
 }) {
   const stateClass =
@@ -32,14 +32,20 @@ export function CellHunkDiff({
       <div className="editor-cell-hunk-actions" role="group" aria-label="Accept or reject change">
         <button
           className={`editor-cell-hunk-btn editor-cell-hunk-btn--accept ${decision === true ? "active accept" : ""}`}
-          onClick={onAccept}
+          onClick={(event) => {
+            event.stopPropagation();
+            void onAccept();
+          }}
           type="button"
         >
           Accept
         </button>
         <button
           className={`editor-cell-hunk-btn editor-cell-hunk-btn--reject ${decision === false ? "active reject" : ""}`}
-          onClick={onReject}
+          onClick={(event) => {
+            event.stopPropagation();
+            onReject();
+          }}
           type="button"
         >
           Reject
@@ -50,7 +56,8 @@ export function CellHunkDiff({
 }
 
 export function useCellHunkMap() {
-  const { selectedScheme, hunkDecisions, setHunkDecision, acceptAndApplyHunk } = useRevisionProposals();
+  const { selectedScheme, hunkDecisions, setHunkDecision, acceptAndApplyHunk, error: applyError } =
+    useRevisionProposals();
 
   const hunkByCell = useMemo(() => {
     const map = new Map<string, ModificationSchemeHunk>();
@@ -67,6 +74,7 @@ export function useCellHunkMap() {
     hunkDecisions,
     setHunkDecision,
     acceptAndApplyHunk,
+    applyError: applyError,
     hasActiveScheme: Boolean(selectedScheme?.hunks.length)
   };
 }

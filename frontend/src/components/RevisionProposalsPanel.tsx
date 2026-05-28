@@ -20,6 +20,11 @@ import { isStaleStatus } from "@/lib/stale";
 import type { HunkDecision, ModificationScheme, ModificationSchemeDirection, Script } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
 
+function scriptCellValue(script: Script, rowId: string, columnId: string): string {
+  const row = script.rows.find((item) => item.row_id === rowId);
+  return row?.cells.find((cell) => cell.column_id === columnId)?.value ?? "";
+}
+
 const DIRECTION_LABELS: Record<ModificationSchemeDirection, string> = {
   conservative: "Conservative · Brand-first",
   balanced: "Balanced",
@@ -78,6 +83,8 @@ export function RevisionProposalsProvider({ projectId, userId, children }: Revis
   const script = useAppStore((state) => state.script);
   const setProject = useAppStore((state) => state.setProject);
   const setScript = useAppStore((state) => state.setScript);
+  const updateCell = useAppStore((state) => state.updateCell);
+  const setSaveStatus = useAppStore((state) => state.setSaveStatus);
 
   const schemes = useMemo(() => {
     const all = project?.modification_schemes ?? [];
@@ -165,7 +172,9 @@ export function RevisionProposalsProvider({ projectId, userId, children }: Revis
             : `Applied ${acceptedIds.length} of ${total} changes. Roll back from version history if needed.`
         );
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to apply changes");
+        const message = err instanceof Error ? err.message : "Failed to apply changes";
+        setError(message);
+        throw err instanceof Error ? err : new Error(message);
       } finally {
         setApplying(false);
       }
@@ -215,14 +224,27 @@ export function RevisionProposalsProvider({ projectId, userId, children }: Revis
 
   const acceptAndApplyHunk = useCallback(
     async (hunkId: string) => {
-      if (schemesStale) {
-        setError("Script changed — regenerate the plan before applying.");
-        return;
-      }
+      if (!selectedScheme || !activeScript) return;
+      const hunk = selectedScheme.hunks.find((item) => item.hunk_id === hunkId);
+      if (!hunk) return;
+
+      const previousValue = scriptCellValue(activeScript, hunk.row_id, hunk.column_id);
+      setError(null);
+      setSaveStatus("saving");
       setHunkDecisions((prev) => ({ ...prev, [hunkId]: true }));
-      await applyHunks([hunkId], []);
+      updateCell(hunk.row_id, hunk.column_id, hunk.added);
+
+      try {
+        await applyHunks([hunkId], []);
+      } catch (err) {
+        setHunkDecisions((prev) => ({ ...prev, [hunkId]: null }));
+        updateCell(hunk.row_id, hunk.column_id, previousValue);
+        setSaveStatus("failed");
+        const message = err instanceof Error ? err.message : "Failed to apply change";
+        setError(message);
+      }
     },
-    [applyHunks, schemesStale]
+    [activeScript, applyHunks, selectedScheme, setSaveStatus, updateCell]
   );
 
   const selectScheme = useCallback(
