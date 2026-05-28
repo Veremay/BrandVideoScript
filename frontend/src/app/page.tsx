@@ -32,7 +32,11 @@ export default function Home() {
 
   const content = useMemo(() => {
     if (loading) {
-      return <main className="centerStage">Connecting to workspace…</main>;
+      return (
+        <main className="app-hub hub-page hub-page--centered">
+          <p className="hub-loading">Connecting to workspace…</p>
+        </main>
+      );
     }
 
     if (!userId) {
@@ -48,7 +52,7 @@ export default function Home() {
 
   return (
     <>
-      {error ? <div className="errorBanner">{error}</div> : null}
+      {error ? <div className="hub-error-banner">{error}</div> : null}
       {content}
     </>
   );

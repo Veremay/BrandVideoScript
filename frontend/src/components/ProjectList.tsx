@@ -2,10 +2,14 @@
 
 import { useState } from "react";
 
-import { CreateProjectDialog } from "@/components/CreateProjectDialog";
+import { CreateProjectDialog, type CreateProjectPayload } from "@/components/CreateProjectDialog";
 import { createProject, deleteProject, fetchProject, fetchProjects } from "@/lib/api";
-import type { VideoCategory } from "@/lib/types";
+import { VIDEO_CATEGORY_OPTIONS } from "@/lib/videoCategories";
 import { useAppStore } from "@/store/appStore";
+
+function categoryLabel(value: string | undefined) {
+  return VIDEO_CATEGORY_OPTIONS.find((option) => option.value === value)?.label ?? "Lifestyle";
+}
 
 export function ProjectList() {
   const { projects, setProject, setProjects, userId } = useAppStore();
@@ -16,13 +20,13 @@ export function ProjectList() {
 
   const nextProjectTitle = `Brand Script ${projects.length + 1}`;
 
-  async function handleCreateConfirm(videoCategory: VideoCategory) {
+  async function handleCreateConfirm({ title, videoCategory }: CreateProjectPayload) {
     if (!userId) return;
 
     setCreating(true);
     setError(null);
     try {
-      const project = await createProject(userId, nextProjectTitle, videoCategory);
+      const project = await createProject(userId, title, videoCategory);
       const nextProjects = await fetchProjects(userId);
       setProjects(nextProjects);
       setProject(project);
@@ -66,58 +70,84 @@ export function ProjectList() {
   }
 
   return (
-    <main className="projectsPage">
-      <header className="projectsHeader">
-        <div>
-          <p className="eyebrow">Project Hub</p>
-          <h1>Projects</h1>
-        </div>
-        <button onClick={() => setCreateDialogOpen(true)} disabled={creating} type="button">
-          New Project
-        </button>
-      </header>
-      {error && !createDialogOpen ? <p className="formError">{error}</p> : null}
-      <CreateProjectDialog
-        creating={creating}
-        defaultTitle={nextProjectTitle}
-        error={createDialogOpen ? error : null}
-        onClose={() => {
-          if (creating) return;
-          setCreateDialogOpen(false);
-          setError(null);
-        }}
-        onConfirm={(videoCategory) => void handleCreateConfirm(videoCategory)}
-        open={createDialogOpen}
-      />
-      <section className="projectGrid">
-        {projects.map((project) => {
-          const isDeleting = deletingId === project._id;
-          return (
-            <article className="projectCardWrap" key={project._id}>
-              <button
-                className="projectCard"
-                disabled={isDeleting}
-                onClick={() => handleOpen(project._id)}
-                type="button"
-              >
-                <strong>{project.title}</strong>
-                <span>{new Date(project.updated_at).toLocaleString()}</span>
-              </button>
-              <button
-                aria-label={`Delete ${project.title}`}
-                className="projectCardDelete"
-                disabled={isDeleting}
-                onClick={(event) => handleDelete(event, project._id, project.title)}
-                type="button"
-              >
-                <IconTrash />
-              </button>
-            </article>
-          );
-        })}
-        {projects.length === 0 ? <p className="emptyState">No projects yet. Create one to get started.</p> : null}
-      </section>
+    <main className="app-hub hub-page">
+      <div className="hub-shell">
+        <header className="hub-header">
+          <div className="hub-header-copy">
+            <p className="hub-eyebrow">Project Hub</p>
+            <h1 className="hub-headline">Projects</h1>
+            <p className="hub-lead">Pick up a script or start a new brand video project.</p>
+          </div>
+          <button
+            className="figma-nav-btn figma-nav-primary"
+            disabled={creating}
+            onClick={() => setCreateDialogOpen(true)}
+            type="button"
+          >
+            <IconPlus />
+            New Project
+          </button>
+        </header>
+
+        {error && !createDialogOpen ? <p className="formError">{error}</p> : null}
+
+        <CreateProjectDialog
+          creating={creating}
+          defaultTitle={nextProjectTitle}
+          error={createDialogOpen ? error : null}
+          onClose={() => {
+            if (creating) return;
+            setCreateDialogOpen(false);
+            setError(null);
+          }}
+          onConfirm={(payload) => void handleCreateConfirm(payload)}
+          open={createDialogOpen}
+        />
+
+        <section className="hub-project-grid">
+          {projects.map((project) => {
+            const isDeleting = deletingId === project._id;
+            return (
+              <article className="hub-project-card" key={project._id}>
+                <button
+                  className="hub-project-card-open"
+                  disabled={isDeleting}
+                  onClick={() => handleOpen(project._id)}
+                  type="button"
+                >
+                  <span className="hub-project-card-chip">{categoryLabel(project.video_category)}</span>
+                  <strong className="hub-project-card-title">{project.title}</strong>
+                  <span className="hub-project-card-meta">
+                    Updated {new Date(project.updated_at).toLocaleString()}
+                  </span>
+                </button>
+                <button
+                  aria-label={`Delete ${project.title}`}
+                  className="hub-project-card-delete"
+                  disabled={isDeleting}
+                  onClick={(event) => handleDelete(event, project._id, project.title)}
+                  type="button"
+                >
+                  <IconTrash />
+                </button>
+              </article>
+            );
+          })}
+          {projects.length === 0 ? (
+            <p className="hub-empty">No projects yet. Create one to get started.</p>
+          ) : null}
+        </section>
+      </div>
     </main>
+  );
+}
+
+function IconPlus() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <line x1="12" x2="12" y1="5" y2="19" />
+      <line x1="5" x2="19" y1="12" y2="12" />
+    </svg>
   );
 }
 

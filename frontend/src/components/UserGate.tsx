@@ -32,22 +32,38 @@ export function UserGate() {
   }
 
   return (
-    <main className="gate">
-      <form className="gatePanel" onSubmit={handleSubmit}>
-        <p className="eyebrow">BrandVideo MVP</p>
-        <h1>Enter Workspace</h1>
-        <label htmlFor="user-id">User ID</label>
-        <input
-          id="user-id"
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
-          placeholder="e.g. creator_may"
-        />
-        {error ? <p className="formError">{error}</p> : null}
-        <button type="submit" disabled={submitting || !value.trim()}>
-          {submitting ? "Entering…" : "Enter"}
-        </button>
-      </form>
+    <main className="app-hub hub-page hub-page--centered">
+      <div className="hub-gate">
+        <p className="hub-brand-mark">BrandVideo</p>
+        <form className="hub-glass-pane" onSubmit={handleSubmit}>
+          <div>
+            <p className="hub-eyebrow">Workspace</p>
+            <h1 className="hub-headline hub-headline-sm">Enter Workspace</h1>
+            <p className="hub-lead">Sign in with your creator ID to open projects and scripts.</p>
+          </div>
+          <div className="hub-field">
+            <label className="hub-label" htmlFor="user-id">
+              User ID
+            </label>
+            <input
+              autoComplete="username"
+              className="hub-input"
+              id="user-id"
+              onChange={(event) => setValue(event.target.value)}
+              placeholder="e.g. creator_may"
+              value={value}
+            />
+          </div>
+          {error ? <p className="formError">{error}</p> : null}
+          <button
+            className="figma-nav-btn figma-nav-primary hub-btn-block"
+            disabled={submitting || !value.trim()}
+            type="submit"
+          >
+            {submitting ? "Entering…" : "Enter"}
+          </button>
+        </form>
+      </div>
     </main>
   );
 }
