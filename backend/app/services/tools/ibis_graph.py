@@ -3,7 +3,17 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.models.rationale_ops import RELATION_TYPES, SOURCE_TYPES, build_rationale_edge, build_rationale_node
+from app.models.rationale_ops import (
+    RELATION_TYPES,
+    SOURCE_TYPES,
+    auto_link_ibis_orphans,
+    batch_is_issue_only,
+    build_rationale_edge,
+    build_rationale_node,
+    validate_ibis_edge,
+    validate_ibis_graph_integrity,
+)
+from app.services.pipeline_log import log_step
 from app.models.script import now_iso
 
 
@@ -22,6 +32,7 @@ def persist_rationale_graph(
     *,
     script_version_id: str | None = None,
     allowed_source_types: set[str] | None = None,
+    parent_issue_ids: list[str] | None = None,
 ) -> PersistedIbisGraph:
     """
     Tool: validate LLM-proposed IBIS payload and materialize server-side node/edge documents.
@@ -69,6 +80,22 @@ def persist_rationale_graph(
     def add_edge(from_id: str, to_id: str, relation: str) -> None:
         if relation not in RELATION_TYPES:
             relation = "responds_to"
+        from_node = next((n for n in built_nodes if n["node_id"] == from_id), None)
+        to_node = next((n for n in built_nodes if n["node_id"] == to_id), None)
+        if from_node and to_node:
+            try:
+                validate_ibis_edge(from_node, to_node, relation)
+            except ValueError as exc:
+                log_step(
+                    "persist_rationale_graph.skip_edge",
+                    phase="OUT",
+                    project_id=project_id,
+                    from_node_id=from_id,
+                    to_node_id=to_id,
+                    relation_type=relation,
+                    reason=str(exc),
+                )
+                return
         key = (from_id, to_id, relation)
         if key in seen:
             return
@@ -83,7 +110,16 @@ def persist_rationale_graph(
             )
         )
 
-    for raw in ibis.get("edges") or []:
+    if batch_is_issue_only(built_nodes) and ibis.get("edges"):
+        log_step(
+            "persist_rationale_graph.ignore_issue_edges",
+            phase="OUT",
+            project_id=project_id,
+            skipped=len(ibis.get("edges") or []),
+        )
+
+    edge_specs = [] if batch_is_issue_only(built_nodes) else (ibis.get("edges") or [])
+    for raw in edge_specs:
         if not isinstance(raw, dict):
             continue
         from_index = int(raw.get("from_index", -1))
@@ -107,9 +143,32 @@ def persist_rationale_graph(
                 str(raw.get("relation_type") or "responds_to"),
             )
 
+    edge_count_before = len(built_edges)
+    built_edges = auto_link_ibis_orphans(
+        built_nodes,
+        built_edges,
+        project_id=project_id,
+        parent_issue_ids=parent_issue_ids,
+    )
+    if len(built_edges) > edge_count_before:
+        log_step(
+            "persist_rationale_graph.auto_link",
+            phase="OUT",
+            project_id=project_id,
+            edges_added=len(built_edges) - edge_count_before,
+        )
+
     updates = [
         u for u in (ibis.get("node_updates") or []) if isinstance(u, dict) and u.get("node_id")
     ]
+    if built_nodes:
+        batch_ids = {n["node_id"] for n in built_nodes}
+        validate_ibis_graph_integrity(
+            built_nodes,
+            built_edges,
+            node_ids=batch_ids,
+            require_linked_for=lambda _node: True,
+        )
     return PersistedIbisGraph(
         proposed_nodes=built_nodes,
         proposed_edges=built_edges,

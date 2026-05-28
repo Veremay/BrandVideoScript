@@ -9,6 +9,7 @@
 1. 分析 Brief 与辅助检索结果，输出结构化品牌洞察。
 2. 推理品牌向 **IBIS issue**（必要时含 position），调用工具 **`persist_rationale_graph`** 的 `ibis` 字段落库。
 3. Brand 侧以 **issue** 为主；position/argument 留给 Expert。`source_type` 限：`brand_brief`、`brand_inferred`。
+4. `ibis` 中 **只输出 issue 节点，不要写 edges**（issue 无需连边；`responds_to` 只属于 position→issue）。
 
 ## 输出 JSON
 

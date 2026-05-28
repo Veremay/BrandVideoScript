@@ -1,6 +1,11 @@
 import unittest
 
-from app.models.rationale_ops import build_rationale_node, merge_proposed_graph, validate_ibis_edge
+from app.models.rationale_ops import (
+    build_rationale_node,
+    merge_proposed_graph,
+    validate_ibis_edge,
+    validate_ibis_graph_integrity,
+)
 
 
 class GraphMergeTest(unittest.TestCase):
@@ -50,6 +55,69 @@ class IbisEdgeValidationTest(unittest.TestCase):
             validate_ibis_edge(position, position, "responds_to")
         with self.assertRaises(ValueError):
             validate_ibis_edge(issue, argument, "responds_to")
+
+
+class IbisGraphIntegrityTest(unittest.TestCase):
+    def test_issue_without_position_is_valid(self) -> None:
+        issue = build_rationale_node(
+            project_id="p1",
+            node_type="issue",
+            title="Open question",
+            content="No answers yet",
+            source_type="brand_brief",
+            created_by="agent",
+        )
+        validate_ibis_graph_integrity([issue], [], require_linked_for=lambda _node: True)
+
+    def test_orphan_position_fails_integrity(self) -> None:
+        position = build_rationale_node(
+            project_id="p1",
+            node_type="position",
+            title="Orphan stance",
+            content="Unlinked",
+            source_type="expert_strategy",
+            created_by="agent",
+        )
+        with self.assertRaises(ValueError):
+            validate_ibis_graph_integrity([position], [], require_linked_for=lambda _node: True)
+
+    def test_user_orphan_position_allowed_by_default(self) -> None:
+        position = build_rationale_node(
+            project_id="p1",
+            node_type="position",
+            title="Draft stance",
+            content="Connect on canvas",
+            source_type="creator_manual",
+            created_by="user",
+        )
+        validate_ibis_graph_integrity([position], [])
+
+    def test_merge_allows_user_orphan_position(self) -> None:
+        user_position = build_rationale_node(
+            project_id="p1",
+            node_type="position",
+            title="User draft",
+            content="WIP",
+            source_type="creator_manual",
+            created_by="user",
+        )
+        agent_issue = build_rationale_node(
+            project_id="p1",
+            node_type="issue",
+            title="New issue",
+            content="From agent",
+            source_type="brand_brief",
+            created_by="agent",
+        )
+        nodes, edges = merge_proposed_graph(
+            project_id="p1",
+            existing_nodes=[user_position],
+            existing_edges=[],
+            proposed_nodes=[agent_issue],
+            proposed_edges=[],
+        )
+        self.assertEqual(len(nodes), 2)
+        self.assertEqual(len(edges), 0)
 
 
 if __name__ == "__main__":

@@ -199,6 +199,7 @@ async def run_expert_for_brief(
         payload.get("ibis"),
         script_version_id=script_version_id,
         allowed_source_types=EXPERT_SOURCES,
+        parent_issue_ids=brand_issue_ids,
     )
 
     result = {
@@ -282,6 +283,7 @@ async def run_expert_for_audience(
         payload.get("ibis"),
         script_version_id=script_version_id,
         allowed_source_types=EXPERT_SOURCES,
+        parent_issue_ids=audience_issue_ids,
     )
 
     result = {
@@ -409,11 +411,24 @@ async def run_expert_coordinator(
         task_type="expert_generate_suggestions",
         mock_payload=mock,
     )
+    coordinator_issue_ids = list(
+        dict.fromkeys(
+            [
+                *new_issue_ids,
+                *[
+                    str(n.get("node_id"))
+                    for n in project.get("rationale_nodes", [])
+                    if n.get("node_type") == "issue" and n.get("node_id")
+                ],
+            ]
+        )
+    )
     graph = persist_rationale_graph(
         project_id,
         payload.get("ibis"),
         script_version_id=script_version_id,
         allowed_source_types=EXPERT_SOURCES,
+        parent_issue_ids=coordinator_issue_ids,
     )
 
     result = {

@@ -5,7 +5,12 @@ from typing import Any
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.artifact_stale import stale_set_fields
-from app.models.rationale_ops import build_rationale_edge, build_rationale_node, validate_ibis_edge
+from app.models.rationale_ops import (
+    build_rationale_edge,
+    build_rationale_node,
+    validate_ibis_edge,
+    validate_ibis_graph_integrity,
+)
 from app.models.script import now_iso
 from app.repositories.projects import get_project
 
@@ -85,6 +90,29 @@ async def delete_graph_node(
     if project is None:
         return None
 
+    nodes_by_id = {n.get("node_id"): n for n in project.get("rationale_nodes", []) if n.get("node_id")}
+    target = nodes_by_id.get(node_id)
+    if target is None:
+        raise ValueError("Node not found")
+    if str(target.get("node_type")) == "issue":
+        for edge in project.get("rationale_edges", []):
+            if edge.get("to_node_id") != node_id or edge.get("relation_type") != "responds_to":
+                continue
+            position = nodes_by_id.get(edge.get("from_node_id"))
+            if position and position.get("node_type") == "position":
+                raise ValueError(
+                    "Cannot delete Issue while Positions still respond to it; remove or re-link those Positions first"
+                )
+    if str(target.get("node_type")) == "position":
+        for edge in project.get("rationale_edges", []):
+            if edge.get("to_node_id") != node_id or edge.get("relation_type") not in {"supports", "opposes"}:
+                continue
+            argument = nodes_by_id.get(edge.get("from_node_id"))
+            if argument and argument.get("node_type") == "argument":
+                raise ValueError(
+                    "Cannot delete Position while Arguments still link to it; remove or re-link those Arguments first"
+                )
+
     nodes = [n for n in project.get("rationale_nodes", []) if n.get("node_id") != node_id]
     edges = [
         e
@@ -145,7 +173,25 @@ async def delete_graph_edge(
     if project is None:
         return None
 
+    removed = next((e for e in project.get("rationale_edges", []) if e.get("edge_id") == edge_id), None)
+    if removed is None:
+        raise ValueError("Edge not found")
+
     edges = [e for e in project.get("rationale_edges", []) if e.get("edge_id") != edge_id]
+    nodes = project.get("rationale_nodes", [])
+    affected: set[str] = set()
+    relation = removed.get("relation_type")
+    if relation == "responds_to":
+        affected.add(str(removed.get("from_node_id") or ""))
+    elif relation in {"supports", "opposes"}:
+        affected.add(str(removed.get("from_node_id") or ""))
+    if affected:
+        validate_ibis_graph_integrity(
+            nodes,
+            edges,
+            node_ids=affected,
+            require_linked_for=lambda _node: True,
+        )
     await _write_graph(db, project_id, user_id, nodes=project.get("rationale_nodes", []), edges=edges)
     return await get_project(db, project_id, user_id)
 

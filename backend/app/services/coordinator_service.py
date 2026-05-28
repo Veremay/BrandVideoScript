@@ -13,6 +13,7 @@ from app.services.agent_orchestrator import (
     run_brief_initial_pipeline,
 )
 from app.services.persona_analytics import PersonaAnalyticsContext, get_persona_analytics_provider
+from app.services.pipeline_log import log_step
 
 
 async def run_brief_initial_parse(
@@ -72,7 +73,13 @@ async def run_brief_initial_parse(
                 }
             },
         )
-    except Exception:
+    except Exception as exc:
+        log_step(
+            "brief.parse.failed",
+            phase="OUT",
+            project_id=project_id,
+            error=str(exc),
+        )
         await db.projects.update_one(
             {"_id": project_id, "user_id": user_id},
             {"$set": {"brief.parse_status": "failed", "updated_at": now_iso()}},
