@@ -67,7 +67,12 @@ async def list_user_projects(
 
 @router.post("", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
 async def create(payload: ProjectCreateRequest, db: AsyncIOMotorDatabase = Depends(database_dependency)) -> dict:
-    return await create_project(db, payload.user_id.strip(), payload.title.strip())
+    return await create_project(
+        db,
+        payload.user_id.strip(),
+        payload.title.strip(),
+        video_category=payload.video_category,
+    )
 
 
 @router.get("/{project_id}", response_model=ProjectResponse)

@@ -251,10 +251,13 @@ export type HunkDecision = true | false | null;
 
 export type PlatformContext = "xiaohongshu" | "douyin" | "bilibili" | "other";
 
+export type VideoCategory = "lifestyle";
+
 export type Project = {
   _id: string;
   user_id: string;
   title: string;
+  video_category?: VideoCategory;
   platform_context?: PlatformContext;
   brief: Brief;
   current_script: Script;

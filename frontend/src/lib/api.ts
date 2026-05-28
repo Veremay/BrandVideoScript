@@ -9,6 +9,7 @@ import type {
   PersonaAdSensitivity,
   PlatformContext,
   Project,
+  VideoCategory,
   RationaleEdge,
   RationaleNode,
   ModificationScheme,
@@ -79,11 +80,16 @@ export async function fetchProjects(userId: string): Promise<Project[]> {
   return data.projects;
 }
 
-export async function createProject(userId: string, title: string): Promise<Project> {
-  return request("/projects", {
+export async function createProject(
+  userId: string,
+  title: string,
+  videoCategory: VideoCategory = "lifestyle"
+): Promise<Project> {
+  const project = await request<Project>("/projects", {
     method: "POST",
-    body: JSON.stringify({ user_id: userId, title })
+    body: JSON.stringify({ user_id: userId, title, video_category: videoCategory })
   });
+  return normalizeProject(project)!;
 }
 
 export async function deleteProject(projectId: string, userId: string): Promise<void> {

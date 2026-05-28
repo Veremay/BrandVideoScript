@@ -13,6 +13,8 @@ from app.models.script import default_script, new_id, now_iso
 from app.models.script_ops import add_column, add_row, delete_column, delete_row, rename_column, update_cell
 from app.models.script_validate import normalize_script, validate_script
 
+VIDEO_CATEGORIES = frozenset({"lifestyle"})
+
 BRAND_INSIGHT_CATEGORIES = {"explicit_requirement", "implicit_requirement", "brand_feedback"}
 BRAND_INSIGHT_CONFIDENCE = {"high", "medium", "low"}
 BRAND_INSIGHT_STATUS = {"new", "confirmed", "pending", "ignored"}
@@ -42,6 +44,7 @@ def serialize_project(document: dict) -> dict:
     if "current_script_version_id" not in document:
         document["current_script_version_id"] = None
     document.setdefault("platform_context", "other")
+    document.setdefault("video_category", "lifestyle")
     document.setdefault("brand_perspective_result", None)
     document.setdefault("audience_perspective_result", None)
     document.setdefault("expert_perspective_result", None)
@@ -261,13 +264,22 @@ async def enter_user(db: AsyncIOMotorDatabase, user_id: str) -> dict:
     return {"user_id": user["_id"], "created_at": user["created_at"]}
 
 
-async def create_project(db: AsyncIOMotorDatabase, user_id: str, title: str) -> dict:
+async def create_project(
+    db: AsyncIOMotorDatabase,
+    user_id: str,
+    title: str,
+    *,
+    video_category: str = "lifestyle",
+) -> dict:
+    if video_category not in VIDEO_CATEGORIES:
+        raise ValueError("Invalid video category")
     await enter_user(db, user_id)
     now = now_iso()
     project = {
         "_id": new_id("project"),
         "user_id": user_id,
         "title": title,
+        "video_category": video_category,
         "brief": {
             "filename": None,
             "text": "",

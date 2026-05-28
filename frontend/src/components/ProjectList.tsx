@@ -2,25 +2,31 @@
 
 import { useState } from "react";
 
+import { CreateProjectDialog } from "@/components/CreateProjectDialog";
 import { createProject, deleteProject, fetchProject, fetchProjects } from "@/lib/api";
+import type { VideoCategory } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
 
 export function ProjectList() {
   const { projects, setProject, setProjects, userId } = useAppStore();
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleCreate() {
+  const nextProjectTitle = `Brand Script ${projects.length + 1}`;
+
+  async function handleCreateConfirm(videoCategory: VideoCategory) {
     if (!userId) return;
 
     setCreating(true);
     setError(null);
     try {
-      const project = await createProject(userId, `Brand Script ${projects.length + 1}`);
+      const project = await createProject(userId, nextProjectTitle, videoCategory);
       const nextProjects = await fetchProjects(userId);
       setProjects(nextProjects);
       setProject(project);
+      setCreateDialogOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create project");
     } finally {
@@ -66,11 +72,23 @@ export function ProjectList() {
           <p className="eyebrow">Project Hub</p>
           <h1>Projects</h1>
         </div>
-        <button onClick={handleCreate} disabled={creating} type="button">
-          {creating ? "Creating…" : "New Project"}
+        <button onClick={() => setCreateDialogOpen(true)} disabled={creating} type="button">
+          New Project
         </button>
       </header>
-      {error ? <p className="formError">{error}</p> : null}
+      {error && !createDialogOpen ? <p className="formError">{error}</p> : null}
+      <CreateProjectDialog
+        creating={creating}
+        defaultTitle={nextProjectTitle}
+        error={createDialogOpen ? error : null}
+        onClose={() => {
+          if (creating) return;
+          setCreateDialogOpen(false);
+          setError(null);
+        }}
+        onConfirm={(videoCategory) => void handleCreateConfirm(videoCategory)}
+        open={createDialogOpen}
+      />
       <section className="projectGrid">
         {projects.map((project) => {
           const isDeleting = deletingId === project._id;

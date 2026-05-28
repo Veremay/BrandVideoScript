@@ -155,6 +155,119 @@ textarea {
   margin-bottom: 18px;
 }
 
+.create-project-dialog {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 20px;
+  width: min(480px, calc(100vw - 40px));
+  padding: 28px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
+}
+
+.create-project-dialog-header {
+  display: grid;
+  gap: 8px;
+}
+
+.create-project-dialog-header h2 {
+  font-size: 22px;
+  letter-spacing: 0;
+}
+
+.create-project-dialog-subtitle {
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.create-project-dialog-subtitle strong {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.create-project-category-list {
+  display: grid;
+  gap: 10px;
+}
+
+.create-project-category-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface2);
+  cursor: pointer;
+}
+
+.create-project-category-option input {
+  margin-top: 3px;
+  accent-color: var(--brand-blue);
+}
+
+.create-project-category-option.is-selected {
+  border-color: rgba(79, 142, 247, 0.45);
+  background: var(--brand-blue-dim);
+}
+
+.create-project-category-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.create-project-category-label {
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.create-project-category-description {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.create-project-dialog-error {
+  margin: 0;
+}
+
+.create-project-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.create-project-dialog-cancel,
+.create-project-dialog-submit {
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 6px;
+  font-weight: 700;
+}
+
+.create-project-dialog-cancel {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.create-project-dialog-submit {
+  border: 1px solid rgba(79, 142, 247, 0.35);
+  background: var(--brand-blue-dim);
+  color: var(--brand-blue);
+}
+
+.create-project-dialog-cancel:disabled,
+.create-project-dialog-submit:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
 .projectGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
