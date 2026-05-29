@@ -1892,9 +1892,38 @@ textarea {
 }
 
 .glacier-quote-text {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.glacier-quote-clear {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: auto;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--glacier-primary);
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.glacier-quote-clear:hover {
+  opacity: 1;
+  background: rgba(0, 101, 145, 0.12);
+}
+
+.glacier-quote-clear svg {
+  width: 12px;
+  height: 12px;
 }
 
 .glacier-input-wrap {
@@ -4059,29 +4088,6 @@ textarea {
   .agents-col {
     min-height: 420px;
   }
-}
-
-.glacier-perspective-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 8px;
-}
-
-.glacier-perspective-chip {
-  border: 1px solid var(--glacier-border);
-  border-radius: 999px;
-  padding: 4px 10px;
-  background: #fff;
-  color: var(--glacier-text-secondary);
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.glacier-perspective-chip.active {
-  border-color: var(--glacier-primary);
-  background: rgba(0, 101, 145, 0.1);
-  color: var(--glacier-primary);
 }
 
 .glacier-related-nodes,

@@ -207,6 +207,6 @@ class LLMClient:
             return "How can I help with your script today?"
         return (
             f"I reviewed your question: \"{user_text[:160]}\". "
-            "Brand, Audience, and Expert perspectives were scheduled based on your chips. "
+            "Brand, Audience, and Expert perspectives were scheduled by the Coordinator. "
             "New IBIS nodes were added to the graph where relevant — open Node Graph to review them."
         )

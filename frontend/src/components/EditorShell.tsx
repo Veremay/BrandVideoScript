@@ -29,6 +29,7 @@ export function EditorShell() {
     setCoordinatorChatOpen,
     setProject,
     setSaveStatus,
+    setSelection,
     setUserId,
     setPersonaPanelOpen,
     setRequirementsPanelOpen,
@@ -284,6 +285,7 @@ export function EditorShell() {
         <CoordinatorChat
           open={coordinatorOpen}
           onClose={() => setCoordinatorChatOpen(false)}
+          onClearQuote={() => setSelection(undefined)}
           selectedText={editor.selectedText}
           selectedRowId={editor.selectedRowId}
           selectedColumnId={editor.selectedColumnId}

@@ -5,17 +5,10 @@ import { useEffect, useRef, useState } from "react";
 import { RevisionProposalsActions, RevisionProposalsList } from "@/components/RevisionProposalsPanel";
 import { fetchCoordinatorMessages, streamCoordinatorMessage } from "@/lib/api";
 import { resolveCoordinatorTaskType } from "@/lib/coordinatorIntent";
-import type { CoordinatorMessage, RequestedPerspective } from "@/lib/types";
+import type { CoordinatorMessage } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
 
 type AssistantTab = "chat" | "plans";
-
-const PERSPECTIVE_CHIPS: Array<{ id: RequestedPerspective; label: string }> = [
-  { id: "comprehensive", label: "Comprehensive" },
-  { id: "brand", label: "Brand" },
-  { id: "audience", label: "Audience" },
-  { id: "expert", label: "Expert" }
-];
 
 const WELCOME: CoordinatorMessage = {
   message_id: "welcome",
@@ -35,6 +28,7 @@ const WELCOME: CoordinatorMessage = {
 type CoordinatorChatProps = {
   open: boolean;
   onClose: () => void;
+  onClearQuote?: () => void;
   userInitial?: string;
   selectedText?: string;
   selectedRowId?: string;
@@ -47,6 +41,7 @@ type CoordinatorChatProps = {
 export function CoordinatorChat({
   open,
   onClose,
+  onClearQuote,
   userInitial = "U",
   selectedText,
   selectedRowId,
@@ -58,7 +53,6 @@ export function CoordinatorChat({
   const setProject = useAppStore((state) => state.setProject);
   const [tab, setTab] = useState<AssistantTab>("chat");
   const [messages, setMessages] = useState<CoordinatorMessage[]>([WELCOME]);
-  const [perspectives, setPerspectives] = useState<RequestedPerspective[]>(["comprehensive"]);
   const [draft, setDraft] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
@@ -87,20 +81,6 @@ export function CoordinatorChat({
 
   if (!open) return null;
 
-  function togglePerspective(id: RequestedPerspective) {
-    if (id === "comprehensive") {
-      setPerspectives(["comprehensive"]);
-      return;
-    }
-    setPerspectives((current) => {
-      const withoutComprehensive = current.filter((item) => item !== "comprehensive");
-      const next = withoutComprehensive.includes(id)
-        ? withoutComprehensive.filter((item) => item !== id)
-        : [...withoutComprehensive, id];
-      return next.length === 0 ? ["comprehensive"] : next;
-    });
-  }
-
   async function handleSend() {
     const text = draft.trim();
     if (!text || streaming || !projectId || !userId) return;
@@ -126,7 +106,7 @@ export function CoordinatorChat({
       role: "user",
       content: text,
       task_type: taskType,
-      requested_perspectives: perspectives,
+      requested_perspectives: ["comprehensive"],
       quotes,
       related_node_ids: [],
       generated_artifact_ids: [],
@@ -140,7 +120,7 @@ export function CoordinatorChat({
       role: "assistant",
       content: "",
       task_type: userMessage.task_type,
-      requested_perspectives: perspectives,
+      requested_perspectives: ["comprehensive"],
       quotes,
       related_node_ids: [],
       generated_artifact_ids: [],
@@ -160,7 +140,7 @@ export function CoordinatorChat({
         {
           message: text,
           task_type: taskType,
-          requested_perspectives: perspectives,
+          requested_perspectives: ["comprehensive"],
           quotes,
           changed_row_ids: selectedRowId ? [selectedRowId] : []
         },
@@ -278,7 +258,7 @@ export function CoordinatorChat({
             >
               Chat
             </button>
-            <button
+            {/* <button
               className={`glacier-tab ${tab === "plans" ? "active" : ""}`}
               onClick={() => setTab("plans")}
               role="tab"
@@ -286,7 +266,7 @@ export function CoordinatorChat({
               type="button"
             >
               Revision Proposals
-            </button>
+            </button> */}
           </div>
         </header>
 
@@ -336,26 +316,20 @@ export function CoordinatorChat({
         )}
 
         <footer className="glacier-input-area">
-          {tab === "chat" ? (
-            <div className="glacier-perspective-chips" role="group" aria-label="Requested perspectives">
-              {PERSPECTIVE_CHIPS.map((chip) => (
-                <button
-                  className={`glacier-perspective-chip ${perspectives.includes(chip.id) ? "active" : ""}`}
-                  key={chip.id}
-                  onClick={() => togglePerspective(chip.id)}
-                  type="button"
-                >
-                  {chip.label}
-                </button>
-              ))}
-            </div>
-          ) : null}
           {selectedText ? (
             <div className="glacier-quote">
               <span className="glacier-quote-icon" aria-hidden="true">
                 ↳
               </span>
               <span className="glacier-quote-text">{selectedText}</span>
+              <button
+                className="glacier-quote-clear"
+                onClick={onClearQuote}
+                type="button"
+                aria-label="Remove quote"
+              >
+                <IconClose />
+              </button>
             </div>
           ) : null}
           <div className="glacier-input-wrap">
