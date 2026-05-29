@@ -102,66 +102,84 @@ async def apply_modification_scheme_hunks(
     scheme = schemes[scheme_index]
     hunks_by_id = {hunk["hunk_id"]: hunk for hunk in scheme.get("hunks") or []}
     accepted = [hunk_id for hunk_id in accepted_hunk_ids if hunk_id in hunks_by_id]
-    rejected = set(rejected_hunk_ids or [])
+    rejected = {hunk_id for hunk_id in (rejected_hunk_ids or []) if hunk_id in hunks_by_id}
 
-    if not accepted:
-        raise ValueError("No accepted hunks to apply")
-
-    script = normalize_script(project["current_script"])
-    await create_script_snapshot(
-        db,
-        project_id,
-        user_id,
-        reason="before_expert_apply",
-        script=script,
-    )
+    if not accepted and not rejected:
+        raise ValueError("No hunks to update")
 
     applied_ids: list[str] = []
     conflicts: list[dict[str, str]] = []
-    for hunk_id in accepted:
-        if hunk_id in rejected:
-            continue
-        hunk = hunks_by_id[hunk_id]
-        try:
-            hunk = reconcile_hunk_for_apply(script, hunk)
-            script = apply_hunk_to_script(script, hunk)
-            applied_ids.append(hunk_id)
-        except ValueError as exc:
-            conflicts.append({"hunk_id": hunk_id, "message": str(exc)})
+    new_version_id = None
+    script = normalize_script(project["current_script"])
 
-    if not applied_ids:
-        raise ValueError(conflicts[0]["message"] if conflicts else "No hunks could be applied")
+    if accepted:
+        await create_script_snapshot(
+            db,
+            project_id,
+            user_id,
+            reason="before_expert_apply",
+            script=script,
+        )
+        for hunk_id in accepted:
+            if hunk_id in rejected:
+                continue
+            hunk = hunks_by_id[hunk_id]
+            try:
+                hunk = reconcile_hunk_for_apply(script, hunk)
+                script = apply_hunk_to_script(script, hunk)
+                hunks_by_id[hunk_id] = hunk
+                applied_ids.append(hunk_id)
+            except ValueError as exc:
+                conflicts.append({"hunk_id": hunk_id, "message": str(exc)})
 
-    script["updated_at"] = now_iso()
-    validate_script(script)
-    new_version_id = await create_script_snapshot(
-        db,
-        project_id,
-        user_id,
-        reason="after_expert_apply",
-        script=script,
-    )
+        if not applied_ids:
+            raise ValueError(conflicts[0]["message"] if conflicts else "No hunks could be applied")
 
-    total_hunks = len(hunks_by_id)
-    if len(applied_ids) >= total_hunks:
-        status = "applied"
-    else:
+        script["updated_at"] = now_iso()
+        validate_script(script)
+        new_version_id = await create_script_snapshot(
+            db,
+            project_id,
+            user_id,
+            reason="after_expert_apply",
+            script=script,
+        )
+
+    now = now_iso()
+    updated_hunks: list[dict[str, Any]] = []
+    for hunk in scheme.get("hunks") or []:
+        hunk_id = hunk["hunk_id"]
+        base = hunks_by_id.get(hunk_id, hunk)
+        if hunk_id in applied_ids:
+            updated_hunks.append({**base, "decision": "accepted", "applied_at": now})
+        elif hunk_id in rejected:
+            updated_hunks.append({**base, "decision": "rejected", "applied_at": None})
+        else:
+            updated_hunks.append(base)
+
+    pending_count = sum(1 for item in updated_hunks if item.get("decision", "pending") == "pending")
+    if pending_count == 0:
+        status = "applied" if any(item.get("decision") == "accepted" for item in updated_hunks) else "dismissed"
+    elif applied_ids:
         status = "partially_applied"
+    else:
+        status = str(scheme.get("status", "draft"))
 
-    schemes[scheme_index] = {**scheme, "status": status}
+    schemes[scheme_index] = {**scheme, "hunks": updated_hunks, "status": status}
     from app.models.artifact_stale import mark_script_changed
+
+    update_fields: dict[str, Any] = {
+        "modification_schemes": schemes,
+        "updated_at": script["updated_at"] if applied_ids else now,
+        "stale.modification_schemes": "up_to_date",
+    }
+    if applied_ids:
+        update_fields["current_script"] = script
+        update_fields.update(stale_set_fields(mark_script_changed()))
 
     await db.projects.update_one(
         {"_id": project_id, "user_id": user_id},
-        {
-            "$set": {
-                "current_script": script,
-                "modification_schemes": schemes,
-                "updated_at": script["updated_at"],
-                **stale_set_fields(mark_script_changed()),
-                "stale.modification_schemes": "up_to_date",
-            }
-        },
+        {"$set": update_fields},
     )
 
     updated = await get_project(db, project_id, user_id)

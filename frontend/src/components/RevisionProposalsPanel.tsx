@@ -18,12 +18,8 @@ import {
 } from "@/lib/schemePreview";
 import { isStaleStatus } from "@/lib/stale";
 import type { HunkDecision, ModificationScheme, ModificationSchemeDirection, Script } from "@/lib/types";
+import { deriveHunkDecisions, findScheme } from "@/lib/schemeHunkState";
 import { useAppStore } from "@/store/appStore";
-
-function scriptCellValue(script: Script, rowId: string, columnId: string): string {
-  const row = script.rows.find((item) => item.row_id === rowId);
-  return row?.cells.find((cell) => cell.column_id === columnId)?.value ?? "";
-}
 
 const DIRECTION_LABELS: Record<ModificationSchemeDirection, string> = {
   conservative: "Conservative · Brand-first",
@@ -59,6 +55,7 @@ type RevisionProposalsContextValue = {
   applyAcceptedOnly: () => Promise<void>;
   rejectAllHunks: () => void;
   acceptAndApplyHunk: (hunkId: string) => Promise<void>;
+  rejectAndPersistHunk: (hunkId: string) => Promise<void>;
   selectScheme: (schemeId: string) => void;
 };
 
@@ -83,7 +80,6 @@ export function RevisionProposalsProvider({ projectId, userId, children }: Revis
   const script = useAppStore((state) => state.script);
   const setProject = useAppStore((state) => state.setProject);
   const setScript = useAppStore((state) => state.setScript);
-  const updateCell = useAppStore((state) => state.updateCell);
   const setSaveStatus = useAppStore((state) => state.setSaveStatus);
 
   const schemes = useMemo(() => {
@@ -136,18 +132,14 @@ export function RevisionProposalsProvider({ projectId, userId, children }: Revis
   }, [editorSchemeFocusId, schemes, setEditorSchemeFocusId]);
 
   useEffect(() => {
-    if (!selectedScheme) {
+    if (!selectedScheme || !activeScript) {
       setHunkDecisions({});
       setPreviewOpen(false);
       return;
     }
-    const initial: Record<string, HunkDecision> = {};
-    for (const hunk of selectedScheme.hunks) {
-      initial[hunk.hunk_id] = null;
-    }
-    setHunkDecisions(initial);
+    setHunkDecisions(deriveHunkDecisions(activeScript, selectedScheme));
     setPreviewMode("all_proposed");
-  }, [selectedScheme?.scheme_id]);
+  }, [activeScript, selectedScheme]);
 
   const applyHunks = useCallback(
     async (acceptedIds: string[], rejectedIds: string[]) => {
@@ -165,6 +157,10 @@ export function RevisionProposalsProvider({ projectId, userId, children }: Revis
         );
         setProject(updated);
         setScript(updated.current_script);
+        const scheme = findScheme(updated, selectedScheme.scheme_id);
+        if (scheme) {
+          setHunkDecisions(deriveHunkDecisions(updated.current_script, scheme));
+        }
         const total = selectedScheme.hunks.length;
         setStatusMessage(
           acceptedIds.length >= total
@@ -222,29 +218,61 @@ export function RevisionProposalsProvider({ projectId, userId, children }: Revis
     setHunkDecisions((prev) => ({ ...prev, [hunkId]: decision }));
   }, []);
 
-  const acceptAndApplyHunk = useCallback(
-    async (hunkId: string) => {
-      if (!selectedScheme || !activeScript) return;
-      const hunk = selectedScheme.hunks.find((item) => item.hunk_id === hunkId);
-      if (!hunk) return;
-
-      const previousValue = scriptCellValue(activeScript, hunk.row_id, hunk.column_id);
+  const persistHunkDecisions = useCallback(
+    async (acceptedIds: string[], rejectedIds: string[]) => {
+      if (!selectedScheme) return;
+      setApplying(true);
       setError(null);
       setSaveStatus("saving");
-      setHunkDecisions((prev) => ({ ...prev, [hunkId]: true }));
-      updateCell(hunk.row_id, hunk.column_id, hunk.added);
-
       try {
-        await applyHunks([hunkId], []);
+        const updated = await applyModificationSchemeHunks(
+          projectId,
+          userId,
+          selectedScheme.scheme_id,
+          acceptedIds,
+          rejectedIds
+        );
+        setProject(updated);
+        setScript(updated.current_script);
+        const scheme = findScheme(updated, selectedScheme.scheme_id);
+        if (scheme) {
+          setHunkDecisions(deriveHunkDecisions(updated.current_script, scheme));
+        }
+        setSaveStatus("saved");
       } catch (err) {
-        setHunkDecisions((prev) => ({ ...prev, [hunkId]: null }));
-        updateCell(hunk.row_id, hunk.column_id, previousValue);
         setSaveStatus("failed");
-        const message = err instanceof Error ? err.message : "Failed to apply change";
+        const message = err instanceof Error ? err.message : "Failed to update change";
         setError(message);
+        throw err;
+      } finally {
+        setApplying(false);
       }
     },
-    [activeScript, applyHunks, selectedScheme, setSaveStatus, updateCell]
+    [projectId, selectedScheme, setProject, setSaveStatus, setScript, userId]
+  );
+
+  const acceptAndApplyHunk = useCallback(
+    async (hunkId: string) => {
+      if (!selectedScheme) return;
+      try {
+        await persistHunkDecisions([hunkId], []);
+      } catch {
+        /* error state set in persistHunkDecisions */
+      }
+    },
+    [persistHunkDecisions, selectedScheme]
+  );
+
+  const rejectAndPersistHunk = useCallback(
+    async (hunkId: string) => {
+      if (!selectedScheme) return;
+      try {
+        await persistHunkDecisions([], [hunkId]);
+      } catch {
+        /* error state set in persistHunkDecisions */
+      }
+    },
+    [persistHunkDecisions, selectedScheme]
   );
 
   const selectScheme = useCallback(
@@ -283,6 +311,7 @@ export function RevisionProposalsProvider({ projectId, userId, children }: Revis
     applyAcceptedOnly,
     rejectAllHunks,
     acceptAndApplyHunk,
+    rejectAndPersistHunk,
     selectScheme
   };
 

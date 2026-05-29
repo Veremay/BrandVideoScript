@@ -56,7 +56,7 @@ export function CellHunkDiff({
 }
 
 export function useCellHunkMap() {
-  const { selectedScheme, hunkDecisions, setHunkDecision, acceptAndApplyHunk, error: applyError } =
+  const { selectedScheme, hunkDecisions, acceptAndApplyHunk, rejectAndPersistHunk, error: applyError } =
     useRevisionProposals();
 
   const hunkByCell = useMemo(() => {
@@ -72,8 +72,8 @@ export function useCellHunkMap() {
   return {
     hunkByCell,
     hunkDecisions,
-    setHunkDecision,
     acceptAndApplyHunk,
+    rejectAndPersistHunk,
     applyError: applyError,
     hasActiveScheme: Boolean(selectedScheme?.hunks.length)
   };

@@ -220,6 +220,8 @@ export type ModificationSchemeStatus =
   | "applied"
   | "dismissed";
 
+export type HunkDecisionState = "pending" | "accepted" | "rejected";
+
 export type ModificationSchemeHunk = {
   hunk_id: string;
   row_id: string;
@@ -227,6 +229,8 @@ export type ModificationSchemeHunk = {
   context?: string;
   removed: string;
   added: string;
+  decision?: HunkDecisionState;
+  applied_at?: string | null;
 };
 
 export type ModificationScheme = {

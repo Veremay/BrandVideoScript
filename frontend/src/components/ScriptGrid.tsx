@@ -60,7 +60,7 @@ export function ScriptGrid({ script }: { script: Script }) {
     return issueMap;
   }, [durationAnalysis.issues, project?.rationale_nodes]);
   const totalSeconds = Math.max(0, ...durationAnalysis.timeline.map((segment) => segment.end));
-  const { hunkByCell, hunkDecisions, setHunkDecision, acceptAndApplyHunk, applyError } = useCellHunkMap();
+  const { hunkByCell, hunkDecisions, acceptAndApplyHunk, rejectAndPersistHunk, applyError } = useCellHunkMap();
 
   useEffect(() => {
     function handleDocumentPointerDown(event: globalThis.MouseEvent) {
@@ -342,7 +342,7 @@ export function ScriptGrid({ script }: { script: Script }) {
                   onAddRow={() => insertRowAfter(row.row_id)}
                   onDeleteRow={() => handleDeleteRow(row.row_id)}
                   onHunkAccept={(hunkId) => void acceptAndApplyHunk(hunkId)}
-                  onHunkReject={(hunkId) => setHunkDecision(hunkId, false)}
+                  onHunkReject={(hunkId) => void rejectAndPersistHunk(hunkId)}
                   onResizeRow={(event) => startRowResize(event, row.row_id)}
                   onSelection={handleSelection}
                   onSelectRow={() => {

@@ -130,6 +130,11 @@ def normalize_hunk(raw: dict[str, Any], *, script: dict) -> dict[str, Any]:
     current = get_cell_value(script, row_id, column_id)
     if current is None:
         raise ValueError(f"Cell not found for hunk: {row_id}/{column_id}")
+    decision = str(raw.get("decision", "pending"))
+    if decision not in {"pending", "accepted", "rejected"}:
+        decision = "pending"
+
+    applied_at = raw.get("applied_at")
     return {
         "hunk_id": str(raw.get("hunk_id") or new_id("hunk")),
         "row_id": row_id,
@@ -137,6 +142,8 @@ def normalize_hunk(raw: dict[str, Any], *, script: dict) -> dict[str, Any]:
         "context": str(raw.get("context", ""))[:500],
         "removed": removed if "removed" in raw else current,
         "added": added,
+        "decision": decision,
+        "applied_at": str(applied_at) if applied_at else None,
     }
 
 

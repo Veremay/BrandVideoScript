@@ -269,7 +269,7 @@ function createFlowEdge(connection: Connection): Edge {
 
 export function MapView() {
   const project = useAppStore((state) => state.project);
-  const graphKey = `${project?._id ?? "none"}:${project?.updated_at ?? ""}:${project?.rationale_nodes?.length ?? 0}`;
+  const graphKey = project?._id ?? "none";
 
   return (
     <ReactFlowProvider>
@@ -321,7 +321,7 @@ function MapViewContent() {
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
   const [syncingMap, setSyncingMap] = useState(false);
   const [applyingLayout, setApplyingLayout] = useState(false);
-  const { zoomIn, zoomOut, fitView } = useReactFlow();
+  const { zoomIn, zoomOut, fitView, getViewport, setViewport } = useReactFlow();
   const workspaceRef = useRef<HTMLElement>(null);
   const controlsRef = useRef<HTMLDivElement>(null);
   const edgeMenuRef = useRef<HTMLDivElement>(null);
@@ -366,11 +366,13 @@ function MapViewContent() {
   }, [fitView]);
 
   useEffect(() => {
+    const viewport = hasFittedRef.current ? getViewport() : null;
     setNodes(flowNodes);
     setEdges(flowEdges);
-    setFocusNodeId(null);
-    hasFittedRef.current = false;
-  }, [flowNodes, flowEdges, setEdges, setNodes]);
+    if (viewport) {
+      requestAnimationFrame(() => setViewport(viewport));
+    }
+  }, [flowNodes, flowEdges, getViewport, setEdges, setNodes, setViewport]);
 
   useEffect(() => {
     if (focusNodeId && !flowNodeIds.has(focusNodeId)) {
@@ -380,30 +382,34 @@ function MapViewContent() {
 
   useEffect(() => {
     const count = rationaleNodes.length;
-    if (count > prevNodeCountRef.current) {
+    const prev = prevNodeCountRef.current;
+    if (prev === 0 && count > 0 && !hasFittedRef.current) {
       requestAnimationFrame(() => runFitView());
     }
     prevNodeCountRef.current = count;
   }, [rationaleNodes.length, runFitView]);
 
   const handleFlowInit = useCallback(() => {
-    requestAnimationFrame(() => runFitView());
-  }, [runFitView]);
+    if (!hasFittedRef.current && rationaleNodes.length > 0) {
+      requestAnimationFrame(() => runFitView());
+    }
+  }, [rationaleNodes.length, runFitView]);
 
   useEffect(() => {
-    hasFittedRef.current = false;
     const workspace = workspaceRef.current;
     if (!workspace) return;
 
     const observer = new ResizeObserver(() => {
-      if (hasFittedRef.current) return;
+      if (hasFittedRef.current || rationaleNodes.length === 0) return;
       requestAnimationFrame(() => runFitView());
     });
     observer.observe(workspace);
-    requestAnimationFrame(() => runFitView());
+    if (!hasFittedRef.current && rationaleNodes.length > 0) {
+      requestAnimationFrame(() => runFitView());
+    }
 
     return () => observer.disconnect();
-  }, [runFitView]);
+  }, [rationaleNodes.length, runFitView]);
 
   useEffect(() => {
     if (!addNodeMenuOpen && !edgeMenu) return;
@@ -763,13 +769,12 @@ function MapViewContent() {
       } else {
         setProject(updated);
       }
-      window.setTimeout(() => runFitView(), 80);
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "Failed to update map");
     } finally {
       setSyncingMap(false);
     }
-  }, [project, runFitView, setProject, syncingMap]);
+  }, [project, setProject, syncingMap]);
 
   return (
     <section className="map-workspace" ref={workspaceRef}>

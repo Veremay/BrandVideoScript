@@ -417,7 +417,7 @@ class ModificationSchemeGenerateResponse(BaseModel):
 
 class ModificationSchemeApplyRequest(BaseModel):
     user_id: str = Field(min_length=1, max_length=80)
-    accepted_hunk_ids: list[str] = Field(min_length=1)
+    accepted_hunk_ids: list[str] = Field(default_factory=list)
     rejected_hunk_ids: list[str] = Field(default_factory=list)
 
 
