@@ -4,7 +4,7 @@ import { MouseEvent, PointerEvent, useEffect, useMemo, useState } from "react";
 
 import { CellHunkDiff, useCellHunkMap } from "@/components/ScriptCellModification";
 import { createGraphNode } from "@/lib/api";
-import { analyzeDurations, isBrandFeedbackColumn } from "@/lib/scriptEditor";
+import { analyzeDurations, isBrandFeedbackColumn, isMultilineColumn } from "@/lib/scriptEditor";
 import type { HunkDecision, ModificationSchemeHunk, Script, ScriptColumn } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
 
@@ -482,7 +482,7 @@ function RowBlock({
                 <div className="editor-duration-wrap">
                   <input className={`editor-table-input editor-duration-input ${hasIssue ? "is-invalid" : ""}`} {...commonProps} />
                 </div>
-              ) : column.multiline ? (
+              ) : isMultilineColumn(column) ? (
                 <textarea className={`editor-table-cell cell-${column.key}${brandFeedback ? " editor-table-cell--readonly" : ""}`} {...commonProps} />
               ) : (
                 <input className={`editor-table-input cell-${column.key}${brandFeedback ? " editor-table-input--readonly" : ""}`} {...commonProps} />

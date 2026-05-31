@@ -35,8 +35,8 @@ def default_columns() -> list[dict]:
             "column_id": "col_format",
             "key": "format",
             "label": "形式",
-            "type": "text",
-            "multiline": False,
+            "type": "textarea",
+            "multiline": True,
             "order": 2,
         },
         {

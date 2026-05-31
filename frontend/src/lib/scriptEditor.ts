@@ -7,6 +7,10 @@ export function isBrandFeedbackColumn(column: Pick<ScriptColumn, "key">) {
   return column.key === BRAND_FEEDBACK_COLUMN_KEY;
 }
 
+export function isMultilineColumn(column: Pick<ScriptColumn, "key" | "multiline">) {
+  return column.multiline || column.key === "format";
+}
+
 export type DurationIssue = {
   rowIds: string[];
   message: string;

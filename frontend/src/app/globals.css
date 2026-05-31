@@ -2777,6 +2777,14 @@ textarea {
   line-height: 16px;
 }
 
+.editor-table-cell.cell-format {
+  height: 100%;
+  min-height: 38px;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .editor-table-input:focus,
 .editor-table-cell:focus {
   outline: none;
