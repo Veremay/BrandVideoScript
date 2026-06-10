@@ -8,12 +8,22 @@ from app.repositories.projects import get_project
 
 SNAPSHOT_REASONS = {
     "manual_save",
+    "auto_save",
+    "before_map_update",
     "before_expert_apply",
     "after_expert_apply",
     "brand_feedback_sync",
     "import",
     "rollback",
 }
+
+
+async def snapshot_before_map_update(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+) -> dict | None:
+    return await create_script_snapshot(db, project_id, user_id, reason="before_map_update")
 
 
 def serialize_snapshot(document: dict) -> dict:

@@ -531,6 +531,25 @@ export async function updateGraphNode(
   )!;
 }
 
+export async function batchUpdateGraphLayouts(
+  projectId: string,
+  userId: string,
+  layouts: Record<string, { x: number; y: number }>,
+  options?: { skipSnapshot?: boolean }
+): Promise<Project> {
+  const entries = Object.entries(layouts).map(([node_id, layout]) => ({ node_id, layout }));
+  return normalizeProject(
+    await request(`/projects/${projectId}/graph/layouts`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        user_id: userId,
+        layouts: entries,
+        skip_snapshot: options?.skipSnapshot ?? false
+      })
+    })
+  )!;
+}
+
 export async function deleteGraphNode(projectId: string, userId: string, nodeId: string): Promise<Project> {
   return normalizeProject(
     await request(`/projects/${projectId}/graph/nodes/${nodeId}?user_id=${encodeURIComponent(userId)}`, {
@@ -633,4 +652,32 @@ export async function applyModificationSchemeHunks(
     PROJECT_TIMEOUT_MS
   );
   return normalizeProject(data.project)!;
+}
+
+export async function createShareLink(
+  projectId: string,
+  userId: string
+): Promise<{ share_token: string; expires_at: string | null }> {
+  return request(`/projects/${projectId}/share`, {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId })
+  });
+}
+
+export async function fetchShareScript(
+  shareToken: string
+): Promise<{ title: string; script: Script; expires_at: string | null }> {
+  return request(`/share/${encodeURIComponent(shareToken)}`);
+}
+
+export async function saveShareFeedback(
+  shareToken: string,
+  rowId: string,
+  columnId: string,
+  value: string
+): Promise<{ script: Script }> {
+  return request(`/share/${encodeURIComponent(shareToken)}/feedback`, {
+    method: "PATCH",
+    body: JSON.stringify({ row_id: rowId, column_id: columnId, value })
+  });
 }

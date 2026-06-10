@@ -16,6 +16,8 @@ export type ArtifactStaleness = Record<ArtifactKey, StaleStatus>;
 
 export type ScriptSnapshotReason =
   | "manual_save"
+  | "auto_save"
+  | "before_map_update"
   | "before_expert_apply"
   | "after_expert_apply"
   | "brand_feedback_sync"

@@ -23,7 +23,38 @@ function columnHeaderLabel(column: ScriptColumn) {
   return COLUMN_HEADER_LABELS[column.key] ?? column.label;
 }
 
-export function ScriptGrid({ script }: { script: Script }) {
+export function ScriptGrid({
+  script,
+  mode = "creator",
+  onUpdateCell
+}: {
+  script: Script;
+  mode?: "creator" | "share";
+  onUpdateCell?: (rowId: string, columnId: string, value: string) => void;
+}) {
+  if (mode === "share") {
+    return <ScriptGridBody mode="share" onUpdateCell={onUpdateCell} script={script} />;
+  }
+  return <ScriptGridWithHunks script={script} />;
+}
+
+function ScriptGridWithHunks({ script }: { script: Script }) {
+  const hunkState = useCellHunkMap();
+  return <ScriptGridBody hunkState={hunkState} mode="creator" script={script} />;
+}
+
+function ScriptGridBody({
+  script,
+  mode = "creator",
+  onUpdateCell,
+  hunkState
+}: {
+  script: Script;
+  mode?: "creator" | "share";
+  onUpdateCell?: (rowId: string, columnId: string, value: string) => void;
+  hunkState?: ReturnType<typeof useCellHunkMap>;
+}) {
+  const isShare = mode === "share";
   const {
     deleteColumn,
     deleteRow,
@@ -33,8 +64,9 @@ export function ScriptGrid({ script }: { script: Script }) {
     project,
     renameColumn,
     setProject,
-    updateCell
+    updateCell: storeUpdateCell
   } = useAppStore();
+  const updateCell = isShare && onUpdateCell ? onUpdateCell : storeUpdateCell;
   const [quoteMenu, setQuoteMenu] = useState<{ x: number; y: number; rowId: string; columnId: string; text: string } | null>(null);
   const [selectedColumnId, setSelectedColumnId] = useState<string | null>(null);
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
@@ -67,7 +99,19 @@ export function ScriptGrid({ script }: { script: Script }) {
     return { durationIssueByRowId, linkedIssueByRowId };
   }, [durationAnalysis.issues, project?.rationale_nodes]);
   const totalSeconds = Math.max(0, ...durationAnalysis.timeline.map((segment) => segment.end));
-  const { hunkByCell, hunkDecisions, acceptAndApplyHunk, rejectAndPersistHunk, applyError } = useCellHunkMap();
+  const {
+    hunkByCell,
+    hunkDecisions,
+    acceptAndApplyHunk,
+    rejectAndPersistHunk,
+    applyError
+  } = hunkState ?? {
+    hunkByCell: new Map<string, ModificationSchemeHunk>(),
+    hunkDecisions: {} as Record<string, HunkDecision>,
+    acceptAndApplyHunk: async () => undefined,
+    rejectAndPersistHunk: async () => undefined,
+    applyError: null as string | null
+  };
 
   useEffect(() => {
     function handleDocumentPointerDown(event: globalThis.MouseEvent) {
@@ -219,38 +263,40 @@ export function ScriptGrid({ script }: { script: Script }) {
   }
 
   return (
-    <div className="editor-wrap">
-      <div className="script-timeline-wrap" aria-label="Script duration timeline">
-        <div className="script-timeline-row">
-          <span className="script-timeline-label">Duration</span>
-          <div className="script-timeline-track">
-            {durationAnalysis.timeline.map((segment, index) => (
-              <span
-                className={`script-timeline-segment${segment.hasOverlap ? " script-timeline-segment--overlap" : ""}`}
-                key={segment.rowId}
-                style={{ left: `${segment.left}%`, width: `${Math.max(segment.width, 0.8)}%` }}
-                title={`#${index + 1}: ${segment.start}–${segment.end}s`}
-              />
-            ))}
-            {durationAnalysis.overlaps.map((overlap) => (
-              <span
-                className="script-timeline-overlap"
-                key={`${overlap.start}-${overlap.end}`}
-                style={{ left: `${overlap.left}%`, width: `${Math.max(overlap.width, 2)}%` }}
-                title={`Overlap ${overlap.start}-${overlap.end}s`}
-              />
-            ))}
+    <div className={`editor-wrap${isShare ? " editor-wrap--share" : ""}`}>
+      {!isShare ? (
+        <div className="script-timeline-wrap" aria-label="Script duration timeline">
+          <div className="script-timeline-row">
+            <span className="script-timeline-label">Duration</span>
+            <div className="script-timeline-track">
+              {durationAnalysis.timeline.map((segment, index) => (
+                <span
+                  className={`script-timeline-segment${segment.hasOverlap ? " script-timeline-segment--overlap" : ""}`}
+                  key={segment.rowId}
+                  style={{ left: `${segment.left}%`, width: `${Math.max(segment.width, 0.8)}%` }}
+                  title={`#${index + 1}: ${segment.start}–${segment.end}s`}
+                />
+              ))}
+              {durationAnalysis.overlaps.map((overlap) => (
+                <span
+                  className="script-timeline-overlap"
+                  key={`${overlap.start}-${overlap.end}`}
+                  style={{ left: `${overlap.left}%`, width: `${Math.max(overlap.width, 2)}%` }}
+                  title={`Overlap ${overlap.start}-${overlap.end}s`}
+                />
+              ))}
+            </div>
+            <span className="script-timeline-total">{formatClock(totalSeconds)}</span>
           </div>
-          <span className="script-timeline-total">{formatClock(totalSeconds)}</span>
+          {durationAnalysis.issues.length ? (
+            <div className="script-timeline-alert show">
+              {durationAnalysis.issues.map((issue) => (issue.range ? `${issue.message} ${issue.range}` : issue.message)).join(" / ")}
+            </div>
+          ) : null}
         </div>
-        {durationAnalysis.issues.length ? (
-          <div className="script-timeline-alert show">
-            {durationAnalysis.issues.map((issue) => (issue.range ? `${issue.message} ${issue.range}` : issue.message)).join(" / ")}
-          </div>
-        ) : null}
-      </div>
+      ) : null}
 
-      {applyError ? <p className="editor-hunk-apply-error">{applyError}</p> : null}
+      {!isShare && applyError ? <p className="editor-hunk-apply-error">{applyError}</p> : null}
 
       <div className="script-table-container">
         <div className="script-table-panel">
@@ -259,93 +305,111 @@ export function ScriptGrid({ script }: { script: Script }) {
               <tr>
                 <th className="editor-th-num col-num">
                   #
-                  <button
-                    className="editor-col-insert-hit editor-col-insert-first"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      handleAddColumn(undefined);
-                    }}
-                    type="button"
-                    title="Insert column before first"
-                  >
-                    +
-                  </button>
-                </th>
-                {columns.map((column, columnIndex) => (
-                  <th
-                    className={`editor-th-data col-${column.key} ${selectedColumnId === column.column_id ? "col-selected" : ""}`}
-                    key={column.column_id}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setSelectedColumnId((current) => (current === column.column_id ? null : column.column_id));
-                      setSelectedRowId(null);
-                    }}
-                    style={{ width: columnWidths[column.column_id] }}
-                  >
-                    <span className="editor-th-label" onDoubleClick={() => handleRenameColumn(column.column_id, column.label)}>
-                      {columnHeaderLabel(column)}
-                    </span>
+                  {!isShare ? (
                     <button
-                      className="editor-col-insert-hit"
+                      className="editor-col-insert-hit editor-col-insert-first"
                       onClick={(event) => {
                         event.stopPropagation();
-                        handleAddColumn(columns[columnIndex - 1]?.column_id);
+                        handleAddColumn(undefined);
                       }}
                       type="button"
-                      title="Insert column to the left"
+                      title="Insert column before first"
                     >
                       +
                     </button>
-                    {columnIndex === columns.length - 1 ? (
-                      <button
-                        className="editor-col-insert-hit editor-col-insert-last"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          handleAddColumn(column.column_id);
-                        }}
-                        type="button"
-                        title="Append column at end"
-                      >
-                        +
-                      </button>
-                    ) : null}
-                    <span className="editor-col-resize-hit" onPointerDown={(event) => startColumnResize(event, column.column_id)} />
-                    {isBrandFeedbackColumn(column) ? null : (
-                      <button
-                        className="editor-col-del"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          handleDeleteColumn(column.column_id);
-                        }}
-                        type="button"
-                      >
-                        Delete column
-                      </button>
+                  ) : null}
+                </th>
+                {columns.map((column, columnIndex) => (
+                  <th
+                    className={`editor-th-data col-${column.key} ${!isShare && selectedColumnId === column.column_id ? "col-selected" : ""}`}
+                    key={column.column_id}
+                    onClick={
+                      isShare
+                        ? undefined
+                        : (event) => {
+                            event.stopPropagation();
+                            setSelectedColumnId((current) => (current === column.column_id ? null : column.column_id));
+                            setSelectedRowId(null);
+                          }
+                    }
+                    style={{ width: columnWidths[column.column_id] }}
+                  >
+                    <span
+                      className="editor-th-label"
+                      onDoubleClick={isShare ? undefined : () => handleRenameColumn(column.column_id, column.label)}
+                    >
+                      {columnHeaderLabel(column)}
+                    </span>
+                    {!isShare ? (
+                      <>
+                        <button
+                          className="editor-col-insert-hit"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleAddColumn(columns[columnIndex - 1]?.column_id);
+                          }}
+                          type="button"
+                          title="Insert column to the left"
+                        >
+                          +
+                        </button>
+                        {columnIndex === columns.length - 1 ? (
+                          <button
+                            className="editor-col-insert-hit editor-col-insert-last"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleAddColumn(column.column_id);
+                            }}
+                            type="button"
+                            title="Append column at end"
+                          >
+                            +
+                          </button>
+                        ) : null}
+                        <span className="editor-col-resize-hit" onPointerDown={(event) => startColumnResize(event, column.column_id)} />
+                        {isBrandFeedbackColumn(column) ? null : (
+                          <button
+                            className="editor-col-del"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleDeleteColumn(column.column_id);
+                            }}
+                            type="button"
+                          >
+                            Delete column
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <span className="editor-col-resize-hit" onPointerDown={(event) => startColumnResize(event, column.column_id)} />
                     )}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              <tr className="editor-row-insert-band editor-row-insert-first">
-                <td className="editor-row-insert-cell" colSpan={columns.length + 1}>
-                  <span className="editor-row-insert-line" />
-                  <button className="editor-row-insert-btn" onClick={() => insertRowAfter(undefined)} type="button">
-                    +
-                    <span className="editor-row-insert-tip">Insert row before first</span>
-                  </button>
-                </td>
-              </tr>
+              {!isShare ? (
+                <tr className="editor-row-insert-band editor-row-insert-first">
+                  <td className="editor-row-insert-cell" colSpan={columns.length + 1}>
+                    <span className="editor-row-insert-line" />
+                    <button className="editor-row-insert-btn" onClick={() => insertRowAfter(undefined)} type="button">
+                      +
+                      <span className="editor-row-insert-tip">Insert row before first</span>
+                    </button>
+                  </td>
+                </tr>
+              ) : null}
               {rows.map((row, rowIndex) => (
                 <RowBlock
                   columns={columns}
                   columnWidths={columnWidths}
-                  durationIssueMessages={durationIssueByRowId.get(row.row_id)}
+                  durationIssueMessages={isShare ? undefined : durationIssueByRowId.get(row.row_id)}
                   hunkByCell={hunkByCell}
                   hunkDecisions={hunkDecisions}
                   index={rowIndex}
                   key={row.row_id}
-                  linkedIssueMessages={linkedIssueByRowId.get(row.row_id)}
+                  linkedIssueMessages={isShare ? undefined : linkedIssueByRowId.get(row.row_id)}
+                  mode={mode}
                   onAddRow={() => insertRowAfter(row.row_id)}
                   onDeleteRow={() => handleDeleteRow(row.row_id)}
                   onHunkAccept={(hunkId) => void acceptAndApplyHunk(hunkId)}
@@ -358,31 +422,35 @@ export function ScriptGrid({ script }: { script: Script }) {
                   }}
                   row={row}
                   rowHeight={rowHeights[row.row_id]}
-                  selected={selectedRowId === row.row_id}
+                  selected={!isShare && selectedRowId === row.row_id}
                   updateCell={updateCell}
                 />
               ))}
-              <tr className="editor-row-insert-band">
-                <td className="editor-row-insert-cell" colSpan={columns.length + 1}>
-                  <span className="editor-row-insert-line" />
-                  <button className="editor-row-insert-btn" onClick={() => insertRowAfter(rows.at(-1)?.row_id)} type="button">
-                    +
-                    <span className="editor-row-insert-tip">Insert row</span>
-                  </button>
-                </td>
-              </tr>
+              {!isShare ? (
+                <tr className="editor-row-insert-band">
+                  <td className="editor-row-insert-cell" colSpan={columns.length + 1}>
+                    <span className="editor-row-insert-line" />
+                    <button className="editor-row-insert-btn" onClick={() => insertRowAfter(rows.at(-1)?.row_id)} type="button">
+                      +
+                      <span className="editor-row-insert-tip">Insert row</span>
+                    </button>
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>
-        <div className="script-table-footer">
-          <button className="add-scene-block-btn" onClick={handleAddSceneBlock} type="button">
-            <IconAddScene />
-            Add New Scene Block
-          </button>
-        </div>
+        {!isShare ? (
+          <div className="script-table-footer">
+            <button className="add-scene-block-btn" onClick={handleAddSceneBlock} type="button">
+              <IconAddScene />
+              Add New Scene Block
+            </button>
+          </div>
+        ) : null}
       </div>
 
-      {quoteMenu ? (
+      {!isShare && quoteMenu ? (
         <div className="sel-popup show" style={{ left: quoteMenu.x, top: quoteMenu.y }}>
           <button className="sel-btn sel-btn-coordinator" onClick={quoteToCoordinator} type="button">
             Ask Coordinator
@@ -415,6 +483,7 @@ function RowBlock({
   hunkDecisions,
   index,
   linkedIssueMessages,
+  mode = "creator",
   onAddRow,
   onDeleteRow,
   onHunkAccept,
@@ -434,6 +503,7 @@ function RowBlock({
   hunkDecisions: Record<string, HunkDecision>;
   index: number;
   linkedIssueMessages?: string[];
+  mode?: "creator" | "share";
   onAddRow: () => void;
   onDeleteRow: () => void;
   onHunkAccept: (hunkId: string) => void;
@@ -446,6 +516,7 @@ function RowBlock({
   selected: boolean;
   updateCell: (rowId: string, columnId: string, value: string) => void;
 }) {
+  const isShare = mode === "share";
   const rowMark = String(index + 1).padStart(2, "0");
   const hasDurationIssue = Boolean(durationIssueMessages?.length);
   const hasLinkedIssue = Boolean(linkedIssueMessages?.length);
@@ -459,10 +530,18 @@ function RowBlock({
       >
         <td className="editor-td-num" title={rowHintTitle}>
           {hasLinkedIssue ? <span aria-hidden="true" className="editor-row-link-mark" title="Linked to Map issue" /> : null}
-          <button className="editor-row-num-btn" onClick={onSelectRow} type="button">{rowMark}</button>
-          <button className="editor-row-del editor-row-del-left" onClick={onDeleteRow} type="button" title="Delete row">
-            <IconTrash />
-          </button>
+          {isShare ? (
+            <span className="editor-row-num-btn editor-row-num-btn--static">{rowMark}</span>
+          ) : (
+            <>
+              <button className="editor-row-num-btn" onClick={onSelectRow} type="button">
+                {rowMark}
+              </button>
+              <button className="editor-row-del editor-row-del-left" onClick={onDeleteRow} type="button" title="Delete row">
+                <IconTrash />
+              </button>
+            </>
+          )}
         </td>
         {columns.map((column) => {
           const value = row.cells.find((cell) => cell.column_id === column.column_id)?.value ?? "";
@@ -470,15 +549,28 @@ function RowBlock({
           const hunk = hunkByCell.get(`${row.row_id}:${column.column_id}`);
           const hunkDecision = hunk ? (hunkDecisions[hunk.hunk_id] ?? null) : null;
           const showHunkDiff = Boolean(hunk && hunkDecision === null);
+          const cellReadOnly = isShare ? !brandFeedback : brandFeedback;
 
           const commonProps = {
             value,
             onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
               updateCell(row.row_id, column.column_id, event.target.value),
-            onMouseUp: (event: MouseEvent<HTMLElement>) => onSelection(event, row.row_id, column.column_id),
-            placeholder: brandFeedback ? "Filled by brand partner via share link" : column.type === "duration" ? "0-5" : "",
-            readOnly: brandFeedback,
-            title: brandFeedback ? "Brand feedback (read-only). Synced from the share page." : undefined,
+            onMouseUp: isShare ? undefined : (event: MouseEvent<HTMLElement>) => onSelection(event, row.row_id, column.column_id),
+            placeholder: brandFeedback
+              ? isShare
+                ? "Enter your feedback for this scene"
+                : "Filled by brand partner via share link"
+              : column.type === "duration"
+                ? "0-5"
+                : "",
+            readOnly: cellReadOnly,
+            title: brandFeedback
+              ? isShare
+                ? "Brand feedback — your comments are saved automatically"
+                : "Brand feedback (read-only). Synced from the share page."
+              : isShare
+                ? "Read-only"
+                : undefined,
             style: { minHeight: rowHeight ? Math.max(MIN_ROW_HEIGHT, rowHeight) : undefined }
           };
 
@@ -506,24 +598,32 @@ function RowBlock({
                   <input className={`editor-table-input editor-duration-input ${hasDurationIssue ? "is-invalid" : ""}`} {...commonProps} />
                 </div>
               ) : isMultilineColumn(column) ? (
-                <textarea className={`editor-table-cell cell-${column.key}${brandFeedback ? " editor-table-cell--readonly" : ""}`} {...commonProps} />
+                <textarea
+                  className={`editor-table-cell cell-${column.key}${cellReadOnly ? " editor-table-cell--readonly" : ""}`}
+                  {...commonProps}
+                />
               ) : (
-                <input className={`editor-table-input cell-${column.key}${brandFeedback ? " editor-table-input--readonly" : ""}`} {...commonProps} />
+                <input
+                  className={`editor-table-input cell-${column.key}${cellReadOnly ? " editor-table-input--readonly" : ""}`}
+                  {...commonProps}
+                />
               )}
             </td>
           );
         })}
       </tr>
-      <tr className="editor-row-insert-band">
-        <td className="editor-row-insert-cell" colSpan={columns.length + 1}>
-          <span className="editor-row-insert-line" />
-          <span className="editor-row-resize-hit" onPointerDown={onResizeRow} title="Drag to resize row height" />
-          <button className="editor-row-insert-btn" onClick={onAddRow} type="button">
-            +
-            <span className="editor-row-insert-tip">Insert row below</span>
-          </button>
-        </td>
-      </tr>
+      {!isShare ? (
+        <tr className="editor-row-insert-band">
+          <td className="editor-row-insert-cell" colSpan={columns.length + 1}>
+            <span className="editor-row-insert-line" />
+            <span className="editor-row-resize-hit" onPointerDown={onResizeRow} title="Drag to resize row height" />
+            <button className="editor-row-insert-btn" onClick={onAddRow} type="button">
+              +
+              <span className="editor-row-insert-tip">Insert row below</span>
+            </button>
+          </td>
+        </tr>
+      ) : null}
     </>
   );
 }

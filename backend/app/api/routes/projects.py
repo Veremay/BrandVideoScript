@@ -27,8 +27,11 @@ from app.models.schemas import (
     ScriptSnapshotCreateRequest,
     ScriptSnapshotCreateResponse,
     ScriptSnapshotListResponse,
+    ShareCreateRequest,
+    ShareCreateResponse,
 )
 from app.repositories.script_snapshots import create_script_snapshot, list_script_snapshots, restore_script_snapshot
+from app.repositories.share_sessions import create_or_get_share_session
 from app.services.coordinator_service import provision_personas_from_analytics, run_brief_initial_parse
 from app.repositories.projects import (
     create_brand_insight,
@@ -262,6 +265,21 @@ async def delete(
     deleted = await delete_project(db, project_id, user_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Project not found")
+
+
+@router.post("/{project_id}/share", response_model=ShareCreateResponse, status_code=status.HTTP_201_CREATED)
+async def create_share_link(
+    project_id: str,
+    payload: ShareCreateRequest,
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> dict:
+    session = await create_or_get_share_session(db, project_id, payload.user_id.strip())
+    if session is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {
+        "share_token": session["share_token"],
+        "expires_at": session.get("expires_at"),
+    }
 
 
 @router.get("/{project_id}/script")

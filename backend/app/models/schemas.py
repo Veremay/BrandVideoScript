@@ -60,6 +60,8 @@ class ScriptSnapshotCreateRequest(BaseModel):
     user_id: str = Field(min_length=1, max_length=80)
     reason: Literal[
         "manual_save",
+        "auto_save",
+        "before_map_update",
         "before_expert_apply",
         "after_expert_apply",
         "brand_feedback_sync",
@@ -355,6 +357,17 @@ class GraphNodeConsiderationRequest(BaseModel):
     in_queue: bool
 
 
+class GraphNodeLayoutItem(BaseModel):
+    node_id: str = Field(min_length=1)
+    layout: dict[str, float]
+
+
+class GraphLayoutsBatchUpdateRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    layouts: list[GraphNodeLayoutItem] = Field(min_length=1)
+    skip_snapshot: bool = False
+
+
 class GraphSyncFromScriptRequest(BaseModel):
     user_id: str = Field(min_length=1, max_length=80)
     changed_row_ids: list[str] = Field(default_factory=list)
@@ -426,3 +439,28 @@ class ModificationSchemeApplyResponse(BaseModel):
     applied_hunk_ids: list[str]
     applied_hunk_count: int
     conflicts: list[dict[str, str]] = Field(default_factory=list)
+
+
+class ShareCreateRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+
+
+class ShareCreateResponse(BaseModel):
+    share_token: str
+    expires_at: str | None = None
+
+
+class ShareScriptResponse(BaseModel):
+    title: str
+    script: dict[str, Any]
+    expires_at: str | None = None
+
+
+class ShareFeedbackPatchRequest(BaseModel):
+    row_id: str = Field(min_length=1)
+    column_id: str = Field(min_length=1)
+    value: str = ""
+
+
+class ShareFeedbackPatchResponse(BaseModel):
+    script: dict[str, Any]

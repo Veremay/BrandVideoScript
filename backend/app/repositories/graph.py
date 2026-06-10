@@ -13,6 +13,7 @@ from app.models.rationale_ops import (
 )
 from app.models.script import now_iso
 from app.repositories.projects import get_project
+from app.repositories.script_snapshots import snapshot_before_map_update
 
 
 async def create_graph_node(
@@ -250,6 +251,51 @@ async def toggle_consideration_queue(
     return await get_project(db, project_id, user_id)
 
 
+async def batch_update_graph_layouts(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    layouts: dict[str, dict[str, float]],
+    *,
+    skip_snapshot: bool = False,
+) -> dict[str, Any] | None:
+    project = await get_project(db, project_id, user_id)
+    if project is None:
+        return None
+    if not layouts:
+        return project
+
+    if not skip_snapshot:
+        await snapshot_before_map_update(db, project_id, user_id)
+
+    layout_by_id = {node_id: layout for node_id, layout in layouts.items() if node_id}
+    next_nodes: list[dict] = []
+    for node in project.get("rationale_nodes", []):
+        node_id = node.get("node_id")
+        layout = layout_by_id.get(node_id)
+        if layout is None:
+            next_nodes.append(node)
+            continue
+        next_nodes.append(
+            {
+                **node,
+                "layout": layout,
+                "updated_by": "user",
+                "updated_at": now_iso(),
+            }
+        )
+
+    await _write_graph(
+        db,
+        project_id,
+        user_id,
+        nodes=next_nodes,
+        edges=project.get("rationale_edges", []),
+        snapshot_before=False,
+    )
+    return await get_project(db, project_id, user_id)
+
+
 async def merge_coordinator_graph(
     db: AsyncIOMotorDatabase,
     project_id: str,
@@ -287,7 +333,11 @@ async def _write_graph(
     edges: list[dict],
     consideration_queue: list[str] | None = None,
     mark_stale: bool = True,
+    snapshot_before: bool = True,
 ) -> None:
+    if snapshot_before:
+        await snapshot_before_map_update(db, project_id, user_id)
+
     update: dict[str, Any] = {
         "rationale_nodes": nodes,
         "rationale_edges": edges,

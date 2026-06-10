@@ -102,6 +102,75 @@ class ScriptOpsTest(unittest.TestCase):
 
             update_cell(script, "row_a", "col_feedback", "新反馈")
 
+    def test_update_brand_feedback_cell_allows_feedback_column_only(self):
+        from app.models.script_ops import update_brand_feedback_cell, update_cell
+
+        script = sample_script()
+        script["columns"].append(
+            {
+                "column_id": "col_feedback",
+                "key": "feedback",
+                "label": "品牌反馈",
+                "type": "textarea",
+                "multiline": True,
+                "order": 2,
+            }
+        )
+        for row in script["rows"]:
+            row["cells"].append({"column_id": "col_feedback", "value": ""})
+
+        updated = update_brand_feedback_cell(script, "row_a", "col_feedback", "Looks good")
+        feedback_value = next(
+            cell["value"]
+            for row in updated["rows"]
+            if row["row_id"] == "row_a"
+            for cell in row["cells"]
+            if cell["column_id"] == "col_feedback"
+        )
+        self.assertEqual(feedback_value, "Looks good")
+
+        with self.assertRaises(ValueError):
+            update_brand_feedback_cell(script, "row_a", "col_scene", "Blocked")
+
+        with self.assertRaises(ValueError):
+            update_cell(script, "row_a", "col_feedback", "Blocked")
+
+    def test_preserve_brand_feedback_cells_keeps_existing_feedback_on_creator_save(self):
+        from copy import deepcopy
+
+        from app.models.script_ops import preserve_brand_feedback_cells
+
+        existing = sample_script()
+        existing["columns"].append(
+            {
+                "column_id": "col_feedback",
+                "key": "feedback",
+                "label": "品牌反馈",
+                "type": "textarea",
+                "multiline": True,
+                "order": 2,
+            }
+        )
+        for row in existing["rows"]:
+            row["cells"].append({"column_id": "col_feedback", "value": "Brand note"})
+
+        incoming = deepcopy(existing)
+        incoming["rows"][0]["cells"][1]["value"] = "Updated scene"
+        for row in incoming["rows"]:
+            for cell in row["cells"]:
+                if cell["column_id"] == "col_feedback":
+                    cell["value"] = "Attempt overwrite"
+
+        preserved = preserve_brand_feedback_cells(incoming, existing)
+        feedback_value = next(
+            cell["value"]
+            for row in preserved["rows"]
+            if row["row_id"] == "row_a"
+            for cell in row["cells"]
+            if cell["column_id"] == "col_feedback"
+        )
+        self.assertEqual(feedback_value, "Brand note")
+
     def test_delete_column_rejects_brand_feedback_column(self):
         script = sample_script()
         script["columns"].append(

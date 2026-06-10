@@ -131,6 +131,65 @@ def rename_column(script: dict, column_id: str, label: str) -> dict:
     return next_script
 
 
+def _feedback_column_id(script: dict) -> str | None:
+    for column in script.get("columns", []):
+        if column.get("key") == BRAND_FEEDBACK_COLUMN_KEY:
+            return column.get("column_id")
+    return None
+
+
+def preserve_brand_feedback_cells(incoming: dict, existing: dict) -> dict:
+    """Keep brand feedback values from the database when the creator saves the script."""
+    column_id = _feedback_column_id(existing)
+    if not column_id:
+        return incoming
+
+    existing_by_row: dict[str, str] = {}
+    for row in existing.get("rows", []):
+        for cell in row.get("cells", []):
+            if cell.get("column_id") == column_id:
+                existing_by_row[row["row_id"]] = str(cell.get("value", ""))
+                break
+
+    next_script = deepcopy(incoming)
+    for row in next_script.get("rows", []):
+        preserved = existing_by_row.get(row["row_id"])
+        if preserved is None:
+            continue
+        for cell in row.get("cells", []):
+            if cell.get("column_id") == column_id:
+                cell["value"] = preserved
+                break
+    return next_script
+
+
+def update_brand_feedback_cell(script: dict, row_id: str, column_id: str, value: str) -> dict:
+    next_script = deepcopy(script)
+    target_column = next(
+        (column for column in next_script.get("columns", []) if column.get("column_id") == column_id),
+        None,
+    )
+    if target_column is None:
+        raise ValueError("Column not found")
+    if target_column.get("key") != BRAND_FEEDBACK_COLUMN_KEY:
+        raise ValueError("Only the brand feedback column can be edited via share link")
+
+    updated = False
+    for row in next_script.get("rows", []):
+        if row["row_id"] != row_id:
+            continue
+        for cell in row.get("cells", []):
+            if cell["column_id"] == column_id:
+                cell["value"] = value
+                updated = True
+                break
+
+    if not updated:
+        raise ValueError("Cell not found")
+
+    return next_script
+
+
 def update_cell(script: dict, row_id: str, column_id: str, value: str) -> dict:
     next_script = deepcopy(script)
     target_column = next((column for column in next_script.get("columns", []) if column.get("column_id") == column_id), None)

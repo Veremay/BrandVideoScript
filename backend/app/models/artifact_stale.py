@@ -40,6 +40,14 @@ def mark_persona_changed() -> dict[str, str]:
     }
 
 
+def mark_brand_feedback_changed() -> dict[str, str]:
+    return {
+        "rationale_graph": "up_to_date",
+        "modification_schemes": "stale_brand_feedback",
+        "negotiation_preparation": "stale_brand_feedback",
+    }
+
+
 def stale_set_fields(updates: dict[str, str]) -> dict[str, str]:
     return {f"stale.{key}": value for key, value in updates.items()}
 

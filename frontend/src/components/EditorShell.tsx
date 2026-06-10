@@ -10,7 +10,7 @@ import { RequirementsPanel } from "@/components/RequirementsPanel";
 import { ScriptGrid } from "@/components/ScriptGrid";
 import { ScriptSnapshotsPanel } from "@/components/ScriptSnapshotsPanel";
 import { staleSummary } from "@/lib/stale";
-import { fetchProjectGraph, parseBrief, saveBrief, saveScript } from "@/lib/api";
+import { createShareLink, fetchProjectGraph, parseBrief, saveBrief, saveScript } from "@/lib/api";
 import { useAppStore } from "@/store/appStore";
 
 const MapView = dynamic(() => import("@/components/MapView").then((mod) => mod.MapView), {
@@ -42,6 +42,7 @@ export function EditorShell() {
   const activeView = layout.workspaceView;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [snapshotsOpen, setSnapshotsOpen] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const coordinatorOpen = layout.coordinatorChatOpen;
   const staleHint = staleSummary(project?.stale);
 
@@ -162,6 +163,23 @@ export function EditorShell() {
     await persistBrief(await file.text(), file.name);
   }
 
+  async function handleShare() {
+    if (!project || sharing) return;
+    setSharing(true);
+    try {
+      const { share_token } = await createShareLink(project._id, project.user_id);
+      const shareUrl = `${window.location.origin}/share/${share_token}`;
+      await navigator.clipboard.writeText(shareUrl);
+      window.alert(
+        `Share link copied to clipboard.\n\nBrand partners can open this link to fill in the Brand Feedback column only:\n${shareUrl}`
+      );
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Failed to create share link");
+    } finally {
+      setSharing(false);
+    }
+  }
+
   if (!project || !script) return null;
 
   return (
@@ -241,8 +259,8 @@ export function EditorShell() {
                 </div>
               ) : null}
             </div>
-            <button className="figma-nav-btn figma-nav-outline figma-nav-share" type="button">
-              Share
+            <button className="figma-nav-btn figma-nav-outline figma-nav-share" onClick={() => void handleShare()} disabled={sharing} type="button">
+              {sharing ? "Sharing…" : "Share"}
             </button>
             <div
               className={`figma-save-pill status-${savePillStatus(editor.saveStatus, staleHint)}`}

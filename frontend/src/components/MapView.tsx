@@ -35,6 +35,7 @@ import type { RationaleEdge, RationaleNode, RationaleSourceType } from "@/lib/ty
 import {
   createGraphEdge,
   createGraphNode,
+  batchUpdateGraphLayouts,
   deleteGraphEdge,
   deleteGraphNode,
   syncMapFromScript,
@@ -623,18 +624,9 @@ function MapViewContent() {
       );
 
       try {
-        await Promise.all(
-          [...layouts.entries()].map(([nodeId, layout]) =>
-            updateGraphNode(project._id, project.user_id, nodeId, { layout })
-          )
-        );
-        setProject({
-          ...project,
-          rationale_nodes: (project.rationale_nodes ?? []).map((node) => {
-            const layout = layouts.get(node.node_id);
-            return layout ? { ...node, layout } : node;
-          })
-        });
+        const layoutPayload = Object.fromEntries([...layouts.entries()]);
+        const updated = await batchUpdateGraphLayouts(project._id, project.user_id, layoutPayload);
+        setProject(updated);
         if (options?.fitView !== false) {
           window.setTimeout(() => runFitView(), 80);
         }
@@ -754,18 +746,11 @@ function MapViewContent() {
       const nextEdges = updated.rationale_edges ?? [];
       const layouts = computeIbisLayout(nextNodes, nextEdges);
       if (layouts.size > 0) {
-        await Promise.all(
-          [...layouts.entries()].map(([nodeId, layout]) =>
-            updateGraphNode(project._id, project.user_id, nodeId, { layout })
-          )
-        );
-        setProject({
-          ...updated,
-          rationale_nodes: nextNodes.map((node) => {
-            const layout = layouts.get(node.node_id);
-            return layout ? { ...node, layout } : node;
-          })
+        const layoutPayload = Object.fromEntries([...layouts.entries()]);
+        const withLayouts = await batchUpdateGraphLayouts(project._id, project.user_id, layoutPayload, {
+          skipSnapshot: true
         });
+        setProject(withLayouts);
       } else {
         setProject(updated);
       }

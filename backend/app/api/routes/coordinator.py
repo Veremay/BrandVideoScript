@@ -9,6 +9,7 @@ from app.models.schemas import (
     CoordinatorMessageListResponse,
     CoordinatorStreamRequest,
     GraphEdgeCreateRequest,
+    GraphLayoutsBatchUpdateRequest,
     GraphNodeCreateRequest,
     GraphNodeConsiderationRequest,
     GraphNodeUpdateRequest,
@@ -18,6 +19,7 @@ from app.models.schemas import (
 )
 from app.repositories.coordinator_messages import list_coordinator_messages
 from app.repositories.graph import (
+    batch_update_graph_layouts,
     create_graph_edge,
     create_graph_node,
     delete_graph_edge,
@@ -101,6 +103,28 @@ async def add_graph_node(
     if node is None:
         raise HTTPException(status_code=404, detail="Project not found")
     project = await get_project(db, project_id, payload.user_id.strip())
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
+@graph_router.patch("/layouts", response_model=ProjectResponse)
+async def batch_update_layouts(
+    project_id: str,
+    payload: GraphLayoutsBatchUpdateRequest,
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> dict:
+    layouts = {item.node_id: item.layout for item in payload.layouts}
+    try:
+        project = await batch_update_graph_layouts(
+            db,
+            project_id,
+            payload.user_id.strip(),
+            layouts,
+            skip_snapshot=payload.skip_snapshot,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
     return project

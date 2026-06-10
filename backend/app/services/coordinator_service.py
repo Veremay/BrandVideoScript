@@ -7,6 +7,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.models.artifact_stale import mark_persona_changed, stale_set_fields
 from app.models.script import now_iso
 from app.repositories.projects import get_project
+from app.repositories.script_snapshots import snapshot_before_map_update
 from app.services.agent_orchestrator import (
     merge_pipeline_into_project_graph,
     run_audience_pipeline,
@@ -49,6 +50,7 @@ async def run_brief_initial_parse(
         new_insights = [*existing_insights, *brand_result.get("brand_insights", [])]
 
         expert_result = pipeline.expert_result or {}
+        await snapshot_before_map_update(db, project_id, user_id)
         await db.projects.update_one(
             {"_id": project_id, "user_id": user_id},
             {
@@ -117,6 +119,7 @@ async def run_persona_provisioned_parse(
     )
 
     audience_result = pipeline.audience_result or {}
+    await snapshot_before_map_update(db, project_id, user_id)
     await db.projects.update_one(
         {"_id": project_id, "user_id": user_id},
         {

@@ -6,6 +6,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.script import now_iso
 from app.repositories.projects import get_project
+from app.repositories.script_snapshots import snapshot_before_map_update
 from app.services.agent_orchestrator import merge_pipeline_into_project_graph, run_coordinator_pipeline
 from app.services.pipeline_log import log_step
 
@@ -34,6 +35,8 @@ async def sync_graph_from_script(
         changed_row_ids=sorted(row_ids),
         perspectives=sorted(perspectives),
     )
+
+    await snapshot_before_map_update(db, project_id, user_id)
 
     await db.projects.update_one(
         {"_id": project_id, "user_id": user_id},

@@ -8,6 +8,8 @@ import { useAppStore } from "@/store/appStore";
 
 const REASON_LABELS: Record<string, string> = {
   manual_save: "Manual save",
+  auto_save: "Auto save",
+  before_map_update: "Before map update",
   before_expert_apply: "Before applying scheme",
   after_expert_apply: "After applying scheme",
   brand_feedback_sync: "Brand feedback sync",

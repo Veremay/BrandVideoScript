@@ -9,6 +9,7 @@ from app.models.script import now_iso
 from app.repositories.coordinator_messages import build_coordinator_message, save_coordinator_message
 from app.repositories.modification_schemes import generate_modification_schemes
 from app.repositories.projects import get_project
+from app.repositories.script_snapshots import snapshot_before_map_update
 from app.services.agent_orchestrator import merge_pipeline_into_project_graph, run_coordinator_pipeline
 from app.services.coordinator_intent import wants_generate_modification_schemes
 from app.services.llm_client import LLMClient
@@ -107,6 +108,7 @@ async def stream_coordinator_chat(
     )
 
     if safe_nodes or pipeline.node_updates:
+        await snapshot_before_map_update(db, project_id, user_id)
         await db.projects.update_one(
             {"_id": project_id, "user_id": user_id},
             {

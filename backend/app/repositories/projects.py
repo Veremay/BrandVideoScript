@@ -10,7 +10,15 @@ from app.models.artifact_stale import (
     stale_set_fields,
 )
 from app.models.script import default_script, new_id, now_iso
-from app.models.script_ops import add_column, add_row, delete_column, delete_row, rename_column, update_cell
+from app.models.script_ops import (
+    add_column,
+    add_row,
+    delete_column,
+    delete_row,
+    preserve_brand_feedback_cells,
+    rename_column,
+    update_cell,
+)
 from app.models.script_validate import normalize_script, validate_script
 
 VIDEO_CATEGORIES = frozenset({"lifestyle"})
@@ -674,7 +682,20 @@ async def _write_brand_insights(db: AsyncIOMotorDatabase, project_id: str, user_
     return await get_project(db, project_id, user_id)
 
 
+async def get_project_by_id(db: AsyncIOMotorDatabase, project_id: str) -> dict | None:
+    document = await db.projects.find_one({"_id": project_id})
+    if document is None:
+        return None
+    return serialize_project(document)
+
+
 async def _write_script(db: AsyncIOMotorDatabase, project_id: str, user_id: str, script: dict) -> dict | None:
+    from app.repositories.script_snapshots import create_script_snapshot
+
+    project = await get_project(db, project_id, user_id)
+    if project is not None:
+        script = preserve_brand_feedback_cells(script, project["current_script"])
+
     normalized = normalize_script(script)
     validate_script(normalized)
     normalized["updated_at"] = now_iso()
@@ -687,5 +708,12 @@ async def _write_script(db: AsyncIOMotorDatabase, project_id: str, user_id: str,
                 **stale_set_fields(mark_script_changed()),
             }
         },
+    )
+    await create_script_snapshot(
+        db,
+        project_id,
+        user_id,
+        reason="auto_save",
+        script=normalized,
     )
     return await get_project(db, project_id, user_id)
