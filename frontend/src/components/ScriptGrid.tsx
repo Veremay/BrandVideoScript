@@ -44,20 +44,27 @@ export function ScriptGrid({ script }: { script: Script }) {
   const columns = [...script.columns].sort((a, b) => a.order - b.order);
   const rows = [...script.rows].sort((a, b) => a.order - b.order);
   const durationAnalysis = useMemo(() => analyzeDurations(script), [script]);
-  const issueByRowId = useMemo(() => {
-    const issueMap = new Map<string, string[]>();
+  const { durationIssueByRowId, linkedIssueByRowId } = useMemo(() => {
+    const durationIssueByRowId = new Map<string, string[]>();
+    const linkedIssueByRowId = new Map<string, string[]>();
+
     for (const issue of durationAnalysis.issues) {
       for (const rowId of issue.rowIds) {
-        issueMap.set(rowId, [...(issueMap.get(rowId) ?? []), issue.range ? `${issue.message} ${issue.range}` : issue.message]);
+        durationIssueByRowId.set(rowId, [
+          ...(durationIssueByRowId.get(rowId) ?? []),
+          issue.range ? `${issue.message} ${issue.range}` : issue.message
+        ]);
       }
     }
+
     for (const node of project?.rationale_nodes ?? []) {
       for (const ref of node.linked_script_refs ?? []) {
         if (!ref.row_id) continue;
-        issueMap.set(ref.row_id, [...(issueMap.get(ref.row_id) ?? []), node.title]);
+        linkedIssueByRowId.set(ref.row_id, [...(linkedIssueByRowId.get(ref.row_id) ?? []), node.title]);
       }
     }
-    return issueMap;
+
+    return { durationIssueByRowId, linkedIssueByRowId };
   }, [durationAnalysis.issues, project?.rationale_nodes]);
   const totalSeconds = Math.max(0, ...durationAnalysis.timeline.map((segment) => segment.end));
   const { hunkByCell, hunkDecisions, acceptAndApplyHunk, rejectAndPersistHunk, applyError } = useCellHunkMap();
@@ -333,12 +340,12 @@ export function ScriptGrid({ script }: { script: Script }) {
                 <RowBlock
                   columns={columns}
                   columnWidths={columnWidths}
-                  hasIssue={issueByRowId.has(row.row_id)}
+                  durationIssueMessages={durationIssueByRowId.get(row.row_id)}
                   hunkByCell={hunkByCell}
                   hunkDecisions={hunkDecisions}
                   index={rowIndex}
-                  issueTitle={issueByRowId.get(row.row_id)?.join(" / ")}
                   key={row.row_id}
+                  linkedIssueMessages={linkedIssueByRowId.get(row.row_id)}
                   onAddRow={() => insertRowAfter(row.row_id)}
                   onDeleteRow={() => handleDeleteRow(row.row_id)}
                   onHunkAccept={(hunkId) => void acceptAndApplyHunk(hunkId)}
@@ -389,14 +396,25 @@ export function ScriptGrid({ script }: { script: Script }) {
   );
 }
 
+function formatRowHint(durationIssueMessages?: string[], linkedIssueMessages?: string[]) {
+  const parts: string[] = [];
+  if (durationIssueMessages?.length) {
+    parts.push(`Duration: ${durationIssueMessages.join(" / ")}`);
+  }
+  if (linkedIssueMessages?.length) {
+    parts.push(`Map: ${linkedIssueMessages.join(" / ")}`);
+  }
+  return parts.length ? parts.join("\n") : undefined;
+}
+
 function RowBlock({
   columns,
   columnWidths,
-  hasIssue,
+  durationIssueMessages,
   hunkByCell,
   hunkDecisions,
   index,
-  issueTitle,
+  linkedIssueMessages,
   onAddRow,
   onDeleteRow,
   onHunkAccept,
@@ -411,11 +429,11 @@ function RowBlock({
 }: {
   columns: Script["columns"];
   columnWidths: Record<string, number>;
-  hasIssue: boolean;
+  durationIssueMessages?: string[];
   hunkByCell: Map<string, ModificationSchemeHunk>;
   hunkDecisions: Record<string, HunkDecision>;
   index: number;
-  issueTitle?: string;
+  linkedIssueMessages?: string[];
   onAddRow: () => void;
   onDeleteRow: () => void;
   onHunkAccept: (hunkId: string) => void;
@@ -429,11 +447,18 @@ function RowBlock({
   updateCell: (rowId: string, columnId: string, value: string) => void;
 }) {
   const rowMark = String(index + 1).padStart(2, "0");
+  const hasDurationIssue = Boolean(durationIssueMessages?.length);
+  const hasLinkedIssue = Boolean(linkedIssueMessages?.length);
+  const rowHintTitle = formatRowHint(durationIssueMessages, linkedIssueMessages);
 
   return (
     <>
-      <tr className={`editor-row ${index % 2 === 1 ? "row-alt" : ""} ${hasIssue ? "row-has-issue" : ""} ${selected ? "row-selected" : ""}`} style={{ height: rowHeight }}>
-        <td className="editor-td-num" title={issueTitle}>
+      <tr
+        className={`editor-row ${index % 2 === 1 ? "row-alt" : ""} ${hasDurationIssue ? "row-has-duration-issue" : ""} ${hasLinkedIssue ? "row-has-linked-issue" : ""} ${selected ? "row-selected" : ""}`}
+        style={{ height: rowHeight }}
+      >
+        <td className="editor-td-num" title={rowHintTitle}>
+          {hasLinkedIssue ? <span aria-hidden="true" className="editor-row-link-mark" title="Linked to Map issue" /> : null}
           <button className="editor-row-num-btn" onClick={onSelectRow} type="button">{rowMark}</button>
           <button className="editor-row-del editor-row-del-left" onClick={onDeleteRow} type="button" title="Delete row">
             <IconTrash />
@@ -462,9 +487,7 @@ function RowBlock({
               className={[
                 `editor-td-data col-${column.key}`,
                 brandFeedback ? "col-brand-feedback" : "",
-                showHunkDiff ? "editor-td-has-hunk" : "",
-                hunkDecision === true ? "editor-td-hunk-accepted" : "",
-                hunkDecision === false ? "" : ""
+                showHunkDiff ? "editor-td-has-hunk" : ""
               ]
                 .filter(Boolean)
                 .join(" ")}
@@ -480,7 +503,7 @@ function RowBlock({
                 />
               ) : column.type === "duration" ? (
                 <div className="editor-duration-wrap">
-                  <input className={`editor-table-input editor-duration-input ${hasIssue ? "is-invalid" : ""}`} {...commonProps} />
+                  <input className={`editor-table-input editor-duration-input ${hasDurationIssue ? "is-invalid" : ""}`} {...commonProps} />
                 </div>
               ) : isMultilineColumn(column) ? (
                 <textarea className={`editor-table-cell cell-${column.key}${brandFeedback ? " editor-table-cell--readonly" : ""}`} {...commonProps} />

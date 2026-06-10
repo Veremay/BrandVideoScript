@@ -2685,8 +2685,24 @@ textarea {
   line-height: 16px;
 }
 
-.row-has-issue .editor-row-num-btn {
+.row-has-duration-issue .editor-row-num-btn {
   color: var(--danger);
+}
+
+.row-has-linked-issue:not(.row-has-duration-issue) .editor-row-num-btn {
+  color: var(--figma-primary);
+}
+
+.editor-row-link-mark {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 7px;
+  height: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 999px;
+  background: var(--figma-primary);
+  box-shadow: 0 0 0 1px rgba(0, 101, 145, 0.18);
 }
 
 .editor-row-del {
@@ -4732,10 +4748,6 @@ textarea {
 .editor-td-has-hunk {
   vertical-align: top;
   background: rgba(240, 249, 255, 0.5);
-}
-
-.editor-td-hunk-accepted {
-  background: rgba(236, 253, 245, 0.65);
 }
 
 .editor-cell-hunk {
