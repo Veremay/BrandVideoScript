@@ -50,7 +50,12 @@ export function ScriptSnapshotsPanel({ open, onClose }: ScriptSnapshotsPanelProp
     setBusyId("__create__");
     setError(null);
     try {
-      await createScriptSnapshot(project._id, project.user_id, "manual_save");
+      const created = await createScriptSnapshot(project._id, project.user_id, "manual_save");
+      setProject({
+        ...project,
+        current_script_version_id: created.script_version_id,
+        updated_at: created.created_at
+      });
       await loadSnapshots();
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Failed to save version");
@@ -61,14 +66,12 @@ export function ScriptSnapshotsPanel({ open, onClose }: ScriptSnapshotsPanelProp
 
   async function handleRestore(snapshotId: string) {
     if (!project) return;
-    if (!window.confirm("Restore this version? Unsaved edits will be overwritten.")) return;
 
     setBusyId(snapshotId);
     setError(null);
     try {
       const restored = await restoreScriptSnapshot(project._id, project.user_id, snapshotId);
       setProject(restored);
-      onClose();
     } catch (restoreError) {
       setError(restoreError instanceof Error ? restoreError.message : "Failed to restore version");
     } finally {
@@ -79,25 +82,26 @@ export function ScriptSnapshotsPanel({ open, onClose }: ScriptSnapshotsPanelProp
   if (!open || !project) return null;
 
   return (
-    <div className="persona-overlay" role="dialog" aria-modal="true" aria-label="Script version history">
-      <button className="persona-overlay-backdrop" onClick={onClose} type="button" aria-label="Close" />
-      <aside className="persona-panel script-snapshots-panel">
+    <div className="script-snapshots-drawer" role="complementary" aria-label="Script version history">
+      <aside className="script-snapshots-panel">
         <button className="persona-panel-close" onClick={onClose} type="button" aria-label="Close">
           <IconClose />
         </button>
-        <header className="persona-panel-header">
+        <header className="persona-panel-header script-snapshots-header">
           <div className="persona-panel-heading">
-            <h2 className="persona-panel-title">Version History</h2>
+            <div className="script-snapshots-title-row">
+              <h2 className="persona-panel-title">Version History</h2>
+              <button
+                className="figma-nav-btn figma-nav-outline"
+                disabled={busyId === "__create__"}
+                onClick={() => void handleSaveSnapshot()}
+                type="button"
+              >
+                {busyId === "__create__" ? "Saving…" : "Save Current Version"}
+              </button>
+            </div>
             <p className="persona-panel-subtitle">Save snapshots or restore a previous script state.</p>
           </div>
-          <button
-            className="figma-nav-btn figma-nav-outline"
-            disabled={busyId === "__create__"}
-            onClick={() => void handleSaveSnapshot()}
-            type="button"
-          >
-            {busyId === "__create__" ? "Saving…" : "Save Current Version"}
-          </button>
         </header>
 
         <div className="persona-panel-body script-snapshots-body">
@@ -107,24 +111,34 @@ export function ScriptSnapshotsPanel({ open, onClose }: ScriptSnapshotsPanelProp
             <p className="script-snapshots-empty">No saved versions yet. Edit the script, then save a snapshot.</p>
           ) : null}
           <ul className="script-snapshots-list">
-            {snapshots.map((snapshot) => (
-              <li className="script-snapshots-item" key={snapshot.snapshot_id}>
-                <div className="script-snapshots-meta">
-                  <span className="script-snapshots-reason">{REASON_LABELS[snapshot.reason] ?? snapshot.reason}</span>
-                  <time className="script-snapshots-time" dateTime={snapshot.created_at}>
-                    {formatSnapshotTime(snapshot.created_at)}
-                  </time>
-                </div>
-                <button
-                  className="figma-nav-btn figma-nav-outline"
-                  disabled={busyId !== null}
-                  onClick={() => void handleRestore(snapshot.snapshot_id)}
-                  type="button"
-                >
-                  {busyId === snapshot.snapshot_id ? "Restoring…" : "Restore"}
-                </button>
-              </li>
-            ))}
+            {snapshots.map((snapshot) => {
+              const isCurrent = Boolean(
+                snapshot.script_version_id &&
+                  project.current_script_version_id &&
+                  snapshot.script_version_id === project.current_script_version_id
+              );
+              return (
+                <li className="script-snapshots-item" key={snapshot.snapshot_id}>
+                  <button
+                    aria-current={isCurrent ? "true" : undefined}
+                    className={`script-snapshots-option ${isCurrent ? "active" : ""}`}
+                    disabled={busyId !== null || isCurrent}
+                    onClick={() => void handleRestore(snapshot.snapshot_id)}
+                    type="button"
+                  >
+                    <span className="script-snapshots-meta">
+                      <span className="script-snapshots-reason">{REASON_LABELS[snapshot.reason] ?? snapshot.reason}</span>
+                      <time className="script-snapshots-time" dateTime={snapshot.created_at}>
+                        {formatSnapshotTime(snapshot.created_at)}
+                      </time>
+                    </span>
+                    <span className="script-snapshots-state">
+                      {isCurrent ? "Current" : busyId === snapshot.snapshot_id ? "Switching…" : "Switch"}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </div>
       </aside>

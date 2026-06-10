@@ -3823,14 +3823,63 @@ textarea {
   }
 }
 
+.script-snapshots-drawer {
+  position: fixed;
+  top: 76px;
+  right: 16px;
+  bottom: 16px;
+  z-index: 55;
+  width: min(420px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
 .script-snapshots-panel {
-  max-width: 520px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid rgba(110, 120, 129, 0.16);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 24px 48px -16px rgba(19, 27, 46, 0.28);
+  pointer-events: auto;
+}
+
+.script-snapshots-panel .script-snapshots-header {
+  padding: 32px 28px 20px;
+}
+
+.script-snapshots-panel .persona-panel-heading {
+  flex: 1;
+  min-width: 0;
+  padding-right: 32px;
+}
+
+.script-snapshots-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.script-snapshots-panel .persona-panel-title {
+  font-size: 24px;
+  line-height: 30px;
+}
+
+.script-snapshots-title-row .figma-nav-btn {
+  flex-shrink: 0;
 }
 
 .script-snapshots-body {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 12px;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 28px 28px;
 }
 
 .script-snapshots-list {
@@ -3843,14 +3892,36 @@ textarea {
 }
 
 .script-snapshots-item {
-  align-items: center;
-  background: var(--figma-surface, #ffffff);
-  border: 1px solid var(--figma-border, #bec8d2);
-  border-radius: 10px;
+  margin: 0;
+}
+
+.script-snapshots-option {
   display: flex;
-  gap: 12px;
+  align-items: center;
   justify-content: space-between;
+  width: 100%;
+  gap: 12px;
   padding: 12px 14px;
+  border: 1px solid var(--figma-border, #bec8d2);
+  border-radius: 12px;
+  background: var(--figma-surface, #ffffff);
+  color: inherit;
+  text-align: left;
+  transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+.script-snapshots-option:not(:disabled):hover {
+  border-color: rgba(0, 101, 145, 0.45);
+  box-shadow: 0 10px 24px -18px rgba(0, 101, 145, 0.45);
+}
+
+.script-snapshots-option.active {
+  border-color: var(--figma-primary);
+  background: rgba(0, 101, 145, 0.06);
+}
+
+.script-snapshots-option:disabled {
+  cursor: default;
 }
 
 .script-snapshots-meta {
@@ -3861,9 +3932,12 @@ textarea {
 }
 
 .script-snapshots-reason {
+  overflow: hidden;
   color: var(--figma-text, #131b2e);
   font-size: 14px;
   font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .script-snapshots-time {
@@ -3871,15 +3945,41 @@ textarea {
   font-size: 12px;
 }
 
+.script-snapshots-state {
+  flex-shrink: 0;
+  color: var(--figma-primary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.script-snapshots-option:not(.active) .script-snapshots-state {
+  color: var(--figma-text-secondary, #3e4850);
+}
+
 .script-snapshots-empty,
 .script-snapshots-error {
   color: var(--figma-text-secondary, #3e4850);
   font-size: 13px;
+  line-height: 1.5;
   margin: 0;
 }
 
 .script-snapshots-error {
   color: #e85d5d;
+}
+
+@media (max-width: 720px) {
+  .script-snapshots-drawer {
+    top: 64px;
+    right: 8px;
+    bottom: 8px;
+    width: calc(100vw - 16px);
+  }
+
+  .script-snapshots-title-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 .chat-area {
