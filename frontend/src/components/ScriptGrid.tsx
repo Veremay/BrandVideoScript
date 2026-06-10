@@ -226,10 +226,10 @@ export function ScriptGrid({ script }: { script: Script }) {
           <div className="script-timeline-track">
             {durationAnalysis.timeline.map((segment, index) => (
               <span
-                className="script-timeline-segment"
+                className={`script-timeline-segment${segment.hasOverlap ? " script-timeline-segment--overlap" : ""}`}
                 key={segment.rowId}
-                style={{ left: `${segment.left}%`, width: `${Math.max(segment.width, 2)}%`, background: segmentColor(index) }}
-                title={`${segment.start}-${segment.end}s`}
+                style={{ left: `${segment.left}%`, width: `${Math.max(segment.width, 0.8)}%` }}
+                title={`#${index + 1}: ${segment.start}–${segment.end}s`}
               />
             ))}
             {durationAnalysis.overlaps.map((overlap) => (
@@ -526,11 +526,6 @@ function RowBlock({
       </tr>
     </>
   );
-}
-
-function segmentColor(index: number) {
-  const colors = ["#006591", "#3ecf8e", "#a78bfa", "#f0c040"];
-  return colors[index % colors.length];
 }
 
 function formatClock(seconds: number) {
