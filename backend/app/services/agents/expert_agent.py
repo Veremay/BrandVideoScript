@@ -670,6 +670,168 @@ async def run_expert_populate_issue(
     return result
 
 
+def _anchored_issue_summaries(project: dict[str, Any]) -> list[dict[str, Any]]:
+    """Existing Issues (active + resolved) with the Positions that respond to them.
+
+    This is the anchor set fed to the Expert on "update map": each Issue keeps its
+    id so verdicts (still_holds / resolved / modified) map back to the live node.
+    """
+    nodes_by_id = {n.get("node_id"): n for n in (project.get("rationale_nodes") or []) if n.get("node_id")}
+    issue_positions: dict[str, list[str]] = {}
+    for edge in project.get("rationale_edges") or []:
+        if edge.get("relation_type") != "responds_to":
+            continue
+        issue_id = str(edge.get("to_node_id") or "")
+        pos_id = str(edge.get("from_node_id") or "")
+        if issue_id and pos_id:
+            issue_positions.setdefault(issue_id, []).append(pos_id)
+
+    summaries: list[dict[str, Any]] = []
+    for node in nodes_by_id.values():
+        if node.get("node_type") != "issue":
+            continue
+        if node.get("lifecycle", "active") not in {"active", "resolved"}:
+            continue
+        positions = [
+            {
+                "position_id": pid,
+                "title": str(nodes_by_id.get(pid, {}).get("title", "")),
+                "content": str(nodes_by_id.get(pid, {}).get("content", ""))[:200],
+            }
+            for pid in issue_positions.get(str(node.get("node_id")), [])
+            if nodes_by_id.get(pid)
+        ]
+        summaries.append(
+            {
+                "issue_id": str(node.get("node_id")),
+                "title": str(node.get("title", "")),
+                "content": str(node.get("content", ""))[:200],
+                "lifecycle": node.get("lifecycle", "active"),
+                "created_by": node.get("created_by", "agent"),
+                "positions": positions,
+            }
+        )
+    return summaries
+
+
+async def run_expert_reconcile(
+    project: dict[str, Any],
+    *,
+    changed_row_ids: set[str] | None = None,
+    user_message: str | None = None,
+) -> dict[str, Any]:
+    """Anchored re-evaluation for "update map".
+
+    For every existing Issue the Expert returns a verdict — ``still_holds`` /
+    ``resolved`` (conflict gone) / ``modified`` (conflict reframed) — plus any
+    Position/Argument content that changed substantively, plus brand-new
+    conflicts. Ids are preserved; the merge layer turns ``modified`` into a
+    supersede and ``resolved`` into a dimmed node.
+    """
+    context = build_agent_context("expert", project)
+    assert_context_isolation("expert", context)
+
+    project_id = str(context.get("project_id") or project.get("_id") or "")
+    script_version_id = context.get("current_script_version_id")
+    row_ids = set(changed_row_ids or [])
+
+    anchored_issues = _anchored_issue_summaries(project)
+    existing_positions = [
+        {
+            "position_id": str(n.get("node_id")),
+            "title": str(n.get("title", "")),
+            "content": str(n.get("content", ""))[:200],
+            "created_by": n.get("created_by", "agent"),
+        }
+        for n in project.get("rationale_nodes", [])
+        if n.get("node_type") == "position" and n.get("node_id") and n.get("lifecycle", "active") == "active"
+    ]
+
+    log_step(
+        "expert_agent.reconcile",
+        phase="IN",
+        project_id=project_id,
+        anchored_issue_ids=[i["issue_id"] for i in anchored_issues],
+        changed_row_ids=sorted(row_ids),
+    )
+
+    context_block = "\n\n".join(
+        [
+            "## 场景\nreconcile（update map）— 对每个已有 issue 重新判定冲突是否仍成立",
+            f"## 用户说明\n{user_message or '脚本已更新，请重新评估各冲突'}",
+            f"## 脚本变动/选段\n{script_excerpt_for_rows(project, row_ids) if row_ids else context.get('script_excerpt', '')}",
+            f"## 待复评的 Issue（含其立场，issue_id 必须原样回传）\n{json.dumps(anchored_issues, ensure_ascii=False)[:3000]}",
+            f"## 现有 position（可用于判断与新建冲突）\n{json.dumps(existing_positions, ensure_ascii=False)[:2000]}",
+            (
+                "## 输出要求\n"
+                "1) issue_reviews：对上面每个 issue 给出 {issue_id, verdict, reason}；"
+                "verdict ∈ still_holds | resolved | modified；"
+                "默认 still_holds，只有冲突确实消失才 resolved，只有冲突实质改变才 modified"
+                "（modified 时附 new_title / new_content）。\n"
+                "2) node_modifications：仅当某个 position/argument 内容发生实质变化时，"
+                "给出 {node_id, new_title, new_content, reason}。\n"
+                "3) ibis：仅放【全新】冲突（≥2 个对立 position + 一个 issue，"
+                "用 responds_to / conflicts_with 连接；可用 external_edges 接现有 position）。\n"
+                "不要改动 created_by=user 的节点，只在必要时通过 reason 说明。"
+            ),
+        ]
+    )
+
+    def mock() -> dict[str, Any]:
+        return {
+            "assistant_reply": "已重新评估各冲突，未发现实质变化。请查看 Node Graph。",
+            "issue_reviews": [
+                {"issue_id": item["issue_id"], "verdict": "still_holds"} for item in anchored_issues
+            ],
+            "node_modifications": [],
+            "ibis": {"nodes": [], "edges": [], "external_edges": []},
+        }
+
+    payload = await invoke_agent_json(
+        agent_prompt_file="expert_agent.md",
+        context=context_block,
+        task_type="expert_generate_suggestions",
+        mock_payload=mock,
+    )
+    graph = persist_rationale_graph(
+        project_id,
+        payload.get("ibis"),
+        script_version_id=script_version_id,
+        allowed_source_types=EXPERT_SOURCES,
+    )
+
+    anchored_ids = {item["issue_id"] for item in anchored_issues}
+    issue_reviews = [
+        review
+        for review in (payload.get("issue_reviews") or [])
+        if isinstance(review, dict) and str(review.get("issue_id") or "") in anchored_ids
+    ]
+    node_modifications = [
+        mod
+        for mod in (payload.get("node_modifications") or [])
+        if isinstance(mod, dict) and mod.get("node_id")
+    ]
+
+    result = {
+        "assistant_reply": payload.get("assistant_reply", ""),
+        "issue_reviews": issue_reviews,
+        "node_modifications": node_modifications,
+        "proposed_nodes": graph.proposed_nodes,
+        "proposed_edges": graph.proposed_edges,
+        "node_updates": [],
+        "tool_calls_used": ["persist_rationale_graph"],
+    }
+    log_step(
+        "expert_agent.reconcile",
+        phase="OUT",
+        project_id=project_id,
+        issue_reviews=len(issue_reviews),
+        node_modifications=len(node_modifications),
+        new_nodes=len(graph.proposed_nodes),
+    )
+    return result
+
+
 async def run_expert_generate_modification_schemes(
     project: dict[str, Any],
     *,

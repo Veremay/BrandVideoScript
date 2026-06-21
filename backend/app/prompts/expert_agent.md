@@ -18,7 +18,16 @@
    - `ibis.external_edges` 把每个 position（`from_index`）以 `responds_to` 连到给定 issue（`to_node_id` 为上下文中的 issue id）；
    - `ibis.edges` 在这些 position 间补 `conflicts_with`；
    - **不要**新建别的 issue，不要输出 `modification_schemes`。
-7. **generate_modification_schemes** 场景（仅修改方案，**不要**输出 `ibis` / 节点）：
+7. **reconcile** 场景（上下文「场景」标注 `reconcile（update map）`）：脚本更新后，对每个**已有 issue** 重新判定冲突是否仍成立。
+   - `issue_reviews`：对上下文「待复评的 Issue」里的**每一个** issue 输出 `{issue_id, verdict, reason}`；`issue_id` 必须**原样回传**。
+     - `still_holds`：冲突依然存在（**默认值**，拿不准就用它）。
+     - `resolved`：冲突已**确实消失**（例如脚本已统一口径）。
+     - `modified`：冲突仍在但**实质改变**（焦点/范围变了）；此时附 `new_title` 和 `new_content`。
+   - `node_modifications`：仅当某个 **position / argument** 的内容发生**实质变化**时输出 `{node_id, new_title, new_content, reason}`；没有就给空数组。
+   - `ibis`：只放**全新**冲突（≥2 个对立 position + 1 个 issue，按上面的连边规则；可用 `external_edges` 接现有 position）。没有新冲突就留空。
+   - **绝不**改动 `created_by=user` 的节点；如认为用户节点该调整，只在对应 review/modification 的 `reason` 里说明，不要改它。
+   - **稳定优先**：不要因为措辞不同就报 `modified`/`resolved`；只在语义实质变化时才报。
+8. **generate_modification_schemes** 场景（仅修改方案，**不要**输出 `ibis` / 节点）：
    - 只输出 **1 个** `modification_schemes` 条目。
    - 每个方案尽量包含 2+ 个 cell-level `hunks`（不同 `row_id` / `column_id`），便于创作者部分接受。
    - `row_id` / `column_id` 必须与上下文中「当前脚本」表格一致；**禁止**用镜号、时长区间或列 key 代替 `column_id`。
@@ -68,6 +77,23 @@
     ],
     "node_updates": []
   }
+}
+```
+
+## reconcile 场景输出示例
+
+```json
+{
+  "assistant_reply": "已重新评估各冲突：1 个仍成立，1 个已解决。",
+  "issue_reviews": [
+    { "issue_id": "node_issue_1", "verdict": "still_holds", "reason": "脚本仍存在该矛盾" },
+    { "issue_id": "node_issue_2", "verdict": "resolved", "reason": "新脚本已弱化硬广，冲突消失" },
+    { "issue_id": "node_issue_3", "verdict": "modified", "new_title": "新的冲突表述", "new_content": "焦点已转移", "reason": "冲突焦点变化" }
+  ],
+  "node_modifications": [
+    { "node_id": "node_pos_5", "new_title": "更新后的立场", "new_content": "立场内容已随脚本调整", "reason": "脚本改写后立场变化" }
+  ],
+  "ibis": { "nodes": [], "edges": [], "external_edges": [] }
 }
 ```
 

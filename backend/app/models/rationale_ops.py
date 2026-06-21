@@ -73,6 +73,16 @@ def build_rationale_node(
         "created_by": created_by,
         "updated_by": created_by,
         "based_on_script_version_id": based_on_script_version_id,
+        # Reconcile lifecycle (bottom-up IBIS):
+        #   lifecycle: active | resolved (issue conflict gone) | superseded (replaced)
+        #   change_mark: none | modified | new  (transient marker for the latest update)
+        #   predecessor_id: id of the node this one replaced (modified)
+        #   suggestion: non-binding hint for user-owned nodes (e.g. "resolved?" / "modify?")
+        "lifecycle": "active",
+        "change_mark": "none",
+        "predecessor_id": None,
+        "resolved_at": None,
+        "suggestion": None,
         "created_at": now,
         "updated_at": now,
     }
@@ -260,6 +270,10 @@ def validate_ibis_graph_integrity(
             continue
         column = _ibis_column(str(node.get("node_type", "issue")))
         title = str(node.get("title") or node_id)
+        # Resolved Issues are intentionally retained as history; their conflict is
+        # already gone, so the ≥2-position invariant no longer applies to them.
+        if column == "issue" and node.get("lifecycle") == "resolved":
+            continue
         if column == "issue" and len(issue_positions.get(node_id, set())) < MIN_ISSUE_POSITIONS:
             raise ValueError(
                 f"Issue must aggregate at least {MIN_ISSUE_POSITIONS} conflicting Positions "
@@ -329,6 +343,11 @@ def merge_proposed_graph(
         node.setdefault("project_id", project_id)
         node.setdefault("created_at", now_iso())
         node.setdefault("updated_at", node["created_at"])
+        node.setdefault("lifecycle", "active")
+        node.setdefault("change_mark", "none")
+        node.setdefault("predecessor_id", None)
+        node.setdefault("resolved_at", None)
+        node.setdefault("suggestion", None)
         nodes_by_id[node["node_id"]] = node
 
     for raw in proposed_edges:
@@ -353,3 +372,213 @@ def merge_proposed_graph(
     merged_nodes = list(nodes_by_id.values())
     validate_ibis_graph_integrity(merged_nodes, edges)
     return merged_nodes, edges
+
+
+# --- Reconcile: anchored re-evaluation on "update map" ----------------------
+
+
+def _reset_change_marks(nodes: list[dict[str, Any]]) -> None:
+    """Clear transient per-update markers before a fresh reconcile pass."""
+    for node in nodes:
+        if node.get("change_mark") not in (None, "none"):
+            node["change_mark"] = "none"
+        node["suggestion"] = None
+
+
+def supersede_node(
+    nodes: list[dict[str, Any]],
+    edges: list[dict[str, Any]],
+    old_id: str,
+    *,
+    new_title: str | None = None,
+    new_content: str | None = None,
+) -> str | None:
+    """Replace node ``old_id`` with a fresh node (new id) that inherits every edge
+    of the old node, then drop the old node and its original edges from the live
+    graph (the old version survives only in the pre-update snapshot — Option B).
+
+    Returns the new node id, or ``None`` if ``old_id`` does not exist. Mutates
+    ``nodes`` and ``edges`` in place.
+    """
+    by_id = _index_by_id(nodes, "node_id")
+    old = by_id.get(old_id)
+    if old is None:
+        return None
+
+    new_node = dict(old)
+    new_node["node_id"] = new_id("node")
+    new_node["predecessor_id"] = old_id
+    new_node["change_mark"] = "modified"
+    new_node["lifecycle"] = "active"
+    new_node["resolved_at"] = None
+    new_node["suggestion"] = None
+    if new_title is not None:
+        new_node["title"] = str(new_title).strip()[:120]
+    if new_content is not None:
+        new_node["content"] = str(new_content).strip()[:2000]
+    new_node["updated_by"] = "agent"
+    new_node["updated_at"] = now_iso()
+
+    inherited: list[dict[str, Any]] = []
+    for edge in edges:
+        if edge.get("from_node_id") != old_id and edge.get("to_node_id") != old_id:
+            inherited.append(edge)
+            continue
+        clone = dict(edge)
+        clone["edge_id"] = new_id("edge")
+        if clone.get("from_node_id") == old_id:
+            clone["from_node_id"] = new_node["node_id"]
+        if clone.get("to_node_id") == old_id:
+            clone["to_node_id"] = new_node["node_id"]
+        inherited.append(clone)
+
+    edges[:] = inherited
+    nodes[:] = [n for n in nodes if n.get("node_id") != old_id]
+    nodes.append(new_node)
+    return new_node["node_id"]
+
+
+def resolve_issue(nodes: list[dict[str, Any]], issue_id: str) -> bool:
+    """Mark an Issue as resolved (conflict gone). Keeps its id and its edges."""
+    issue = _index_by_id(nodes, "node_id").get(issue_id)
+    if issue is None or _ibis_column(str(issue.get("node_type", "issue"))) != "issue":
+        return False
+    if issue.get("lifecycle") != "resolved":
+        issue["lifecycle"] = "resolved"
+        issue["resolved_at"] = now_iso()
+        issue["updated_at"] = now_iso()
+    issue["change_mark"] = "none"
+    return True
+
+
+def revive_issue(nodes: list[dict[str, Any]], issue_id: str) -> bool:
+    """Reactivate a previously resolved Issue when its conflict returns."""
+    issue = _index_by_id(nodes, "node_id").get(issue_id)
+    if issue is None:
+        return False
+    if issue.get("lifecycle") == "resolved":
+        issue["lifecycle"] = "active"
+        issue["resolved_at"] = None
+        issue["updated_at"] = now_iso()
+    return True
+
+
+def _assign_new_ids(raw_nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    prepared: list[dict[str, Any]] = []
+    for raw in raw_nodes:
+        node = dict(raw)
+        if not node.get("node_id"):
+            node["node_id"] = new_id("node")
+        prepared.append(node)
+    return prepared
+
+
+def _chase_remap(remap: dict[str, str], node_id: str | None) -> str | None:
+    seen: set[str] = set()
+    current = node_id
+    while current in remap and current not in seen:
+        seen.add(current)
+        current = remap[current]
+    return current
+
+
+def apply_reconcile(
+    *,
+    project_id: str,
+    existing_nodes: list[dict[str, Any]],
+    existing_edges: list[dict[str, Any]],
+    issue_reviews: list[dict[str, Any]] | None = None,
+    node_modifications: list[dict[str, Any]] | None = None,
+    new_nodes: list[dict[str, Any]] | None = None,
+    new_edges: list[dict[str, Any]] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Apply an anchored re-evaluation result to the live graph.
+
+    Inputs (all optional):
+    - ``issue_reviews``: ``[{issue_id, verdict: still_holds|resolved|modified,
+      new_title?, new_content?, reason?}]`` — Expert's verdict per existing Issue.
+    - ``node_modifications``: ``[{node_id, new_title?, new_content?, reason?}]`` —
+      substantive content changes for Position/Argument nodes.
+    - ``new_nodes`` / ``new_edges``: freshly emerged conflicts/positions.
+
+    Rules: ids never change for ``still_holds``/``resolved``; ``modified`` replaces
+    the node with a new id that inherits its edges (old node dropped, kept in the
+    snapshot). User-owned nodes are never mutated — they only receive a
+    non-binding ``suggestion`` flag. New nodes are tagged ``change_mark="new"``.
+    """
+    nodes: list[dict[str, Any]] = [dict(n) for n in existing_nodes]
+    edges: list[dict[str, Any]] = [dict(e) for e in existing_edges]
+    _reset_change_marks(nodes)
+    by_id = _index_by_id(nodes, "node_id")
+    id_remap: dict[str, str] = {}
+
+    def _is_user(node: dict[str, Any] | None) -> bool:
+        return bool(node) and node.get("created_by") == "user"
+
+    for review in issue_reviews or []:
+        issue_id = str(review.get("issue_id") or "")
+        verdict = str(review.get("verdict") or "still_holds")
+        node = by_id.get(issue_id)
+        if node is None:
+            continue
+        if _is_user(node):
+            if verdict == "resolved":
+                node["suggestion"] = "resolved?"
+            elif verdict == "modified":
+                node["suggestion"] = "modify?"
+            continue
+        if verdict == "resolved":
+            resolve_issue(nodes, issue_id)
+        elif verdict == "modified":
+            new_nid = supersede_node(
+                nodes,
+                edges,
+                issue_id,
+                new_title=review.get("new_title"),
+                new_content=review.get("new_content"),
+            )
+            if new_nid:
+                id_remap[issue_id] = new_nid
+                by_id = _index_by_id(nodes, "node_id")
+        else:
+            revive_issue(nodes, issue_id)
+
+    for mod in node_modifications or []:
+        node_id = str(mod.get("node_id") or "")
+        node = by_id.get(node_id)
+        if node is None:
+            continue
+        if _is_user(node):
+            node["suggestion"] = "modify?"
+            continue
+        new_nid = supersede_node(
+            nodes,
+            edges,
+            node_id,
+            new_title=mod.get("new_title"),
+            new_content=mod.get("new_content"),
+        )
+        if new_nid:
+            id_remap[node_id] = new_nid
+            by_id = _index_by_id(nodes, "node_id")
+
+    prepared_nodes = _assign_new_ids(new_nodes or [])
+    new_node_ids = {n["node_id"] for n in prepared_nodes}
+    remapped_edges: list[dict[str, Any]] = []
+    for raw in new_edges or []:
+        edge = dict(raw)
+        edge["from_node_id"] = _chase_remap(id_remap, edge.get("from_node_id"))
+        edge["to_node_id"] = _chase_remap(id_remap, edge.get("to_node_id"))
+        remapped_edges.append(edge)
+
+    nodes, edges = merge_proposed_graph(
+        project_id=project_id,
+        existing_nodes=nodes,
+        existing_edges=edges,
+        proposed_nodes=prepared_nodes,
+        proposed_edges=remapped_edges,
+    )
+    for node in nodes:
+        if node.get("node_id") in new_node_ids:
+            node["change_mark"] = "new"
+    return nodes, edges

@@ -10,6 +10,7 @@ from app.services.agents.expert_agent import (
     run_expert_for_audience,
     run_expert_for_brief,
     run_expert_populate_issue,
+    run_expert_reconcile,
 )
 from app.services.pipeline_log import log_step
 from app.services.tools.ibis_graph import apply_node_updates
@@ -20,6 +21,9 @@ class AgentPipelineResult:
     proposed_nodes: list[dict[str, Any]] = field(default_factory=list)
     proposed_edges: list[dict[str, Any]] = field(default_factory=list)
     node_updates: list[dict[str, Any]] = field(default_factory=list)
+    # Reconcile (anchored re-evaluation) outputs.
+    issue_reviews: list[dict[str, Any]] = field(default_factory=list)
+    node_modifications: list[dict[str, Any]] = field(default_factory=list)
     assistant_reply: str = ""
     brand_result: dict[str, Any] | None = None
     audience_result: dict[str, Any] | None = None
@@ -217,6 +221,58 @@ async def run_issue_population_pipeline(
         total_edges=len(pipeline.proposed_edges),
     )
     return pipeline
+
+
+async def run_reconcile_pipeline(
+    project: dict[str, Any],
+    *,
+    user_message: str = "",
+    changed_row_ids: set[str] | None = None,
+) -> AgentPipelineResult:
+    """Anchored reconcile for "update map": Expert re-evaluates existing Issues."""
+    project_id = str(project.get("_id") or "")
+    log_step("pipeline.reconcile", phase="IN", project_id=project_id)
+
+    pipeline = AgentPipelineResult()
+    expert_result = await run_expert_reconcile(
+        project,
+        changed_row_ids=changed_row_ids,
+        user_message=user_message,
+    )
+    _log_agent_output("pipeline.reconcile.expert", expert_result)
+    pipeline.expert_result = expert_result
+    _extend_graph(pipeline, expert_result)
+    pipeline.issue_reviews = expert_result.get("issue_reviews") or []
+    pipeline.node_modifications = expert_result.get("node_modifications") or []
+    pipeline.assistant_reply = expert_result.get("assistant_reply", "")
+
+    log_step(
+        "pipeline.reconcile",
+        phase="OUT",
+        project_id=project_id,
+        issue_reviews=len(pipeline.issue_reviews),
+        node_modifications=len(pipeline.node_modifications),
+        new_nodes=len(pipeline.proposed_nodes),
+    )
+    return pipeline
+
+
+def reconcile_pipeline_into_project_graph(
+    project: dict[str, Any],
+    pipeline: AgentPipelineResult,
+) -> tuple[list[dict], list[dict]]:
+    """Apply a reconcile pipeline result to the project's live graph."""
+    from app.models.rationale_ops import apply_reconcile
+
+    return apply_reconcile(
+        project_id=str(project.get("_id") or ""),
+        existing_nodes=project.get("rationale_nodes", []),
+        existing_edges=project.get("rationale_edges", []),
+        issue_reviews=pipeline.issue_reviews,
+        node_modifications=pipeline.node_modifications,
+        new_nodes=pipeline.proposed_nodes,
+        new_edges=pipeline.proposed_edges,
+    )
 
 
 def merge_pipeline_into_project_graph(

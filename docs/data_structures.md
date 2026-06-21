@@ -204,7 +204,15 @@ MVP 文件类型：`.md`、`.txt`、纯文本粘贴。PDF/DOC/PPT 等见 `develo
 >
 > **Agent 分工：** Brand / Audience **只产 Position**；Expert 负责在各方 Position 间识别冲突并派生 Issue（连 `responds_to` + `conflicts_with`）。
 >
-> **用户手建 Issue：** 创作者在画布上新建 Issue 时，系统自动触发 Expert **围绕该 Issue 组织 ≥2 个对立 Position**（`responds_to` + `conflicts_with`）并刷新地图（`populate_issue_with_positions`）。用户 Issue 在补全前不会因「孤立」而报错。
+> **用户手建 Issue：** 创作者在画布上新建 Issue 后，可在该节点菜单手动点击 **Generate positions**，触发 Expert **围绕该 Issue 组织 ≥2 个对立 Position**（`responds_to` + `conflicts_with`，`populate_issue_with_positions`）。节点创建本身是即时的、不自动跑 Agent。
+>
+> **Update Map = 锚定式 reconcile（`sync_graph_from_script` → `run_reconcile_pipeline` → `apply_reconcile`）：** 每次更新地图，Expert 对**每个已有 Issue**（含 active/resolved）逐个复评，返回 `still_holds` / `resolved` / `modified`，并可报告 Position/Argument 的实质修改与全新冲突：
+> - `still_holds` → 节点与 id 完全不变（resolved 的会被复活回 active）。
+> - `resolved`（仅 Issue 层）→ id 不变，`lifecycle=resolved`，画布半透明 + 【已解决】；仅 Issue 及其 `responds_to`/`conflicts_with` 边变灰，关联 Position/Argument 保持 active。resolved Issue 不再受 ≥2 约束、可复活。
+> - `modified`（任意节点）→ **新建节点（新 id）继承旧节点全部边**，旧节点移出 live 图（仅留在更新前快照），新节点 `change_mark=modified` 并记 `predecessor_id`。
+> - 全新冲突 → 正常新增，`change_mark=new`。
+> - **用户节点（`created_by=user`）永不被 supersede/resolve**，只在节点上挂 `suggestion`（如 `resolved?` / `modify?`）由创作者自行处理。
+> - **id 引用不迁移：** `consideration_queue` / `ModificationScheme` 仍绑定原 id；若该节点已不在 live 图中，前端在 TO BE CONSIDERED 列表显示「立场已更新/已失效」标签供清理。
 
 ```json
 {
@@ -232,10 +240,17 @@ MVP 文件类型：`.md`、`.txt`、纯文本粘贴。PDF/DOC/PPT 等见 `develo
   "created_by": "agent | user",
   "updated_by": "agent | user",
   "based_on_script_version_id": "string",
+  "lifecycle": "active | resolved | superseded",
+  "change_mark": "none | modified | new",
+  "predecessor_id": "string | null",
+  "resolved_at": "datetime | null",
+  "suggestion": "string | null",
   "created_at": "datetime",
   "updated_at": "datetime"
 }
 ```
+
+> `lifecycle`/`change_mark`/`predecessor_id`/`resolved_at`/`suggestion` 由 reconcile（Update Map）维护，见上方「生成原则」。`superseded` 节点不会出现在 live 图中，仅存在于更新前快照。
 
 **形状 / 图标：** `node_type`（IBIS 类型）  
 **颜色 / 来源：** `source_type`（`pipeline.md` §3）

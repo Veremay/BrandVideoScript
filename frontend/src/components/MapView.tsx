@@ -59,6 +59,9 @@ type IbisNodeData = {
   inConsiderationQueue?: boolean;
   proposalCount?: number;
   reference?: string;
+  lifecycle?: "active" | "resolved" | "superseded";
+  changeMark?: "none" | "modified" | "new";
+  suggestion?: string | null;
 } & Record<string, unknown>;
 
 type MapNodeSeed = IbisNodeData & {
@@ -174,13 +177,14 @@ function rationaleToFlowNode(
   const width = nodeType === "argument" ? 256 : 224;
   const height = NODE_HEIGHT;
   const position = layoutForNode(node, index, autoLayouts);
+  const resolved = node.lifecycle === "resolved";
   return {
     id: node.node_id,
     type: "ibis",
     position,
     width,
     height,
-    style: { width, height },
+    style: { width, height, opacity: resolved ? 0.5 : 1 },
     data: {
       nodeType,
       title: node.title,
@@ -188,12 +192,19 @@ function rationaleToFlowNode(
       width,
       sourceType: node.source_type,
       status: node.status,
-      inConsiderationQueue: node.in_consideration_queue ?? node.in_negotiation_queue
+      inConsiderationQueue: node.in_consideration_queue ?? node.in_negotiation_queue,
+      lifecycle: node.lifecycle ?? "active",
+      changeMark: node.change_mark ?? "none",
+      suggestion: node.suggestion ?? null
     }
   };
 }
 
 function rationaleToFlowEdge(edge: RationaleEdge, nodeById: Map<string, RationaleNode>): Edge | null {
+  const touchesResolved =
+    nodeById.get(edge.from_node_id)?.lifecycle === "resolved" ||
+    nodeById.get(edge.to_node_id)?.lifecycle === "resolved";
+  const dim = (style: Record<string, unknown>) => (touchesResolved ? { ...style, opacity: 0.4 } : style);
   if (edge.relation_type === "conflicts_with") {
     const fromNode = nodeById.get(edge.from_node_id);
     const toNode = nodeById.get(edge.to_node_id);
@@ -209,7 +220,7 @@ function rationaleToFlowEdge(edge: RationaleEdge, nodeById: Map<string, Rational
       source: edge.from_node_id,
       target: edge.to_node_id,
       type: FLOW_EDGE_TYPE,
-      style: CONFLICT_EDGE_STYLE,
+      style: dim(CONFLICT_EDGE_STYLE),
       label: "冲突",
       reconnectable: false,
       selectable: false
@@ -222,7 +233,7 @@ function rationaleToFlowEdge(edge: RationaleEdge, nodeById: Map<string, Rational
     source: endpoints.source,
     target: endpoints.target,
     type: FLOW_EDGE_TYPE,
-    style: EDGE_STYLE,
+    style: dim(EDGE_STYLE),
     reconnectable: true
   };
 }
@@ -308,7 +319,8 @@ export function MapView() {
 function MapViewContent() {
   const project = useAppStore((state) => state.project);
   const setProject = useAppStore((state) => state.setProject);
-  const rationaleNodes = project?.rationale_nodes ?? [];
+  // Superseded nodes survive only in snapshots; never render them on the canvas.
+  const rationaleNodes = (project?.rationale_nodes ?? []).filter((node) => node.lifecycle !== "superseded");
   const rationaleEdges = project?.rationale_edges ?? [];
   const nodeById = useMemo(
     () => new Map(rationaleNodes.map((node) => [node.node_id, node])),
@@ -569,6 +581,12 @@ function MapViewContent() {
         node.node_type === "position" &&
         (node.in_consideration_queue || node.in_negotiation_queue || queue.has(node.node_id))
     );
+  }, [project?.consideration_queue, project?.rationale_nodes]);
+
+  // Queue entries whose Position was superseded/removed by a reconcile: show a stale tag.
+  const staleConsiderationIds = useMemo(() => {
+    const known = new Set((project?.rationale_nodes ?? []).map((node) => node.node_id));
+    return (project?.consideration_queue ?? []).filter((id) => !known.has(id));
   }, [project?.consideration_queue, project?.rationale_nodes]);
 
   const handleToggleConsideration = useCallback(
@@ -978,7 +996,7 @@ function MapViewContent() {
         <div className="map-consideration-panel">
           <h2 className="map-legend-title">TO BE CONSIDERED</h2>
           <p className="map-consideration-hint">Positions you adopt for the next script revision.</p>
-          {considerationPositions.length === 0 ? (
+          {considerationPositions.length === 0 && staleConsiderationIds.length === 0 ? (
             <p className="map-consideration-empty">Mark Position nodes from the node menu.</p>
           ) : (
             <ul className="map-consideration-list">
@@ -989,6 +1007,21 @@ function MapViewContent() {
                     aria-label={`Remove "${position.title}" from consideration`}
                     className="requirement-delete-btn map-consideration-item-remove"
                     onClick={() => void handleToggleConsideration(position.node_id, false)}
+                    type="button"
+                  >
+                    <IconTrash />
+                  </button>
+                </li>
+              ))}
+              {staleConsiderationIds.map((id) => (
+                <li className="map-consideration-item map-consideration-item-stale" key={id}>
+                  <span className="map-consideration-item-title">
+                    <span className="map-node-status-tag map-node-status-resolved">立场已更新/已失效</span>
+                  </span>
+                  <button
+                    aria-label="Remove stale consideration entry"
+                    className="requirement-delete-btn map-consideration-item-remove"
+                    onClick={() => void handleToggleConsideration(id, false)}
                     type="button"
                   >
                     <IconTrash />
@@ -1088,6 +1121,23 @@ function IbisNode({ data, id }: NodeProps) {
             {nodeData.sourceType ? <em className="map-node-source">{sourceLabel(nodeData.sourceType)}</em> : null}
           </span>
           <div className="map-node-header-actions">
+            {nodeData.lifecycle === "resolved" ? (
+              <span className="map-node-status-tag map-node-status-resolved">已解决</span>
+            ) : null}
+            {nodeData.changeMark === "modified" ? (
+              <span className="map-node-status-tag map-node-status-modified">已修改</span>
+            ) : null}
+            {nodeData.changeMark === "new" ? (
+              <span className="map-node-status-tag map-node-status-new">新增</span>
+            ) : null}
+            {nodeData.suggestion ? (
+              <span
+                className="map-node-status-tag map-node-status-suggestion"
+                title="Agent 建议（不会自动修改用户节点）"
+              >
+                {nodeData.suggestion === "resolved?" ? "建议解决?" : "建议修改?"}
+              </span>
+            ) : null}
             {nodeData.inConsiderationQueue ? (
               <span className="map-node-consideration-tag">Consider</span>
             ) : null}

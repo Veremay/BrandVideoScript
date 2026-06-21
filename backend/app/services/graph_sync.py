@@ -9,8 +9,9 @@ from app.repositories.projects import get_project
 from app.repositories.script_snapshots import snapshot_before_map_update
 from app.services.agent_orchestrator import (
     merge_pipeline_into_project_graph,
-    run_coordinator_pipeline,
+    reconcile_pipeline_into_project_graph,
     run_issue_population_pipeline,
+    run_reconcile_pipeline,
 )
 from app.services.pipeline_log import log_step
 
@@ -22,22 +23,18 @@ async def sync_graph_from_script(
     *,
     changed_row_ids: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Re-run Brand / Audience / Expert analysis after script edits and merge into IBIS graph."""
+    """Anchored reconcile after script edits: re-evaluate each Issue and merge changes."""
     project = await get_project(db, project_id, user_id)
     if project is None:
         raise ValueError("Project not found")
 
     row_ids = {row_id for row_id in (changed_row_ids or []) if row_id}
-    perspectives = {"brand", "expert"}
-    if project.get("active_persona_id"):
-        perspectives.add("audience")
 
     log_step(
         "graph_sync.from_script",
         phase="IN",
         project_id=project_id,
         changed_row_ids=sorted(row_ids),
-        perspectives=sorted(perspectives),
     )
 
     await snapshot_before_map_update(db, project_id, user_id)
@@ -48,18 +45,13 @@ async def sync_graph_from_script(
     )
 
     try:
-        pipeline = await run_coordinator_pipeline(
+        pipeline = await run_reconcile_pipeline(
             project,
-            perspectives=perspectives,
-            user_message=(
-                "脚本已更新。请基于当前脚本内容补充或更新 IBIS 节点（Issue / Position / Argument），"
-                "关联相关分镜行；不要生成修改方案（ModificationScheme）。"
-            ),
-            quotes=[],
+            user_message="脚本已更新。请重新评估每个冲突 issue 是否仍成立，并识别新冲突。",
             changed_row_ids=row_ids,
         )
 
-        nodes, edges, safe_nodes = merge_pipeline_into_project_graph(project, pipeline)
+        nodes, edges = reconcile_pipeline_into_project_graph(project, pipeline)
         await db.projects.update_one(
             {"_id": project_id, "user_id": user_id},
             {
@@ -82,8 +74,9 @@ async def sync_graph_from_script(
     updated = await get_project(db, project_id, user_id)
     result = {
         "project": updated,
-        "nodes_added": len(safe_nodes),
-        "node_updates": len(pipeline.node_updates),
+        "nodes_added": len(pipeline.proposed_nodes),
+        "node_updates": len(pipeline.node_modifications),
+        "issue_reviews": len(pipeline.issue_reviews),
         "assistant_reply": pipeline.assistant_reply,
     }
     log_step(

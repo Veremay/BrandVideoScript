@@ -198,6 +198,14 @@ export type RationaleNode = {
   linked_script_refs?: ScriptRefLink[];
   created_by: string;
   updated_at: string;
+  /** Reconcile lifecycle: active | resolved (issue conflict gone) | superseded (replaced). */
+  lifecycle?: "active" | "resolved" | "superseded";
+  /** Transient marker from the latest "update map" pass. */
+  change_mark?: "none" | "modified" | "new";
+  predecessor_id?: string | null;
+  resolved_at?: string | null;
+  /** Non-binding hint for user-owned nodes (e.g. "resolved?" / "modify?"). */
+  suggestion?: string | null;
 };
 
 export type RationaleEdge = {

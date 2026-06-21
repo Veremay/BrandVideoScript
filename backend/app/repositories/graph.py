@@ -95,6 +95,7 @@ async def delete_graph_node(
     target = nodes_by_id.get(node_id)
     if target is None:
         raise ValueError("Node not found")
+    affected_issue_ids: set[str] = set()
     if str(target.get("node_type")) == "issue":
         for edge in project.get("rationale_edges", []):
             if edge.get("to_node_id") != node_id or edge.get("relation_type") != "responds_to":
@@ -113,6 +114,12 @@ async def delete_graph_node(
                 raise ValueError(
                     "Cannot delete Position while Arguments still link to it; remove or re-link those Arguments first"
                 )
+        # Deleting a Position may drop an Issue below the 2-conflict minimum.
+        affected_issue_ids = {
+            str(edge.get("to_node_id"))
+            for edge in project.get("rationale_edges", [])
+            if edge.get("from_node_id") == node_id and edge.get("relation_type") == "responds_to"
+        }
 
     nodes = [n for n in project.get("rationale_nodes", []) if n.get("node_id") != node_id]
     edges = [
@@ -120,6 +127,13 @@ async def delete_graph_node(
         for e in project.get("rationale_edges", [])
         if e.get("from_node_id") != node_id and e.get("to_node_id") != node_id
     ]
+    if affected_issue_ids:
+        validate_ibis_graph_integrity(
+            nodes,
+            edges,
+            node_ids=affected_issue_ids,
+            require_linked_for=lambda _node: True,
+        )
     queue = [item for item in project.get("consideration_queue", []) if item != node_id]
     await _write_graph(
         db,
@@ -183,7 +197,8 @@ async def delete_graph_edge(
     affected: set[str] = set()
     relation = removed.get("relation_type")
     if relation == "responds_to":
-        affected.add(str(removed.get("from_node_id") or ""))
+        # Removing position→issue may drop the Issue below the 2-conflict minimum.
+        affected.add(str(removed.get("to_node_id") or ""))
     elif relation in {"supports", "opposes"}:
         affected.add(str(removed.get("from_node_id") or ""))
     if affected:
@@ -211,7 +226,20 @@ async def toggle_consideration_queue(
 
     node = next((n for n in project.get("rationale_nodes", []) if n.get("node_id") == node_id), None)
     if node is None:
-        raise ValueError("Node not found")
+        # The referenced Position may have been superseded/removed by a reconcile.
+        # Allow cleaning up a stale queue entry; disallow adding a missing node.
+        if in_queue:
+            raise ValueError("Node not found")
+        queue = [item for item in project.get("consideration_queue", []) if item != node_id]
+        await _write_graph(
+            db,
+            project_id,
+            user_id,
+            nodes=project.get("rationale_nodes", []),
+            edges=project.get("rationale_edges", []),
+            consideration_queue=queue,
+        )
+        return await get_project(db, project_id, user_id)
     if node.get("node_type") != "position":
         raise ValueError("Only Position nodes can join the consideration queue")
 
