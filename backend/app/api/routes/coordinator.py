@@ -30,7 +30,6 @@ from app.repositories.graph import (
 from app.repositories.projects import get_project
 from app.services.coordinator_stream import stream_coordinator_chat
 from app.services.graph_sync import populate_issue_with_positions, sync_graph_from_script
-from app.services.pipeline_log import log_step
 
 router = APIRouter(prefix="/projects/{project_id}", tags=["coordinator"])
 
@@ -104,24 +103,6 @@ async def add_graph_node(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if node is None:
         raise HTTPException(status_code=404, detail="Project not found")
-
-    # Bottom-up IBIS: a new Issue is a conflict, so organize Positions around it.
-    if payload.node_type == "issue":
-        try:
-            result = await populate_issue_with_positions(
-                db, project_id, payload.user_id.strip(), node["node_id"]
-            )
-            if result.get("project") is not None:
-                return result["project"]
-        except Exception as exc:  # keep the created Issue even if auto-population fails
-            log_step(
-                "graph.add_issue.populate_failed",
-                phase="OUT",
-                project_id=project_id,
-                node_id=node.get("node_id"),
-                error=str(exc),
-            )
-
     project = await get_project(db, project_id, payload.user_id.strip())
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -176,6 +157,24 @@ async def remove_graph_node(
     db: AsyncIOMotorDatabase = Depends(database_dependency),
 ) -> dict:
     project = await delete_graph_node(db, project_id, user_id.strip(), node_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
+@graph_router.post("/nodes/{node_id}/populate", response_model=ProjectResponse)
+async def populate_issue_node(
+    project_id: str,
+    node_id: str,
+    user_id: str = Query(min_length=1),
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> dict:
+    """Manually organize ≥2 conflicting Positions around a user-created Issue."""
+    try:
+        result = await populate_issue_with_positions(db, project_id, user_id.strip(), node_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404 if "not found" in str(exc).lower() else 400, detail=str(exc)) from exc
+    project = result.get("project")
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
     return project

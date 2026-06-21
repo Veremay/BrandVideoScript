@@ -38,6 +38,7 @@ import {
   batchUpdateGraphLayouts,
   deleteGraphEdge,
   deleteGraphNode,
+  populateIssuePositions,
   syncMapFromScript,
   generateModificationSchemes,
   toggleGraphConsiderationQueue,
@@ -251,6 +252,8 @@ const MapGraphActionsContext = createContext<{
   onCancelEdit: () => void;
   onDelete: (nodeId: string) => void;
   onToggleConsideration: (nodeId: string, inQueue: boolean) => void;
+  onPopulateIssue: (nodeId: string) => void;
+  populatingIssueId: string | null;
 } | null>(null);
 
 const nodeTypes: NodeTypes = {
@@ -344,6 +347,7 @@ function MapViewContent() {
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
   const [syncingMap, setSyncingMap] = useState(false);
+  const [populatingIssueId, setPopulatingIssueId] = useState<string | null>(null);
   const [applyingLayout, setApplyingLayout] = useState(false);
   const { zoomIn, zoomOut, fitView, getViewport, setViewport } = useReactFlow();
   const workspaceRef = useRef<HTMLElement>(null);
@@ -580,6 +584,22 @@ function MapViewContent() {
     [project, setProject]
   );
 
+  const handlePopulateIssue = useCallback(
+    async (nodeId: string) => {
+      if (!project?._id || !project.user_id || populatingIssueId) return;
+      setPopulatingIssueId(nodeId);
+      try {
+        const updated = await populateIssuePositions(project._id, project.user_id, nodeId);
+        setProject(updated);
+      } catch (error) {
+        window.alert(error instanceof Error ? error.message : "Failed to generate positions");
+      } finally {
+        setPopulatingIssueId(null);
+      }
+    },
+    [populatingIssueId, project, setProject]
+  );
+
   const handleGenerateModificationPlan = useCallback(async () => {
     if (!project?._id || !project.user_id || generatingSchemes) return;
     const positionIds = considerationPositions.map((node) => node.node_id);
@@ -751,9 +771,20 @@ function MapViewContent() {
       onSaveEdit: handleSaveEdit,
       onCancelEdit: handleCancelEdit,
       onDelete: handleDeleteNode,
-      onToggleConsideration: handleToggleConsideration
+      onToggleConsideration: handleToggleConsideration,
+      onPopulateIssue: handlePopulateIssue,
+      populatingIssueId
     }),
-    [editingNodeId, handleCancelEdit, handleDeleteNode, handleSaveEdit, handleStartEdit, handleToggleConsideration]
+    [
+      editingNodeId,
+      handleCancelEdit,
+      handleDeleteNode,
+      handlePopulateIssue,
+      handleSaveEdit,
+      handleStartEdit,
+      handleToggleConsideration,
+      populatingIssueId
+    ]
   );
 
   const emptyGraph = flowNodes.length === 0;
@@ -1090,6 +1121,20 @@ function IbisNode({ data, id }: NodeProps) {
                 >
                   Edit
                 </button>
+                {nodeData.nodeType === "issue" ? (
+                  <button
+                    className="map-node-dropdown-item"
+                    disabled={actions?.populatingIssueId === id}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      actions?.onPopulateIssue(id);
+                    }}
+                    role="menuitem"
+                    type="button"
+                  >
+                    {actions?.populatingIssueId === id ? "Generating…" : "Generate positions"}
+                  </button>
+                ) : null}
                 {nodeData.nodeType === "position" ? (
                   <button
                     className="map-node-dropdown-item"

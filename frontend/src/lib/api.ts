@@ -551,6 +551,19 @@ export async function batchUpdateGraphLayouts(
   )!;
 }
 
+export async function populateIssuePositions(
+  projectId: string,
+  userId: string,
+  nodeId: string
+): Promise<Project> {
+  return normalizeProject(
+    await request(
+      `/projects/${projectId}/graph/nodes/${nodeId}/populate?user_id=${encodeURIComponent(userId)}`,
+      { method: "POST" }
+    )
+  )!;
+}
+
 export async function deleteGraphNode(projectId: string, userId: string, nodeId: string): Promise<Project> {
   return normalizeProject(
     await request(`/projects/${projectId}/graph/nodes/${nodeId}?user_id=${encodeURIComponent(userId)}`, {
