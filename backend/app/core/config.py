@@ -4,24 +4,20 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_name: str = "BrandVideo API"
-    api_prefix: str = "/api"
-    cors_origins: str = (
-        "http://localhost:3000,"
-        "http://127.0.0.1:3000,"
-        "http://localhost:3001,"
-        "http://127.0.0.1:3001"
-    )
-    mongodb_url: str = "mongodb://localhost:27017"
-    mongodb_db: str = "brandvideo"
-    redis_url: str = "redis://localhost:6379/0"
+    """Runtime values are defined in `.env` (see `.env.example`)."""
+
+    app_name: str
+    api_prefix: str
+    cors_origins: str
+    mongodb_url: str
+    mongodb_db: str
+    redis_url: str
     siliconflow_api_key: str = ""
-    siliconflow_base_url: str = "https://api.siliconflow.cn/v1"
-    siliconflow_default_model: str = "Qwen/Qwen3-8B"
-    siliconflow_advanced_model: str = "Qwen/Qwen3-32B"
-    # SiliconFlow: 32B + thinking can exceed 60s; keep margins for multi-agent pipelines.
-    siliconflow_request_timeout_seconds: float = 300.0
-    siliconflow_stream_timeout_seconds: float = 600.0
+    siliconflow_base_url: str
+    siliconflow_default_model: str
+    siliconflow_advanced_model: str
+    siliconflow_request_timeout_seconds: float
+    siliconflow_stream_timeout_seconds: float
     tavily_api_key: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
@@ -34,4 +30,3 @@ def get_settings() -> Settings:
 
 def get_cors_origins(settings: Settings) -> list[str]:
     return [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
-
