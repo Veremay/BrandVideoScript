@@ -197,50 +197,65 @@ async def run_expert_for_brief(
     await domain_case_retriever(topic=context.get("brief_summary", ""), mock=True)
     kb = await script_structure_kb(query="brief_initial", mock=True)
 
-    brand_issue_ids = [
-        n["node_id"] for n in brand_result.get("proposed_nodes", []) if n.get("node_type") == "issue"
+    brand_position_ids = [
+        n["node_id"] for n in brand_result.get("proposed_nodes", []) if n.get("node_type") == "position"
     ]
-    log_step("expert_agent.brief_initial", phase="IN", project_id=project_id, brand_issue_ids=brand_issue_ids)
+    log_step(
+        "expert_agent.brief_initial",
+        phase="IN",
+        project_id=project_id,
+        brand_position_ids=brand_position_ids,
+    )
     context_block = "\n\n".join(
         [
-            f"## 场景\nbrief_initial — 为 Brand issue 补 position/argument",
+            f"## 场景\nbrief_initial — 在品牌 position 与创作立场之间识别冲突，派生 issue",
             f"## Brief 摘要\n{context.get('brief_summary', '')}",
             f"## Brand 结构化结果\n{perspective_result_json(brand_result)}",
-            f"## 本轮 Brand issue node_id\n{brand_issue_ids}",
+            f"## 本轮 Brand position node_id\n{brand_position_ids}",
             f"## 知识库结构建议\n{kb.get('patterns', [])}",
             f"## 已有节点\n{existing_nodes_summary(project)}",
         ]
     )
 
     def mock() -> dict[str, Any]:
-        external = [
-            {"from_index": 0, "to_node_id": nid, "relation_type": "responds_to"} for nid in brand_issue_ids[:1]
-        ]
+        ibis: dict[str, Any] = {
+            "nodes": [
+                {
+                    "node_type": "position",
+                    "title": "创作自然性优先",
+                    "content": "在满足 Brief 的同时保留叙事节奏，弱化硬广。",
+                    "source_type": "expert_strategy",
+                    "source_perspective": "expert",
+                }
+            ],
+            "edges": [],
+            "external_edges": [],
+        }
+        # ≥2 conflicting positions (brand vs expert) derive a conflict issue.
+        if brand_position_ids:
+            brand_pos = brand_position_ids[0]
+            ibis["nodes"].append(
+                {
+                    "node_type": "issue",
+                    "title": "品牌露出强度 vs 内容自然性",
+                    "content": "品牌诉求与创作自然性立场冲突，待权衡。",
+                    "source_type": "expert_strategy",
+                    "source_perspective": "expert",
+                }
+            )
+            ibis["edges"].append({"from_index": 0, "to_index": 1, "relation_type": "responds_to"})
+            ibis["external_edges"].extend(
+                [
+                    {"from_node_id": brand_pos, "to_index": 1, "relation_type": "responds_to"},
+                    {"from_node_id": brand_pos, "to_index": 0, "relation_type": "conflicts_with"},
+                ]
+            )
         return {
             "brief_impact_summary": "Brief 约束需在脚本中对齐",
             "creation_constraints": brand_result.get("constraints") or [],
             "strategy_notes": kb.get("patterns", []),
             "recommended_directions": ["balanced", "creator_led"],
-            "ibis": {
-                "nodes": [
-                    {
-                        "node_type": "position",
-                        "title": "品牌合规立场",
-                        "content": "满足 Brief 同时保留创作者表达空间。",
-                        "source_type": "expert_strategy",
-                        "source_perspective": "expert",
-                    },
-                    {
-                        "node_type": "argument",
-                        "title": "结构建议",
-                        "content": "；".join(kb.get("patterns", [])[:2]) or "节奏先松后紧",
-                        "source_type": "expert_strategy",
-                        "source_perspective": "expert",
-                    },
-                ],
-                "edges": [{"from_index": 1, "to_index": 0, "relation_type": "supports"}],
-                "external_edges": external,
-            },
+            "ibis": ibis,
         }
 
     payload = await invoke_agent_json(
@@ -254,7 +269,6 @@ async def run_expert_for_brief(
         payload.get("ibis"),
         script_version_id=script_version_id,
         allowed_source_types=EXPERT_SOURCES,
-        parent_issue_ids=brand_issue_ids,
     )
 
     result = {
@@ -288,43 +302,82 @@ async def run_expert_for_audience(
     project_id = str(context.get("project_id") or project.get("_id") or "")
     script_version_id = context.get("current_script_version_id")
 
-    audience_issue_ids = [
-        n["node_id"] for n in audience_result.get("proposed_nodes", []) if n.get("node_type") == "issue"
+    audience_position_ids = [
+        n["node_id"] for n in audience_result.get("proposed_nodes", []) if n.get("node_type") == "position"
+    ]
+    existing_position_ids = [
+        str(n.get("node_id"))
+        for n in project.get("rationale_nodes", [])
+        if n.get("node_type") == "position" and n.get("node_id")
     ]
     log_step(
         "expert_agent.audience_persona",
         phase="IN",
         project_id=project_id,
-        audience_issue_ids=audience_issue_ids,
+        audience_position_ids=audience_position_ids,
     )
     context_block = "\n\n".join(
         [
-            f"## 场景\naudience_persona — 为 Audience issue 补 position/argument",
+            f"## 场景\naudience_persona — 在观众 position 与其它立场之间识别冲突，派生 issue",
             f"## Audience 结构化结果\n{perspective_result_json(audience_result)}",
-            f"## 本轮 Audience issue node_id\n{audience_issue_ids}",
+            f"## 本轮 Audience position node_id\n{audience_position_ids}",
             f"## 已有节点\n{existing_nodes_summary(project)}",
         ]
     )
 
     def mock() -> dict[str, Any]:
-        external = [
-            {"from_index": 0, "to_node_id": nid, "relation_type": "responds_to"} for nid in audience_issue_ids[:1]
-        ]
-        return {
-            "strategy_notes": audience_result.get("suggestions") or [],
-            "recommended_directions": ["audience_friendly"],
-            "ibis": {
-                "nodes": [
+        ibis: dict[str, Any] = {"nodes": [], "edges": [], "external_edges": []}
+        # Prefer an audience-vs-existing conflict; otherwise add an expert position to conflict with.
+        counter_position_id = existing_position_ids[0] if existing_position_ids else None
+        if audience_position_ids:
+            audience_pos = audience_position_ids[0]
+            if counter_position_id is None:
+                ibis["nodes"].append(
                     {
                         "node_type": "position",
-                        "title": "观众友好表达",
-                        "content": (audience_result.get("suggestions") or ["降低广告感"])[0],
+                        "title": "品牌露出优先",
+                        "content": "确保品牌核心信息清晰呈现。",
                         "source_type": "expert_strategy",
                         "source_perspective": "expert",
                     }
-                ],
-                "external_edges": external,
-            },
+                )
+                ibis["nodes"].append(
+                    {
+                        "node_type": "issue",
+                        "title": "广告感 vs 品牌露出",
+                        "content": "观众友好立场与品牌露出立场冲突。",
+                        "source_type": "expert_strategy",
+                        "source_perspective": "expert",
+                    }
+                )
+                ibis["edges"].append({"from_index": 0, "to_index": 1, "relation_type": "responds_to"})
+                ibis["external_edges"].extend(
+                    [
+                        {"from_node_id": audience_pos, "to_index": 1, "relation_type": "responds_to"},
+                        {"from_node_id": audience_pos, "to_index": 0, "relation_type": "conflicts_with"},
+                    ]
+                )
+            else:
+                ibis["nodes"].append(
+                    {
+                        "node_type": "issue",
+                        "title": "广告感 vs 品牌露出",
+                        "content": "观众友好立场与已有立场冲突。",
+                        "source_type": "expert_strategy",
+                        "source_perspective": "expert",
+                    }
+                )
+                ibis["external_edges"].extend(
+                    [
+                        {"from_node_id": audience_pos, "to_index": 0, "relation_type": "responds_to"},
+                        {"from_node_id": counter_position_id, "to_index": 0, "relation_type": "responds_to"},
+                        {"from_node_id": audience_pos, "to_node_id": counter_position_id, "relation_type": "conflicts_with"},
+                    ]
+                )
+        return {
+            "strategy_notes": audience_result.get("suggestions") or [],
+            "recommended_directions": ["audience_friendly"],
+            "ibis": ibis,
         }
 
     payload = await invoke_agent_json(
@@ -338,7 +391,6 @@ async def run_expert_for_audience(
         payload.get("ibis"),
         script_version_id=script_version_id,
         allowed_source_types=EXPERT_SOURCES,
-        parent_issue_ids=audience_issue_ids,
     )
 
     result = {
@@ -384,12 +436,19 @@ async def run_expert_coordinator(
             if q.get("row_id"):
                 row_ids.add(str(q["row_id"]))
 
-    new_issue_ids = []
+    new_position_ids: list[str] = []
     for result in (brand_result, audience_result):
         if result:
-            new_issue_ids.extend(
-                n["node_id"] for n in result.get("proposed_nodes", []) if n.get("node_type") == "issue"
+            new_position_ids.extend(
+                n["node_id"] for n in result.get("proposed_nodes", []) if n.get("node_type") == "position"
             )
+    existing_position_ids = [
+        str(n.get("node_id"))
+        for n in project.get("rationale_nodes", [])
+        if n.get("node_type") == "position" and n.get("node_id")
+    ]
+    # Positions available for conflict detection: this round's first, then prior graph.
+    candidate_position_ids = list(dict.fromkeys([*new_position_ids, *existing_position_ids]))
 
     log_step(
         "expert_agent.coordinator",
@@ -397,67 +456,91 @@ async def run_expert_coordinator(
         project_id=project_id,
         expert_only=expert_only,
         user_message=user_message,
-        new_issue_ids=new_issue_ids,
+        candidate_position_ids=candidate_position_ids,
     )
     context_block = "\n\n".join(
         [
-            f"## 场景\ncoordinator — {'Expert 单独分析' if expert_only else '综合 Expert 补图'}",
+            f"## 场景\ncoordinator — {'Expert 单独分析' if expert_only else '综合各方 position 识别冲突'}",
             f"## 用户问题\n{user_message or ''}",
             f"## Quotes\n{format_quotes(quotes)}",
             f"## 脚本变动/选段\n{script_excerpt_for_rows(project, row_ids) if row_ids else context.get('script_excerpt', '')}",
             f"## Brand 结果摘要\n{json.dumps(brand_result, ensure_ascii=False)[:800] if brand_result else '无'}",
             f"## Audience 结果摘要\n{json.dumps(audience_result, ensure_ascii=False)[:800] if audience_result else '无'}",
-            f"## 本轮新 issue ids\n{new_issue_ids}",
+            f"## 可用于冲突判定的 position ids\n{candidate_position_ids}",
             f"## 已有节点\n{existing_nodes_summary(project)}",
         ]
     )
 
     def mock() -> dict[str, Any]:
         question = user_message or "脚本分析"
-        if expert_only and not new_issue_ids:
-            return {
-                "assistant_reply": f"已分析：{question[:80]}。请查看 Node Graph。",
-                "strategy_notes": ["尊重创作者主导权"],
-                "recommended_directions": ["balanced"],
-                "ibis": {
-                    "nodes": [
-                        {
-                            "node_type": "issue",
-                            "title": f"关于「{question[:40]}」的策略分歧",
-                            "content": question[:200],
-                            "source_type": "expert_strategy",
-                            "source_perspective": "expert",
-                        },
-                        {
-                            "node_type": "position",
-                            "title": "平衡创作者与品牌/观众",
-                            "content": "在冲突点上给出可执行的折中方向。",
-                            "source_type": "expert_strategy",
-                            "source_perspective": "expert",
-                        },
-                    ],
-                    "edges": [{"from_index": 1, "to_index": 0, "relation_type": "responds_to"}],
-                },
-            }
-        external = [
-            {"from_index": 0, "to_node_id": nid, "relation_type": "responds_to"} for nid in new_issue_ids[:1]
-        ]
-        return {
-            "assistant_reply": f"已综合 Expert 视角：{question[:80]}。请查看 Node Graph。",
-            "strategy_notes": ["尊重创作者主导权"],
-            "recommended_directions": ["balanced"],
-            "ibis": {
-                "nodes": [
+        reply = (
+            f"已分析：{question[:80]}。请查看 Node Graph。"
+            if expert_only
+            else f"已综合 Expert 视角：{question[:80]}。请查看 Node Graph。"
+        )
+        ibis: dict[str, Any] = {"nodes": [], "edges": [], "external_edges": []}
+        if len(candidate_position_ids) >= 2:
+            # Two existing positions conflict -> derive a conflict issue.
+            pos_a, pos_b = candidate_position_ids[0], candidate_position_ids[1]
+            ibis["nodes"].append(
+                {
+                    "node_type": "issue",
+                    "title": f"关于「{question[:32]}」的立场冲突",
+                    "content": question[:200] or "不同视角立场冲突。",
+                    "source_type": "expert_strategy",
+                    "source_perspective": "expert",
+                }
+            )
+            ibis["external_edges"].extend(
+                [
+                    {"from_node_id": pos_a, "to_index": 0, "relation_type": "responds_to"},
+                    {"from_node_id": pos_b, "to_index": 0, "relation_type": "responds_to"},
+                    {"from_node_id": pos_a, "to_node_id": pos_b, "relation_type": "conflicts_with"},
+                ]
+            )
+        elif len(candidate_position_ids) == 1:
+            # Only one stance so far: add an expert counter-position and form the conflict.
+            ibis["nodes"].extend(
+                [
                     {
                         "node_type": "position",
                         "title": "平衡创作者与品牌/观众",
                         "content": "在冲突点上给出可执行的折中方向。",
                         "source_type": "expert_strategy",
                         "source_perspective": "expert",
-                    }
-                ],
-                "external_edges": external,
-            },
+                    },
+                    {
+                        "node_type": "issue",
+                        "title": f"关于「{question[:32]}」的立场冲突",
+                        "content": question[:200] or "不同视角立场冲突。",
+                        "source_type": "expert_strategy",
+                        "source_perspective": "expert",
+                    },
+                ]
+            )
+            ibis["edges"].append({"from_index": 0, "to_index": 1, "relation_type": "responds_to"})
+            ibis["external_edges"].extend(
+                [
+                    {"from_node_id": candidate_position_ids[0], "to_index": 1, "relation_type": "responds_to"},
+                    {"from_node_id": candidate_position_ids[0], "to_index": 0, "relation_type": "conflicts_with"},
+                ]
+            )
+        else:
+            # No positions anywhere: contribute a standalone expert position (a root).
+            ibis["nodes"].append(
+                {
+                    "node_type": "position",
+                    "title": "平衡创作者与品牌/观众",
+                    "content": "在冲突点上给出可执行的折中方向。",
+                    "source_type": "expert_strategy",
+                    "source_perspective": "expert",
+                }
+            )
+        return {
+            "assistant_reply": reply,
+            "strategy_notes": ["尊重创作者主导权"],
+            "recommended_directions": ["balanced"],
+            "ibis": ibis,
         }
 
     payload = await invoke_agent_json(
@@ -466,24 +549,11 @@ async def run_expert_coordinator(
         task_type="expert_generate_suggestions",
         mock_payload=mock,
     )
-    coordinator_issue_ids = list(
-        dict.fromkeys(
-            [
-                *new_issue_ids,
-                *[
-                    str(n.get("node_id"))
-                    for n in project.get("rationale_nodes", [])
-                    if n.get("node_type") == "issue" and n.get("node_id")
-                ],
-            ]
-        )
-    )
     graph = persist_rationale_graph(
         project_id,
         payload.get("ibis"),
         script_version_id=script_version_id,
         allowed_source_types=EXPERT_SOURCES,
-        parent_issue_ids=coordinator_issue_ids,
     )
 
     result = {
@@ -501,6 +571,101 @@ async def run_expert_coordinator(
         project_id=project_id,
         proposed_nodes=len(result["proposed_nodes"]),
         assistant_reply=result["assistant_reply"][:500],
+    )
+    return result
+
+
+async def run_expert_populate_issue(
+    project: dict[str, Any],
+    issue: dict[str, Any],
+) -> dict[str, Any]:
+    """Organize ≥2 conflicting Positions around a user-created Issue.
+
+    Bottom-up IBIS treats an Issue as a conflict, so when a creator drops an Issue
+    on the canvas the Expert fills in the opposing stances that make the conflict
+    concrete (responds_to the issue + conflicts_with each other).
+    """
+    context = build_agent_context("expert", project)
+    assert_context_isolation("expert", context)
+
+    project_id = str(context.get("project_id") or project.get("_id") or "")
+    script_version_id = context.get("current_script_version_id")
+    issue_id = str(issue.get("node_id") or "")
+    issue_title = str(issue.get("title") or "")
+    issue_content = str(issue.get("content") or "")
+
+    log_step(
+        "expert_agent.populate_issue",
+        phase="IN",
+        project_id=project_id,
+        issue_id=issue_id,
+        issue_title=issue_title,
+    )
+    context_block = "\n\n".join(
+        [
+            "## 场景\npopulate_issue — 为用户创建的 issue 组织 ≥2 个相互冲突的 position",
+            f"## 目标 Issue\nid={issue_id}\n标题：{issue_title}\n内容：{issue_content}",
+            f"## 脚本摘要\n{context.get('script_excerpt', '')}",
+            f"## 已有节点\n{existing_nodes_summary(project)}",
+            "## 要求\n输出至少 2 个相互对立的 position：用 external_edges 将每个 position（from_index）"
+            f"以 responds_to 连到该 issue（to_node_id={issue_id}），并在两个 position 间补 conflicts_with。",
+        ]
+    )
+
+    def mock() -> dict[str, Any]:
+        label = issue_title[:30] or "该议题"
+        return {
+            "assistant_reply": f"已围绕「{label}」组织对立立场，请查看 Node Graph。",
+            "ibis": {
+                "nodes": [
+                    {
+                        "node_type": "position",
+                        "title": "偏品牌 / 保守立场",
+                        "content": f"针对「{label}」更偏向满足品牌诉求与露出。",
+                        "source_type": "expert_strategy",
+                        "source_perspective": "expert",
+                    },
+                    {
+                        "node_type": "position",
+                        "title": "偏创作 / 观众立场",
+                        "content": f"针对「{label}」更偏向创作自然性与观众体验。",
+                        "source_type": "expert_strategy",
+                        "source_perspective": "expert",
+                    },
+                ],
+                "edges": [{"from_index": 0, "to_index": 1, "relation_type": "conflicts_with"}],
+                "external_edges": [
+                    {"from_index": 0, "to_node_id": issue_id, "relation_type": "responds_to"},
+                    {"from_index": 1, "to_node_id": issue_id, "relation_type": "responds_to"},
+                ],
+            },
+        }
+
+    payload = await invoke_agent_json(
+        agent_prompt_file="expert_agent.md",
+        context=context_block,
+        task_type="expert_generate_suggestions",
+        mock_payload=mock,
+    )
+    graph = persist_rationale_graph(
+        project_id,
+        payload.get("ibis"),
+        script_version_id=script_version_id,
+        allowed_source_types=EXPERT_SOURCES,
+    )
+
+    result = {
+        "assistant_reply": payload.get("assistant_reply", ""),
+        "proposed_nodes": graph.proposed_nodes,
+        "proposed_edges": graph.proposed_edges,
+        "node_updates": graph.node_updates,
+        "tool_calls_used": ["persist_rationale_graph"],
+    }
+    log_step(
+        "expert_agent.populate_issue",
+        phase="OUT",
+        project_id=project_id,
+        proposed_nodes=len(result["proposed_nodes"]),
     )
     return result
 

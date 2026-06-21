@@ -200,6 +200,12 @@ MVP 文件类型：`.md`、`.txt`、纯文本粘贴。PDF/DOC/PPT 等见 `develo
 
 ### 6. RationaleNode（IBIS）
 
+> **生成原则（自下而上 · 冲突驱动）：** 论证网络以 **Position 为基本单元**，先有各方立场；当 **≥2 个 Position 相互冲突**时才**派生** Issue。**Issue 不能单独存在——Issue 即冲突**，必须由 ≥2 个 Position 通过 `responds_to` 指向，并建议在冲突 Position 间建立 `conflicts_with`。Position 可作为根节点独立存在（暂无冲突）；Argument 必须 `supports`/`opposes` 某 Position。服务端在合并时对不满足 ≥2 Position 的 **agent 生成 Issue 直接报错**（`validate_ibis_graph_integrity`），而非静默丢弃。
+>
+> **Agent 分工：** Brand / Audience **只产 Position**；Expert 负责在各方 Position 间识别冲突并派生 Issue（连 `responds_to` + `conflicts_with`）。
+>
+> **用户手建 Issue：** 创作者在画布上新建 Issue 时，系统自动触发 Expert **围绕该 Issue 组织 ≥2 个对立 Position**（`responds_to` + `conflicts_with`）并刷新地图（`populate_issue_with_positions`）。用户 Issue 在补全前不会因「孤立」而报错。
+
 ```json
 {
   "node_id": "string",
@@ -263,16 +269,16 @@ MVP 文件类型：`.md`、`.txt`、纯文本粘贴。PDF/DOC/PPT 等见 `develo
 }
 ```
 
-| relation_type | 典型方向 |
-|---------------|----------|
-| responds_to | Position → Issue |
-| supports | Argument → Position |
-| opposes | Argument → Position |
-| evidenced_by | Argument → Reference |
-| derived_from | Issue / Argument → Reference |
-| refines | Issue → Issue |
-| conflicts_with | Position → Position |
-| updates | Node → Node |
+| relation_type | 典型方向 | 说明 |
+|---------------|----------|------|
+| responds_to | Position → Issue | 立场归属于某冲突（Issue 需 ≥2 条） |
+| conflicts_with | Position ↔ Position | **两立场冲突**，是 Issue 派生的依据 |
+| supports | Argument → Position | |
+| opposes | Argument → Position | |
+| evidenced_by | Argument → Reference | |
+| derived_from | Issue / Argument → Reference | |
+| refines | Issue → Issue | |
+| updates | Node → Node | |
 
 ---
 

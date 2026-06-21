@@ -684,6 +684,81 @@ textarea {
   color: #ba1a1a;
 }
 
+.figma-settings-menu-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 8px 4px;
+}
+
+.figma-settings-menu-label {
+  color: var(--figma-text-secondary);
+  font-family: Inter, Arial, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.figma-mode-switch {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.figma-mode-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--figma-border);
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.figma-mode-option:hover {
+  background: rgba(0, 101, 145, 0.06);
+}
+
+.figma-mode-option.active {
+  border-color: rgba(0, 101, 145, 0.9);
+  background: rgba(0, 101, 145, 0.1);
+}
+
+.figma-mode-option-title {
+  color: var(--figma-text);
+  font-family: Inter, Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 16px;
+}
+
+.figma-mode-option-desc {
+  color: var(--figma-text-secondary);
+  font-family: Inter, Arial, sans-serif;
+  font-size: 11px;
+  line-height: 14px;
+}
+
+.figma-settings-menu-divider {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--figma-border);
+}
+
+.figma-mode-badge {
+  padding: 4px 10px;
+  border: 1px solid rgba(0, 101, 145, 0.4);
+  border-radius: 8px;
+  background: rgba(0, 101, 145, 0.08);
+  color: #006591;
+  font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .figma-brief-tag {
   max-width: 120px;
   overflow: hidden;

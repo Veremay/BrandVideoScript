@@ -10,19 +10,28 @@ import { useAppStore } from "@/store/appStore";
 
 type AssistantTab = "chat" | "plans";
 
-const WELCOME: CoordinatorMessage = {
+const WELCOME_BASE = {
   message_id: "welcome",
   project_id: "",
   user_id: "",
-  role: "assistant",
-  content:
-    "Hi, I'm the Coordinator. Quote script to analyze nodes, or ask me to「生成多方向修改方案」— Expert will add script revision options (not nodes) to Revision Proposals for preview and partial apply.",
-  task_type: "user_message",
-  requested_perspectives: ["comprehensive"],
+  role: "assistant" as const,
+  task_type: "user_message" as const,
+  requested_perspectives: ["comprehensive" as const],
   quotes: [],
   related_node_ids: [],
   generated_artifact_ids: [],
   created_at: new Date().toISOString()
+};
+
+const WELCOME_FULL: CoordinatorMessage = {
+  ...WELCOME_BASE,
+  content:
+    "Hi, I'm the Coordinator. Quote script to analyze nodes, or ask me to「生成多方向修改方案」— Expert will add script revision options (not nodes) to Revision Proposals for preview and partial apply."
+};
+
+const WELCOME_VANILLA: CoordinatorMessage = {
+  ...WELCOME_BASE,
+  content: "你好，我是 AI 写作助手。直接告诉我你的视频脚本想法或问题，我会帮你构思、撰写和打磨。"
 };
 
 type CoordinatorChatProps = {
@@ -36,6 +45,7 @@ type CoordinatorChatProps = {
   projectId?: string;
   userId?: string;
   scriptVersionId?: string | null;
+  mode?: "full" | "vanilla";
 };
 
 export function CoordinatorChat({
@@ -48,11 +58,14 @@ export function CoordinatorChat({
   selectedColumnId,
   projectId,
   userId,
-  scriptVersionId
+  scriptVersionId,
+  mode = "full"
 }: CoordinatorChatProps) {
+  const isVanilla = mode === "vanilla";
+  const welcome = isVanilla ? WELCOME_VANILLA : WELCOME_FULL;
   const setProject = useAppStore((state) => state.setProject);
   const [tab, setTab] = useState<AssistantTab>("chat");
-  const [messages, setMessages] = useState<CoordinatorMessage[]>([WELCOME]);
+  const [messages, setMessages] = useState<CoordinatorMessage[]>([welcome]);
   const [draft, setDraft] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
@@ -67,13 +80,13 @@ export function CoordinatorChat({
     fetchCoordinatorMessages(projectId, userId)
       .then((loaded) => {
         if (loaded.length === 0) {
-          setMessages([WELCOME]);
+          setMessages([welcome]);
           return;
         }
         setMessages(loaded);
       })
-      .catch(() => setMessages([WELCOME]));
-  }, [open, projectId, userId]);
+      .catch(() => setMessages([welcome]));
+  }, [open, projectId, userId, welcome]);
 
   useEffect(() => {
     threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: "smooth" });
@@ -97,7 +110,7 @@ export function CoordinatorChat({
           ]
         : [];
 
-    const taskType = resolveCoordinatorTaskType(text, { hasQuotes: quotes.length > 0 });
+    const taskType = isVanilla ? "user_message" : resolveCoordinatorTaskType(text, { hasQuotes: quotes.length > 0 });
 
     const userMessage: CoordinatorMessage = {
       message_id: `local-user-${Date.now()}`,
@@ -142,7 +155,8 @@ export function CoordinatorChat({
           task_type: taskType,
           requested_perspectives: ["comprehensive"],
           quotes,
-          changed_row_ids: selectedRowId ? [selectedRowId] : []
+          changed_row_ids: selectedRowId ? [selectedRowId] : [],
+          mode
         },
         (event) => {
           if (event.type === "token") {
@@ -242,7 +256,7 @@ export function CoordinatorChat({
               <span className="glacier-icon-badge" aria-hidden="true">
                 <IconLightning />
               </span>
-              <span className="glacier-title">Coordinator Agent</span>
+              <span className="glacier-title">{isVanilla ? "AI Assistant" : "Coordinator Agent"}</span>
             </div>
             <button className="glacier-close" onClick={onClose} type="button" aria-label="Close">
               <IconClose />
@@ -335,7 +349,7 @@ export function CoordinatorChat({
           <div className="glacier-input-wrap">
             <textarea
               className="glacier-input"
-              placeholder="Ask Coordinator…"
+              placeholder={isVanilla ? "Ask the assistant…" : "Ask Coordinator…"}
               rows={1}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}

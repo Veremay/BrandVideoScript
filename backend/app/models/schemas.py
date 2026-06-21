@@ -275,6 +275,8 @@ class CoordinatorStreamRequest(BaseModel):
     quotes: list[CoordinatorQuote] = Field(default_factory=list)
     target_node_ids: list[str] = Field(default_factory=list)
     changed_row_ids: list[str] = Field(default_factory=list)
+    # "full": multi-agent IBIS pipeline. "vanilla": single LLM with a system prompt only.
+    mode: Literal["full", "vanilla"] = "full"
 
 
 class CoordinatorMessageResponse(BaseModel):

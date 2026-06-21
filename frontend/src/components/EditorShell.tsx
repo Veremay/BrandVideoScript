@@ -10,7 +10,7 @@ import { RequirementsPanel } from "@/components/RequirementsPanel";
 import { ScriptGrid } from "@/components/ScriptGrid";
 import { ScriptSnapshotsPanel } from "@/components/ScriptSnapshotsPanel";
 import { staleSummary } from "@/lib/stale";
-import { createShareLink, fetchProjectGraph, parseBrief, saveBrief, saveScript } from "@/lib/api";
+import { createShareLink, fetchProjectGraph, saveBrief, saveScript } from "@/lib/api";
 import { useAppStore } from "@/store/appStore";
 
 const MapView = dynamic(() => import("@/components/MapView").then((mod) => mod.MapView), {
@@ -22,10 +22,12 @@ const SAVE_DELAY_MS = 700;
 
 export function EditorShell() {
   const {
+    appMode,
     editor,
     layout,
     project,
     script,
+    setAppMode,
     setCoordinatorChatOpen,
     setProject,
     setSaveStatus,
@@ -35,11 +37,12 @@ export function EditorShell() {
     setRequirementsPanelOpen,
     setWorkspaceView
   } = useAppStore();
+  const isVanilla = appMode === "vanilla";
   const hasHydrated = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [parsingBrief, setParsingBrief] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
-  const activeView = layout.workspaceView;
+  const activeView = isVanilla ? "editor" : layout.workspaceView;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [snapshotsOpen, setSnapshotsOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
@@ -137,13 +140,11 @@ export function EditorShell() {
     if (!project) return;
     setParsingBrief(true);
     try {
+      // Upload only; requirements are parsed manually from the Requirements panel.
       const savedProject = await saveBrief(project._id, project.user_id, text, filename);
       setProject(savedProject);
-      setCoordinatorChatOpen(true);
-      const parsed = await parseBrief(savedProject._id, savedProject.user_id);
-      setProject(parsed.project);
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Brief parse failed");
+      window.alert(error instanceof Error ? error.message : "Brief upload failed");
     } finally {
       setParsingBrief(false);
     }
@@ -192,51 +193,59 @@ export function EditorShell() {
               Back
             </button>
             <span className="figma-brand-logo">BrandVideo</span>
-            <div className="figma-view-toggle" role="tablist" aria-label="Switch view">
-              <button
-                className={`figma-view-tab ${activeView === "editor" ? "active" : ""}`}
-                onClick={() => setWorkspaceView("editor")}
-                type="button"
-                aria-selected={activeView === "editor"}
-              >
-                <IconEditorList />
-                Editor
-              </button>
-              <button
-                className={`figma-view-tab ${activeView === "map" ? "active" : ""}`}
-                onClick={() => setWorkspaceView("map")}
-                type="button"
-                aria-selected={activeView === "map"}
-              >
-                <IconMap />
-                Map
-              </button>
-            </div>
+            {isVanilla ? (
+              <span className="figma-mode-badge">Vanilla LLM</span>
+            ) : (
+              <div className="figma-view-toggle" role="tablist" aria-label="Switch view">
+                <button
+                  className={`figma-view-tab ${activeView === "editor" ? "active" : ""}`}
+                  onClick={() => setWorkspaceView("editor")}
+                  type="button"
+                  aria-selected={activeView === "editor"}
+                >
+                  <IconEditorList />
+                  Editor
+                </button>
+                <button
+                  className={`figma-view-tab ${activeView === "map" ? "active" : ""}`}
+                  onClick={() => setWorkspaceView("map")}
+                  type="button"
+                  aria-selected={activeView === "map"}
+                >
+                  <IconMap />
+                  Map
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="figma-topnav-right">
-            <input ref={fileInputRef} accept=".md,.txt,text/markdown,text/plain" hidden onChange={handleBriefFile} type="file" />
-            <button
-              className="figma-nav-btn figma-nav-outline"
-              disabled={parsingBrief}
-              onClick={() => fileInputRef.current?.click()}
-              type="button"
-            >
-              <IconUpload />
-              {parsingBrief ? "Parsing…" : "Upload Brief"}
-            </button>
-            {project.brief.filename ? <span className="figma-brief-tag">{project.brief.filename}</span> : null}
-            {project.brief.parse_status ? (
-              <span className="figma-brief-tag figma-brief-tag--status">{project.brief.parse_status}</span>
-            ) : null}
-            <button className="figma-nav-btn figma-nav-outline" onClick={handleRequirementsClick} type="button">
-              <IconRequirements />
-              Requirements
-            </button>
-            <button className="figma-nav-btn figma-nav-outline" onClick={handlePersonasClick} type="button">
-              <IconPersonas />
-              Personas
-            </button>
+            {isVanilla ? null : (
+              <>
+                <input ref={fileInputRef} accept=".md,.txt,text/markdown,text/plain" hidden onChange={handleBriefFile} type="file" />
+                <button
+                  className="figma-nav-btn figma-nav-outline"
+                  disabled={parsingBrief}
+                  onClick={() => fileInputRef.current?.click()}
+                  type="button"
+                >
+                  <IconUpload />
+                  {parsingBrief ? "Uploading…" : "Upload Brief"}
+                </button>
+                {project.brief.filename ? <span className="figma-brief-tag">{project.brief.filename}</span> : null}
+                {project.brief.parse_status ? (
+                  <span className="figma-brief-tag figma-brief-tag--status">{project.brief.parse_status}</span>
+                ) : null}
+                <button className="figma-nav-btn figma-nav-outline" onClick={handleRequirementsClick} type="button">
+                  <IconRequirements />
+                  Requirements
+                </button>
+                <button className="figma-nav-btn figma-nav-outline" onClick={handlePersonasClick} type="button">
+                  <IconPersonas />
+                  Personas
+                </button>
+              </>
+            )}
             <div className="figma-settings-wrap" ref={settingsRef}>
               <button
                 aria-expanded={settingsOpen}
@@ -250,6 +259,32 @@ export function EditorShell() {
               </button>
               {settingsOpen ? (
                 <div className="figma-settings-menu" role="menu">
+                  <div className="figma-settings-menu-section">
+                    <span className="figma-settings-menu-label">Mode</span>
+                    <div className="figma-mode-switch" role="radiogroup" aria-label="Workspace mode">
+                      <button
+                        className={`figma-mode-option ${isVanilla ? "active" : ""}`}
+                        onClick={() => setAppMode("vanilla")}
+                        role="radio"
+                        aria-checked={isVanilla}
+                        type="button"
+                      >
+                        <span className="figma-mode-option-title">Vanilla LLM</span>
+                        <span className="figma-mode-option-desc">Chatbot only</span>
+                      </button>
+                      <button
+                        className={`figma-mode-option ${!isVanilla ? "active" : ""}`}
+                        onClick={() => setAppMode("full")}
+                        role="radio"
+                        aria-checked={!isVanilla}
+                        type="button"
+                      >
+                        <span className="figma-mode-option-title">Full Workspace</span>
+                        <span className="figma-mode-option-desc">No chatbot</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div className="figma-settings-menu-divider" />
                   <button className="figma-settings-menu-item" onClick={openVersionHistory} role="menuitem" type="button">
                     Version History
                   </button>
@@ -290,31 +325,39 @@ export function EditorShell() {
           )}
         </section>
 
-        <button
-          className={`figma-fab ${coordinatorOpen ? "figma-fab--open" : ""}`}
-          onClick={handleFabClick}
-          type="button"
-          aria-label={coordinatorOpen ? "Close Coordinator Chat" : "Open Coordinator Chat"}
-          aria-expanded={coordinatorOpen}
-        >
-          <IconLightning />
-        </button>
+        {isVanilla ? (
+          <>
+            <button
+              className={`figma-fab ${coordinatorOpen ? "figma-fab--open" : ""}`}
+              onClick={handleFabClick}
+              type="button"
+              aria-label={coordinatorOpen ? "Close Coordinator Chat" : "Open Coordinator Chat"}
+              aria-expanded={coordinatorOpen}
+            >
+              <IconLightning />
+            </button>
 
-        <CoordinatorChat
-          open={coordinatorOpen}
-          onClose={() => setCoordinatorChatOpen(false)}
-          onClearQuote={() => setSelection(undefined)}
-          selectedText={editor.selectedText}
-          selectedRowId={editor.selectedRowId}
-          selectedColumnId={editor.selectedColumnId}
-          projectId={project._id}
-          userId={project.user_id}
-          scriptVersionId={project.current_script_version_id}
-          userInitial={project.title.slice(0, 1).toUpperCase()}
-        />
+            <CoordinatorChat
+              open={coordinatorOpen}
+              onClose={() => setCoordinatorChatOpen(false)}
+              onClearQuote={() => setSelection(undefined)}
+              selectedText={editor.selectedText}
+              selectedRowId={editor.selectedRowId}
+              selectedColumnId={editor.selectedColumnId}
+              projectId={project._id}
+              userId={project.user_id}
+              scriptVersionId={project.current_script_version_id}
+              userInitial={project.title.slice(0, 1).toUpperCase()}
+              mode={appMode}
+            />
+          </>
+        ) : (
+          <>
+            <RequirementsPanel onClose={() => setRequirementsPanelOpen(false)} open={layout.requirementsPanelOpen} />
+            <PersonaPanel onClose={() => setPersonaPanelOpen(false)} open={layout.personaPanelOpen} />
+          </>
+        )}
 
-        <RequirementsPanel onClose={() => setRequirementsPanelOpen(false)} open={layout.requirementsPanelOpen} />
-        <PersonaPanel onClose={() => setPersonaPanelOpen(false)} open={layout.personaPanelOpen} />
         <ScriptSnapshotsPanel onClose={() => setSnapshotsOpen(false)} open={snapshotsOpen} />
       </main>
     </RevisionProposalsProvider>

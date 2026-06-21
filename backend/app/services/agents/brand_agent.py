@@ -89,9 +89,9 @@ async def run_brand_agent(
             "ibis": {
                 "nodes": [
                     {
-                        "node_type": "issue",
-                        "title": "品牌诉求与创作表达如何平衡？",
-                        "content": text[:300] or "需对齐 Brief",
+                        "node_type": "position",
+                        "title": "品牌露出优先",
+                        "content": text[:300] or "产品核心信息需清晰、前置地呈现。",
                         "source_type": "brand_brief",
                         "source_perspective": "brand",
                     }

@@ -463,6 +463,7 @@ export async function streamCoordinatorMessage(
     quotes?: CoordinatorQuote[];
     target_node_ids?: string[];
     changed_row_ids?: string[];
+    mode?: "full" | "vanilla";
   },
   onEvent: (event: CoordinatorStreamEvent) => void
 ): Promise<void> {

@@ -99,6 +99,8 @@ function sourceLabel(source?: RationaleSourceType): string {
 
 const EDGE_STYLE = { stroke: "#7ed4fd", strokeWidth: 2 };
 const EDGE_FOCUS_STYLE = { stroke: "#006591", strokeWidth: 3 };
+// Conflict edges (position ↔ position) drive Issue creation; render them distinctly.
+const CONFLICT_EDGE_STYLE = { stroke: "#f4795b", strokeWidth: 2, strokeDasharray: "6 4" };
 const FLOW_EDGE_TYPE = "default";
 
 function buildUndirectedAdjacency(edgeList: Edge[]): Map<string, Set<string>> {
@@ -191,6 +193,27 @@ function rationaleToFlowNode(
 }
 
 function rationaleToFlowEdge(edge: RationaleEdge, nodeById: Map<string, RationaleNode>): Edge | null {
+  if (edge.relation_type === "conflicts_with") {
+    const fromNode = nodeById.get(edge.from_node_id);
+    const toNode = nodeById.get(edge.to_node_id);
+    if (!fromNode || !toNode) return null;
+    if (
+      normalizeNodeType(fromNode.node_type) !== "position" ||
+      normalizeNodeType(toNode.node_type) !== "position"
+    ) {
+      return null;
+    }
+    return {
+      id: edge.edge_id,
+      source: edge.from_node_id,
+      target: edge.to_node_id,
+      type: FLOW_EDGE_TYPE,
+      style: CONFLICT_EDGE_STYLE,
+      label: "冲突",
+      reconnectable: false,
+      selectable: false
+    };
+  }
   const endpoints = resolveFlowEndpoints(edge, nodeById);
   if (!endpoints) return null;
   return {

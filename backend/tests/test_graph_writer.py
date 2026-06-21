@@ -34,7 +34,7 @@ class IbisGraphToolTest(unittest.TestCase):
         self.assertEqual(len(graph.proposed_edges), 1)
         self.assertEqual(graph.proposed_edges[0]["to_node_id"], "node_issue_1")
 
-    def test_persist_ignores_edges_for_issue_only_batch(self) -> None:
+    def test_persist_skips_self_referential_issue_edge(self) -> None:
         graph = persist_rationale_graph(
             "project_1",
             {
@@ -51,6 +51,40 @@ class IbisGraphToolTest(unittest.TestCase):
             allowed_source_types={"brand_brief", "brand_inferred"},
         )
         self.assertEqual(len(graph.proposed_edges), 0)
+
+    def test_persist_derives_issue_from_existing_positions(self) -> None:
+        """Expert wires existing Positions into a new conflict Issue via mixed-mode edges."""
+        graph = persist_rationale_graph(
+            "project_1",
+            {
+                "nodes": [
+                    {
+                        "node_type": "issue",
+                        "title": "立场冲突",
+                        "content": "品牌 vs 观众",
+                        "source_type": "expert_strategy",
+                        "source_perspective": "expert",
+                    }
+                ],
+                "external_edges": [
+                    {"from_node_id": "node_pos_brand", "to_index": 0, "relation_type": "responds_to"},
+                    {"from_node_id": "node_pos_audience", "to_index": 0, "relation_type": "responds_to"},
+                    {
+                        "from_node_id": "node_pos_brand",
+                        "to_node_id": "node_pos_audience",
+                        "relation_type": "conflicts_with",
+                    },
+                ],
+            },
+            allowed_source_types={"expert_strategy"},
+        )
+        self.assertEqual(len(graph.proposed_nodes), 1)
+        issue_id = graph.proposed_nodes[0]["node_id"]
+        responds = [e for e in graph.proposed_edges if e["relation_type"] == "responds_to"]
+        conflicts = [e for e in graph.proposed_edges if e["relation_type"] == "conflicts_with"]
+        self.assertEqual(len(responds), 2)
+        self.assertTrue(all(e["to_node_id"] == issue_id for e in responds))
+        self.assertEqual(len(conflicts), 1)
 
     def test_persist_skips_invalid_issue_to_issue_edges(self) -> None:
         graph = persist_rationale_graph(
@@ -79,15 +113,16 @@ class IbisGraphToolTest(unittest.TestCase):
         self.assertEqual(len(graph.proposed_nodes), 2)
         self.assertEqual(len(graph.proposed_edges), 0)
 
-    def test_persist_issue_only_batch(self) -> None:
+    def test_persist_position_only_batch_is_root(self) -> None:
+        """Positions are primitives and may stand alone with no edges."""
         graph = persist_rationale_graph(
             "project_1",
             {
                 "nodes": [
                     {
-                        "node_type": "issue",
-                        "title": "待讨论",
-                        "content": "尚无立场",
+                        "node_type": "position",
+                        "title": "品牌露出优先",
+                        "content": "品牌立场",
                         "source_type": "brand_brief",
                         "source_perspective": "brand",
                     }
@@ -97,7 +132,7 @@ class IbisGraphToolTest(unittest.TestCase):
         self.assertEqual(len(graph.proposed_nodes), 1)
         self.assertEqual(len(graph.proposed_edges), 0)
 
-    def test_persist_auto_links_orphan_position_to_parent_issue(self) -> None:
+    def test_persist_auto_links_orphan_argument_to_position(self) -> None:
         graph = persist_rationale_graph(
             "project_1",
             {
@@ -119,29 +154,12 @@ class IbisGraphToolTest(unittest.TestCase):
                     },
                 ],
             },
-            parent_issue_ids=["node_issue_brand_1", "node_issue_brand_2"],
         )
         self.assertEqual(len(graph.proposed_nodes), 2)
-        self.assertGreaterEqual(len(graph.proposed_edges), 2)
         relations = {edge["relation_type"] for edge in graph.proposed_edges}
-        self.assertIn("responds_to", relations)
         self.assertIn("supports", relations)
-
-    def test_persist_rejects_orphan_position_without_parent_issue(self) -> None:
-        with self.assertRaises(ValueError):
-            persist_rationale_graph(
-                "project_1",
-                {
-                    "nodes": [
-                        {
-                            "node_type": "position",
-                            "title": "孤立立场",
-                            "content": "未连 issue",
-                            "source_type": "expert_strategy",
-                        }
-                    ],
-                },
-            )
+        # The position is a root: it is never auto-linked to an issue.
+        self.assertNotIn("responds_to", relations)
 
     def test_audience_context_isolation(self) -> None:
         context = build_agent_context(

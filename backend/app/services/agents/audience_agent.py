@@ -68,9 +68,9 @@ async def run_audience_agent(
             "ibis": {
                 "nodes": [
                     {
-                        "node_type": "issue",
-                        "title": "当前脚本广告感是否过高？",
-                        "content": "结合 Persona 广告敏感度评估。",
+                        "node_type": "position",
+                        "title": "降低广告感优先",
+                        "content": "结合 Persona 广告敏感度，内容应自然、弱化硬广话术。",
                         "source_type": "audience_simulation",
                         "source_perspective": "audience",
                     }

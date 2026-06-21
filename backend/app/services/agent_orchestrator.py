@@ -9,6 +9,7 @@ from app.services.agents.expert_agent import (
     run_expert_coordinator,
     run_expert_for_audience,
     run_expert_for_brief,
+    run_expert_populate_issue,
 )
 from app.services.pipeline_log import log_step
 from app.services.tools.ibis_graph import apply_node_updates
@@ -179,6 +180,41 @@ async def run_coordinator_pipeline(
         total_nodes=len(pipeline.proposed_nodes),
         total_edges=len(pipeline.proposed_edges),
         assistant_reply=pipeline.assistant_reply[:500],
+    )
+    return pipeline
+
+
+async def run_issue_population_pipeline(
+    project: dict[str, Any],
+    issue_id: str,
+) -> AgentPipelineResult:
+    """Expert organizes ≥2 conflicting Positions around a user-created Issue."""
+    project_id = str(project.get("_id") or "")
+    issue = next(
+        (
+            n
+            for n in project.get("rationale_nodes", [])
+            if n.get("node_id") == issue_id and n.get("node_type") == "issue"
+        ),
+        None,
+    )
+    if issue is None:
+        raise ValueError("Issue node not found")
+
+    log_step("pipeline.populate_issue", phase="IN", project_id=project_id, issue_id=issue_id)
+    pipeline = AgentPipelineResult()
+    expert_result = await run_expert_populate_issue(project, issue)
+    _log_agent_output("pipeline.populate_issue.expert", expert_result)
+    pipeline.expert_result = expert_result
+    _extend_graph(pipeline, expert_result)
+    pipeline.assistant_reply = expert_result.get("assistant_reply", "")
+
+    log_step(
+        "pipeline.populate_issue",
+        phase="OUT",
+        project_id=project_id,
+        total_nodes=len(pipeline.proposed_nodes),
+        total_edges=len(pipeline.proposed_edges),
     )
     return pipeline
 

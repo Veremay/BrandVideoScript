@@ -26,6 +26,10 @@ RELATION_TYPES = {
     "updates",
 }
 
+# An Issue represents a conflict, so it must aggregate at least this many
+# mutually-conflicting Positions. Issues never exist on their own.
+MIN_ISSUE_POSITIONS = 2
+
 
 def build_rationale_node(
     *,
@@ -82,44 +86,50 @@ def _ibis_column(node_type: str) -> str:
     return "issue"
 
 
-def batch_is_issue_only(nodes: list[dict[str, Any]]) -> bool:
-    return bool(nodes) and all(
-        _ibis_column(str(node.get("node_type", "issue"))) == "issue" for node in nodes
-    )
-
-
 def validate_ibis_edge(from_node: dict[str, Any], to_node: dict[str, Any], relation_type: str) -> None:
-    """Canonical storage: position→issue (responds_to), argument→position (supports/opposes).
+    """Canonical storage (bottom-up IBIS):
 
-    Issues may exist without any edges. Positions and arguments always require these links.
+    - position → issue (``responds_to``): a stance belongs to a conflict.
+    - position ↔ position (``conflicts_with``): two stances are in conflict.
+    - argument → position (``supports`` / ``opposes``).
+
+    Positions are the primitives and may exist on their own. Issues are derived
+    from conflicting positions, and arguments always link to a position.
     """
     from_type = _ibis_column(str(from_node.get("node_type", "issue")))
     to_type = _ibis_column(str(to_node.get("node_type", "issue")))
     if from_type == "position" and to_type == "issue" and relation_type == "responds_to":
         return
+    if from_type == "position" and to_type == "position" and relation_type == "conflicts_with":
+        return
     if from_type == "argument" and to_type == "position" and relation_type in {"supports", "opposes"}:
         return
     raise ValueError(
-        "Invalid IBIS link: only position→issue (responds_to) or argument→position (supports/opposes) are allowed"
+        "Invalid IBIS link: only position→issue (responds_to), position↔position (conflicts_with), "
+        "or argument→position (supports/opposes) are allowed"
     )
 
 
-def _positions_responding_to_issues(
+def _issue_responding_positions(
     nodes_by_id: dict[str, dict[str, Any]], edges: list[dict[str, Any]]
-) -> set[str]:
-    linked: set[str] = set()
+) -> dict[str, set[str]]:
+    """Map each issue id to the set of position ids that ``responds_to`` it."""
+    result: dict[str, set[str]] = {}
     for edge in edges:
         if edge.get("relation_type") != "responds_to":
             continue
         from_id = str(edge.get("from_node_id") or "")
+        to_id = str(edge.get("to_node_id") or "")
         from_node = nodes_by_id.get(from_id)
-        if not from_node or _ibis_column(str(from_node.get("node_type", "issue"))) != "position":
+        to_node = nodes_by_id.get(to_id)
+        if not from_node or not to_node:
             continue
-        to_node = nodes_by_id.get(str(edge.get("to_node_id") or ""))
-        if to_node:
-            validate_ibis_edge(from_node, to_node, "responds_to")
-        linked.add(from_id)
-    return linked
+        if _ibis_column(str(from_node.get("node_type", "issue"))) != "position":
+            continue
+        if _ibis_column(str(to_node.get("node_type", "issue"))) != "issue":
+            continue
+        result.setdefault(to_id, set()).add(from_id)
+    return result
 
 
 def _arguments_linked_to_positions(
@@ -160,18 +170,19 @@ def auto_link_ibis_orphans(
     edges: list[dict[str, Any]],
     *,
     project_id: str,
-    parent_issue_ids: list[str] | None = None,
 ) -> list[dict[str, Any]]:
-    """Infer missing responds_to / supports / opposes edges for agent batches.
+    """Infer missing argument → position edges for agent batches.
 
-    LLM outputs often omit edges while still providing layout.y groupings. Uses
-    parent_issue_ids for positions when issues are not in the same batch.
+    In the bottom-up model Positions are primitives and may stand alone, so they
+    are never auto-linked. Issues are conflict nodes that agents must wire up
+    explicitly (≥2 ``responds_to`` positions). Only Arguments, which are
+    meaningless without a Position, are auto-attached to the nearest one by
+    ``layout.y`` when the LLM omits the edge.
     """
     if not nodes:
         return edges
 
     nodes_by_id = {str(n["node_id"]): n for n in nodes if n.get("node_id")}
-    positions_linked = _positions_responding_to_issues(nodes_by_id, edges)
     arguments_linked = _arguments_linked_to_positions(nodes_by_id, edges)
 
     seen = {
@@ -195,15 +206,6 @@ def auto_link_ibis_orphans(
             )
         )
 
-    batch_issues = sorted(
-        [n for n in nodes if _ibis_column(str(n.get("node_type", "issue"))) == "issue"],
-        key=_layout_y,
-    )
-    issue_ids = [str(n["node_id"]) for n in batch_issues]
-    for issue_id in parent_issue_ids or []:
-        if issue_id and issue_id not in issue_ids:
-            issue_ids.append(issue_id)
-
     positions = sorted(
         [n for n in nodes if _ibis_column(str(n.get("node_type", "issue"))) == "position"],
         key=_layout_y,
@@ -212,19 +214,6 @@ def auto_link_ibis_orphans(
         [n for n in nodes if _ibis_column(str(n.get("node_type", "issue"))) == "argument"],
         key=_layout_y,
     )
-
-    orphan_positions = [p for p in positions if str(p["node_id"]) not in positions_linked]
-    if orphan_positions and issue_ids:
-        if len(issue_ids) == 1:
-            target_issue = issue_ids[0]
-            for position in orphan_positions:
-                append_edge(str(position["node_id"]), target_issue, "responds_to")
-        else:
-            count = len(orphan_positions)
-            bucket_count = len(issue_ids)
-            for index, position in enumerate(orphan_positions):
-                issue_index = min(index * bucket_count // count, bucket_count - 1)
-                append_edge(str(position["node_id"]), issue_ids[issue_index], "responds_to")
 
     for argument in arguments:
         arg_id = str(argument["node_id"])
@@ -245,22 +234,25 @@ def validate_ibis_graph_integrity(
     node_ids: set[str] | None = None,
     require_linked_for: Any | None = None,
 ) -> None:
-    """Enforce IBIS parent links for positions and arguments.
+    """Enforce bottom-up IBIS structural rules.
 
-    - Issue: may be a root with no positions or arguments (open question / backlog).
-    - Position: must have responds_to → issue.
-    - Argument: must have supports or opposes → position.
+    - Position: a primitive; may stand alone with no edges (no conflict yet).
+    - Issue: represents a conflict, so it must aggregate at least
+      ``MIN_ISSUE_POSITIONS`` positions via ``responds_to``. It never exists alone.
+    - Argument: must support or oppose a position.
 
-    By default only agent-created position/argument nodes are checked so users can
-    add a node first and connect it on the canvas afterward.
+    By default only agent-created nodes are checked so users can add a node first
+    and connect it on the canvas afterward. An agent-created Issue that fails to
+    aggregate ≥2 conflicting Positions raises here (surfaced as an error) rather
+    than being silently dropped.
     """
     if require_linked_for is None:
         require_linked_for = lambda node: node.get("created_by") != "user"
 
     nodes_by_id = {str(n["node_id"]): n for n in nodes if n.get("node_id")}
     check_ids = node_ids if node_ids is not None else set(nodes_by_id.keys())
-    positions_linked = _positions_responding_to_issues(nodes_by_id, edges)
     arguments_linked = _arguments_linked_to_positions(nodes_by_id, edges)
+    issue_positions = _issue_responding_positions(nodes_by_id, edges)
 
     for node_id in check_ids:
         node = nodes_by_id.get(node_id)
@@ -268,8 +260,11 @@ def validate_ibis_graph_integrity(
             continue
         column = _ibis_column(str(node.get("node_type", "issue")))
         title = str(node.get("title") or node_id)
-        if column == "position" and node_id not in positions_linked:
-            raise ValueError(f"Position must respond to an Issue (responds_to): {title}")
+        if column == "issue" and len(issue_positions.get(node_id, set())) < MIN_ISSUE_POSITIONS:
+            raise ValueError(
+                f"Issue must aggregate at least {MIN_ISSUE_POSITIONS} conflicting Positions "
+                f"(responds_to); it cannot exist alone: {title}"
+            )
         if column == "argument" and node_id not in arguments_linked:
             raise ValueError(f"Argument must support or oppose a Position: {title}")
 

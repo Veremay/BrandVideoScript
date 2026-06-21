@@ -6,7 +6,11 @@ from typing import Any
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.script import now_iso
-from app.repositories.coordinator_messages import build_coordinator_message, save_coordinator_message
+from app.repositories.coordinator_messages import (
+    build_coordinator_message,
+    list_coordinator_messages,
+    save_coordinator_message,
+)
 from app.repositories.modification_schemes import generate_modification_schemes
 from app.repositories.projects import get_project
 from app.repositories.script_snapshots import snapshot_before_map_update
@@ -15,6 +19,16 @@ from app.services.coordinator_intent import wants_generate_modification_schemes
 from app.services.llm_client import LLMClient
 from app.services.pipeline_log import log_step
 from app.services.sse import encode_sse
+
+
+VANILLA_SYSTEM_PROMPT = (
+    "你是一个面向短视频 / 品牌合作视频创作者的 AI 写作助手。"
+    "请用清晰、直接的中文，帮助创作者构思、撰写和打磨视频脚本，并回答他们的相关问题。"
+    "你是一个单一的通用大模型，不调用任何外部工具，也不依赖多智能体系统。"
+    "请仅基于对话内容作答，不要假设存在 Brand / Audience / Expert 等智能体或 IBIS 节点图。"
+)
+
+VANILLA_HISTORY_LIMIT = 40
 
 
 def _resolve_perspectives(requested: list[str]) -> set[str]:
@@ -34,6 +48,7 @@ async def stream_coordinator_chat(
     quotes: list[dict[str, Any]] | None = None,
     target_node_ids: list[str] | None = None,
     changed_row_ids: list[str] | None = None,
+    mode: str = "full",
 ) -> AsyncIterator[str]:
     log_step(
         "coordinator_stream",
@@ -46,6 +61,7 @@ async def stream_coordinator_chat(
         quotes=quotes,
         target_node_ids=target_node_ids,
         changed_row_ids=changed_row_ids,
+        mode=mode,
     )
 
     project = await get_project(db, project_id, user_id)
@@ -70,6 +86,20 @@ async def stream_coordinator_chat(
         related_node_ids=target_node_ids or [],
     )
     await save_coordinator_message(db, user_doc)
+
+    if mode == "vanilla":
+        async for frame in _stream_vanilla_chat(
+            db,
+            project_id,
+            user_id,
+            project=project,
+            message=message,
+            task_type=task_type,
+            requested_perspectives=list(perspectives),
+            quotes=quotes or [],
+        ):
+            yield frame
+        return
 
     if wants_generate_modification_schemes(message, task_type=task_type):
         async for frame in _stream_generate_modification_schemes(
@@ -182,6 +212,69 @@ async def stream_coordinator_chat(
     }
     log_step("coordinator_stream", phase="OUT", project_id=project_id, done=done_payload)
     yield encode_sse("done", done_payload)
+
+
+async def _stream_vanilla_chat(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    *,
+    project: dict,
+    message: str,
+    task_type: str,
+    requested_perspectives: list[str],
+    quotes: list[dict],
+) -> AsyncIterator[str]:
+    """Plain single-LLM chat with a system prompt only — no multi-agent pipeline, graph, or schemes."""
+    log_step("coordinator_stream.vanilla", phase="IN", project_id=project_id, message=message)
+
+    history = await list_coordinator_messages(db, project_id, user_id, limit=VANILLA_HISTORY_LIMIT)
+    llm_messages: list[dict[str, str]] = [{"role": "system", "content": VANILLA_SYSTEM_PROMPT}]
+    for doc in history:
+        role = doc.get("role")
+        content = (doc.get("content") or "").strip()
+        if role in {"user", "assistant"} and content:
+            llm_messages.append({"role": role, "content": content})
+
+    quote_text = "\n".join(str(q.get("text", "")).strip() for q in quotes if q.get("text"))
+    if quote_text and llm_messages and llm_messages[-1]["role"] == "user":
+        llm_messages[-1]["content"] = f"引用脚本片段：\n{quote_text}\n\n{llm_messages[-1]['content']}"
+
+    llm = LLMClient()
+    if not llm.settings.siliconflow_api_key:
+        log_step("coordinator_stream.vanilla", phase="OUT", project_id=project_id, error="missing_api_key")
+        yield encode_sse(
+            "error",
+            {"message": "未配置 LLM API key，无法调用模型。请在后端 .env 设置 SILICONFLOW_API_KEY 后重试。"},
+        )
+        return
+
+    content_parts: list[str] = []
+    # mock=False: vanilla never falls back to a canned reply — real model only.
+    async for token in llm.stream_tokens(messages=llm_messages, task_type="vanilla_chat", mock=False):
+        content_parts.append(token)
+        yield encode_sse("token", {"content": token})
+    reply = "".join(content_parts)
+    log_step("coordinator_stream.vanilla", phase="OUT", project_id=project_id, reply=reply)
+
+    assistant_doc = build_coordinator_message(
+        project_id=project_id,
+        user_id=user_id,
+        role="assistant",
+        content=reply,
+        task_type=task_type,
+        requested_perspectives=requested_perspectives,
+        active_persona_id=project.get("active_persona_id"),
+        quotes=quotes,
+        related_node_ids=[],
+        generated_artifact_ids=[],
+    )
+    await save_coordinator_message(db, assistant_doc)
+
+    yield encode_sse(
+        "done",
+        {"message_id": assistant_doc["message_id"], "generated_artifact_ids": []},
+    )
 
 
 async def _stream_generate_modification_schemes(

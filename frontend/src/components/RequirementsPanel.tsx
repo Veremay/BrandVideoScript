@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { updateBrandRequirements } from "@/lib/api";
+import { parseBrief, updateBrandRequirements } from "@/lib/api";
 import {
   createEmptyRequirement,
   requirementsFromProject,
@@ -30,7 +30,9 @@ export function RequirementsPanel({ open, onClose }: RequirementsPanelProps) {
   const [baselineExplicit, setBaselineExplicit] = useState<BrandRequirement[]>([]);
   const [baselineImplicit, setBaselineImplicit] = useState<BrandRequirement[]>([]);
   const [saving, setSaving] = useState(false);
+  const [parsing, setParsing] = useState(false);
 
+  const hasBrief = Boolean(project?.brief.text?.trim() || project?.brief.filename);
   const hasParsedBrief = project?.brief.parse_status === "parsed";
   const isDirty = useMemo(
     () => !listsEqual(explicit, baselineExplicit) || !listsEqual(implicit, baselineImplicit),
@@ -88,6 +90,27 @@ export function RequirementsPanel({ open, onClose }: RequirementsPanelProps) {
     }
   }
 
+  async function handleParseBrief() {
+    if (isDirty && !window.confirm("Parsing will reload requirements from the Brief and discard unsaved edits. Continue?")) {
+      return;
+    }
+
+    setParsing(true);
+    try {
+      const parsed = await parseBrief(currentProject._id, currentProject.user_id);
+      setProject(parsed.project);
+      const next = requirementsFromProject(parsed.project);
+      setExplicit(next.explicit);
+      setImplicit(next.implicit);
+      setBaselineExplicit(next.explicit);
+      setBaselineImplicit(next.implicit);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Brief parse failed");
+    } finally {
+      setParsing(false);
+    }
+  }
+
   function handleClose() {
     if (isDirty && !window.confirm("You have unsaved requirement changes. Close anyway?")) return;
     onClose();
@@ -116,6 +139,15 @@ export function RequirementsPanel({ open, onClose }: RequirementsPanelProps) {
             </p>
           </div>
           <div className="persona-panel-actions">
+            <button
+              className="persona-add-btn persona-add-btn-secondary"
+              disabled={parsing || !hasBrief}
+              onClick={handleParseBrief}
+              title={hasBrief ? undefined : "Upload a Brief first"}
+              type="button"
+            >
+              {parsing ? "Parsing…" : hasParsedBrief ? "Re-parse Brief" : "Parse from Brief"}
+            </button>
             <button className="persona-add-btn" disabled={saving || !isDirty} onClick={handleSave} type="button">
               {saving ? "Saving…" : "Save Changes"}
             </button>
@@ -148,7 +180,9 @@ export function RequirementsPanel({ open, onClose }: RequirementsPanelProps) {
         <div className="requirements-panel-body">
           {!hasParsedBrief ? (
             <p className="requirements-empty">
-              Upload and parse a Brief first. Brand Agent will populate requirements here after parsing.
+              {hasBrief
+                ? 'Brief uploaded. Click "Parse from Brief" above to let the Brand Agent populate requirements here.'
+                : "Upload a Brief first, then click \u201CParse from Brief\u201D to populate requirements here."}
             </p>
           ) : activeList.length === 0 ? (
             <p className="requirements-empty">

@@ -7,11 +7,9 @@ from app.models.rationale_ops import (
     RELATION_TYPES,
     SOURCE_TYPES,
     auto_link_ibis_orphans,
-    batch_is_issue_only,
     build_rationale_edge,
     build_rationale_node,
     validate_ibis_edge,
-    validate_ibis_graph_integrity,
 )
 from app.services.pipeline_log import log_step
 from app.models.script import now_iso
@@ -26,17 +24,49 @@ class PersistedIbisGraph:
     node_updates: list[dict[str, Any]] = field(default_factory=list)
 
 
+def _resolve_spec_node_id(
+    spec: dict[str, Any],
+    built_nodes: list[dict[str, Any]],
+    index_key: str,
+    id_key: str,
+) -> str | None:
+    """Resolve an edge endpoint that may reference a batch index or an existing node id.
+
+    ``index_key`` (e.g. ``from_index``) points into this batch's ``nodes`` array;
+    ``id_key`` (e.g. ``from_node_id``) references an already-persisted node. This
+    lets agents wire existing Positions into a freshly created conflict Issue.
+    """
+    raw_index = spec.get(index_key)
+    if isinstance(raw_index, bool):
+        raw_index = None
+    if raw_index is not None:
+        try:
+            idx = int(raw_index)
+        except (TypeError, ValueError):
+            return None
+        if 0 <= idx < len(built_nodes):
+            return str(built_nodes[idx]["node_id"])
+        return None
+    node_id = spec.get(id_key)
+    return str(node_id) if node_id else None
+
+
 def persist_rationale_graph(
     project_id: str,
     ibis: dict[str, Any] | None,
     *,
     script_version_id: str | None = None,
     allowed_source_types: set[str] | None = None,
-    parent_issue_ids: list[str] | None = None,
 ) -> PersistedIbisGraph:
     """
     Tool: validate LLM-proposed IBIS payload and materialize server-side node/edge documents.
     Agents must not invent node_id; the backend assigns IDs here.
+
+    Edge endpoints (``edges`` and ``external_edges``) accept either a batch index
+    (``from_index`` / ``to_index``) or an existing node id (``from_node_id`` /
+    ``to_node_id``), so conflict Issues can link Positions created by other agents.
+    Structural completeness (an Issue needs ≥2 conflicting Positions, an Argument
+    needs a Position) is enforced later during the full-graph merge.
     """
     if not ibis:
         return PersistedIbisGraph()
@@ -110,45 +140,19 @@ def persist_rationale_graph(
             )
         )
 
-    if batch_is_issue_only(built_nodes) and ibis.get("edges"):
-        log_step(
-            "persist_rationale_graph.ignore_issue_edges",
-            phase="OUT",
-            project_id=project_id,
-            skipped=len(ibis.get("edges") or []),
-        )
-
-    edge_specs = [] if batch_is_issue_only(built_nodes) else (ibis.get("edges") or [])
-    for raw in edge_specs:
+    for raw in [*(ibis.get("edges") or []), *(ibis.get("external_edges") or [])]:
         if not isinstance(raw, dict):
             continue
-        from_index = int(raw.get("from_index", -1))
-        to_index = int(raw.get("to_index", -1))
-        if 0 <= from_index < len(built_nodes) and 0 <= to_index < len(built_nodes):
-            add_edge(
-                built_nodes[from_index]["node_id"],
-                built_nodes[to_index]["node_id"],
-                str(raw.get("relation_type") or "responds_to"),
-            )
-
-    for raw in ibis.get("external_edges") or []:
-        if not isinstance(raw, dict):
-            continue
-        from_index = int(raw.get("from_index", -1))
-        to_node_id = str(raw.get("to_node_id") or "")
-        if 0 <= from_index < len(built_nodes) and to_node_id:
-            add_edge(
-                built_nodes[from_index]["node_id"],
-                to_node_id,
-                str(raw.get("relation_type") or "responds_to"),
-            )
+        from_id = _resolve_spec_node_id(raw, built_nodes, "from_index", "from_node_id")
+        to_id = _resolve_spec_node_id(raw, built_nodes, "to_index", "to_node_id")
+        if from_id and to_id:
+            add_edge(from_id, to_id, str(raw.get("relation_type") or "responds_to"))
 
     edge_count_before = len(built_edges)
     built_edges = auto_link_ibis_orphans(
         built_nodes,
         built_edges,
         project_id=project_id,
-        parent_issue_ids=parent_issue_ids,
     )
     if len(built_edges) > edge_count_before:
         log_step(
@@ -161,14 +165,6 @@ def persist_rationale_graph(
     updates = [
         u for u in (ibis.get("node_updates") or []) if isinstance(u, dict) and u.get("node_id")
     ]
-    if built_nodes:
-        batch_ids = {n["node_id"] for n in built_nodes}
-        validate_ibis_graph_integrity(
-            built_nodes,
-            built_edges,
-            node_ids=batch_ids,
-            require_linked_for=lambda _node: True,
-        )
     return PersistedIbisGraph(
         proposed_nodes=built_nodes,
         proposed_edges=built_edges,
