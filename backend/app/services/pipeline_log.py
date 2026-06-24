@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
 from typing import Any
 
 logger = logging.getLogger("brandvideo.pipeline")
@@ -97,3 +98,32 @@ def log_llm_response(
 
 def log_llm_mock(task_type: str, *, reason: str) -> None:
     logger.warning(f"[LLM MOCK] task={task_type} reason={reason}")
+
+
+# ---------------------------------------------------------------------------
+# Real-time stream echo
+# Set LLM_STREAM_ECHO=0 to suppress token-by-token output (e.g. in CI).
+# ---------------------------------------------------------------------------
+
+_STREAM_ECHO = os.getenv("LLM_STREAM_ECHO", "1") != "0"
+
+
+def log_llm_stream_start(task_type: str, model: str) -> None:
+    if not _STREAM_ECHO:
+        return
+    sys.stdout.write(f"\n{'~' * 60}\n[LLM STREAM] task={task_type} model={model}\n")
+    sys.stdout.flush()
+
+
+def log_llm_stream_token(token: str) -> None:
+    if not _STREAM_ECHO:
+        return
+    sys.stdout.write(token)
+    sys.stdout.flush()
+
+
+def log_llm_stream_end() -> None:
+    if not _STREAM_ECHO:
+        return
+    sys.stdout.write(f"\n{'~' * 60}\n")
+    sys.stdout.flush()

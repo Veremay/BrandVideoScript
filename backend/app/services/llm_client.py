@@ -10,7 +10,15 @@ import httpx
 
 from app.core.config import get_settings
 from app.services.model_router import select_model, should_enable_thinking
-from app.services.pipeline_log import log_llm_mock, log_llm_request, log_llm_response, log_step
+from app.services.pipeline_log import (
+    log_llm_mock,
+    log_llm_request,
+    log_llm_response,
+    log_llm_stream_end,
+    log_llm_stream_start,
+    log_llm_stream_token,
+    log_step,
+)
 
 
 def extract_json_object(text: str) -> dict[str, Any]:
@@ -224,6 +232,7 @@ class LLMClient:
 
         chunks: list[str] = []
         stream_timeout = self.settings.siliconflow_stream_timeout_seconds
+        log_llm_stream_start(task_type, model)
         async with httpx.AsyncClient(base_url=self.settings.siliconflow_base_url, timeout=stream_timeout) as client:
             async with client.stream(
                 "POST",
@@ -248,6 +257,8 @@ class LLMClient:
                     delta = choices[0].get("delta", {}).get("content")
                     if delta:
                         chunks.append(delta)
+                        log_llm_stream_token(delta)
+        log_llm_stream_end()
 
         content = "".join(chunks)
         log_llm_response(task_type=task_type, model=model, content=content, extra="source=stream")

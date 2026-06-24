@@ -15,6 +15,7 @@ from app.services.agent_orchestrator import (
     merge_pipeline_into_project_graph,
     run_audience_pipeline,
     run_brief_initial_pipeline,
+    run_map_update_pipeline,
 )
 from app.services.persona_analytics import PersonaAnalyticsContext, get_persona_analytics_provider
 from app.services.pipeline_log import log_step
@@ -42,49 +43,53 @@ async def run_brief_initial_parse(
         pipeline = await run_brief_initial_pipeline(project)
         brand_result = pipeline.brand_result or {}
 
-        user_nodes = [n for n in project.get("rationale_nodes", []) if n.get("created_by") == "user"]
-        user_edges = [e for e in project.get("rationale_edges", []) if e.get("created_by") == "user"]
-        project_for_merge = {**project, "rationale_nodes": user_nodes, "rationale_edges": user_edges}
-        nodes, edges, _ = merge_pipeline_into_project_graph(project_for_merge, pipeline)
+        # Merge agent requirements with user-saved ones (never overwrite user edits).
+        existing_perspective = project.get("brand_perspective_result") or {}
+        saved_user_explicit = [
+            r for r in (existing_perspective.get("explicit_requirements") or [])
+            if isinstance(r, dict) and r.get("source") == "user"
+        ]
+        saved_user_implicit = [
+            r for r in (existing_perspective.get("implicit_requirements") or [])
+            if isinstance(r, dict) and r.get("source") == "user"
+        ]
+        agent_explicit = brand_result.get("explicit_requirements") or []
+        agent_implicit = brand_result.get("implicit_requirements") or []
+        agent_explicit_ids = {r.get("id") for r in agent_explicit if isinstance(r, dict) and r.get("id")}
+        agent_implicit_ids = {r.get("id") for r in agent_implicit if isinstance(r, dict) and r.get("id")}
+        merged_explicit = agent_explicit + [r for r in saved_user_explicit if r.get("id") not in agent_explicit_ids]
+        merged_implicit = agent_implicit + [r for r in saved_user_implicit if r.get("id") not in agent_implicit_ids]
 
         existing_insights = [
             insight for insight in project.get("brand_insights", []) if insight.get("created_by") != "agent"
         ]
         new_insights = [*existing_insights, *brand_result.get("brand_insights", [])]
 
-        expert_result = pipeline.expert_result or {}
-        await snapshot_before_map_update(db, project_id, user_id)
+        # Brief parse only saves requirements — IBIS graph is NOT touched here.
+        # Nodes are generated when user clicks Update Map (sync_graph_from_script).
+        brand_perspective = {
+            k: v
+            for k, v in brand_result.items()
+            if k not in {"brand_insights", "proposed_nodes", "proposed_edges", "node_updates",
+                         "explicit_requirements", "implicit_requirements"}
+        }
+        brand_perspective["explicit_requirements"] = merged_explicit
+        brand_perspective["implicit_requirements"] = merged_implicit
+
         await db.projects.update_one(
             {"_id": project_id, "user_id": user_id},
             {
                 "$set": {
                     "brief.parse_status": "parsed",
-                    "brand_perspective_result": {
-                        k: v
-                        for k, v in brand_result.items()
-                        if k not in {"brand_insights", "proposed_nodes", "proposed_edges", "node_updates"}
-                    },
-                    "expert_perspective_result": {
-                        k: v
-                        for k, v in expert_result.items()
-                        if k not in {"proposed_nodes", "proposed_edges", "node_updates"}
-                    },
+                    "brand_perspective_result": brand_perspective,
                     "brand_insights": new_insights,
-                    "rationale_nodes": nodes,
-                    "rationale_edges": edges,
-                    "stale.rationale_graph": "up_to_date",
-                    "stale.modification_schemes": "stale_graph_changed",
+                    "stale.rationale_graph": "stale_graph_changed",
                     "updated_at": now_iso(),
                 }
             },
         )
     except Exception as exc:
-        log_step(
-            "brief.parse.failed",
-            phase="OUT",
-            project_id=project_id,
-            error=str(exc),
-        )
+        log_step("brief.parse.failed", phase="OUT", project_id=project_id, error=str(exc))
         await db.projects.update_one(
             {"_id": project_id, "user_id": user_id},
             {"$set": {"brief.parse_status": "failed", "updated_at": now_iso()}},
@@ -92,12 +97,13 @@ async def run_brief_initial_parse(
         raise
 
     updated = await get_project(db, project_id, user_id)
+    explicit_count = len(updated.get("brand_perspective_result", {}).get("explicit_requirements") or [])
+    implicit_count = len(updated.get("brand_perspective_result", {}).get("implicit_requirements") or [])
     return {
         "project": updated,
         "parse_summary": {
-            "brand_issues": len([n for n in nodes if n.get("source_type", "").startswith("brand")]),
-            "total_nodes": len(nodes),
-            "total_edges": len(edges),
+            "explicit_requirements": explicit_count,
+            "implicit_requirements": implicit_count,
         },
     }
 

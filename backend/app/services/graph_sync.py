@@ -8,9 +8,11 @@ from app.models.script import now_iso
 from app.repositories.projects import get_project
 from app.repositories.script_snapshots import snapshot_before_map_update
 from app.services.agent_orchestrator import (
+    discard_non_conflicting_pipeline_positions,
     merge_pipeline_into_project_graph,
     reconcile_pipeline_into_project_graph,
     run_issue_population_pipeline,
+    run_map_update_pipeline,
     run_reconcile_pipeline,
 )
 from app.services.pipeline_log import log_step
@@ -44,14 +46,30 @@ async def sync_graph_from_script(
         {"$set": {"stale.rationale_graph": "generating", "updated_at": now_iso()}},
     )
 
-    try:
-        pipeline = await run_reconcile_pipeline(
-            project,
-            user_message="脚本已更新。请重新评估每个冲突 issue 是否仍成立，并识别新冲突。",
-            changed_row_ids=row_ids,
-        )
+    has_agent_nodes = any(
+        n.get("created_by") == "agent" for n in project.get("rationale_nodes", [])
+    )
 
-        nodes, edges = reconcile_pipeline_into_project_graph(project, pipeline)
+    try:
+        if not has_agent_nodes:
+            # 图还是空的（首次 Update Map）：Brand + Audience positions → Expert 冲突检测。
+            map_pipeline = await run_map_update_pipeline(project)
+            nodes, edges, _ = merge_pipeline_into_project_graph(project, map_pipeline)
+            nodes, edges = discard_non_conflicting_pipeline_positions(nodes, edges, map_pipeline)
+            pipeline = map_pipeline
+            node_modifications: list[dict[str, Any]] = []
+            issue_reviews: list[dict[str, Any]] = []
+        else:
+            # 已有节点：走 reconcile，重新评估 issues。
+            pipeline = await run_reconcile_pipeline(
+                project,
+                user_message="脚本已更新。请重新评估每个冲突 issue 是否仍成立，并识别新冲突。",
+                changed_row_ids=row_ids,
+            )
+            nodes, edges = reconcile_pipeline_into_project_graph(project, pipeline)
+            node_modifications = pipeline.node_modifications
+            issue_reviews = pipeline.issue_reviews
+
         await db.projects.update_one(
             {"_id": project_id, "user_id": user_id},
             {
@@ -75,8 +93,8 @@ async def sync_graph_from_script(
     result = {
         "project": updated,
         "nodes_added": len(pipeline.proposed_nodes),
-        "node_updates": len(pipeline.node_modifications),
-        "issue_reviews": len(pipeline.issue_reviews),
+        "node_updates": len(node_modifications),
+        "issue_reviews": len(issue_reviews),
         "assistant_reply": pipeline.assistant_reply,
     }
     log_step(

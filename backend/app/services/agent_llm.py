@@ -8,10 +8,11 @@ from app.services.pipeline_log import log_llm_mock, log_step
 from app.services.prompt_loader import load_prompt, render_prompt
 
 
-def _agent_system_prompt(agent_file: str) -> str:
+def _agent_system_prompt(agent_file: str, extra_vars: dict[str, str] | None = None) -> str:
     ibis_types = load_prompt("ibis_types.md")
     template = load_prompt(agent_file)
-    return render_prompt(template, {"IBIS_TYPES": ibis_types})
+    vars: dict[str, str] = {"IBIS_TYPES": ibis_types, **(extra_vars or {})}
+    return render_prompt(template, vars)
 
 
 async def invoke_agent_json(
@@ -20,9 +21,10 @@ async def invoke_agent_json(
     context: str,
     task_type: str,
     mock_payload: Callable[[], dict[str, Any]],
+    extra_vars: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     client = LLMClient()
-    system = _agent_system_prompt(agent_prompt_file)
+    system = _agent_system_prompt(agent_prompt_file, extra_vars)
     user = f"根据以下上下文完成分析并输出 JSON。\n\n{context}"
 
     log_step(

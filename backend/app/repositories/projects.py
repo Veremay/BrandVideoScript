@@ -625,19 +625,22 @@ def normalize_brand_requirements(items: list[dict] | None) -> list[dict]:
     for item in items or []:
         if not isinstance(item, dict):
             continue
-        text = str(item.get("text", "")).strip()
+        text = str(item.get("text") or "").strip()
         if not text:
             continue
-        confidence = str(item.get("confidence", "medium"))
+        confidence = str(item.get("confidence") or "medium")
         if confidence not in {"high", "medium", "low"}:
             confidence = "medium"
         entry: dict = {"text": text, "confidence": confidence}
-        requirement_id = str(item.get("id", "")).strip()
+        requirement_id = str(item.get("id") or "").strip()
         if requirement_id:
             entry["id"] = requirement_id
-        evidence = str(item.get("evidence", "")).strip()
+        evidence = str(item.get("evidence") or "").strip()
         if evidence:
             entry["evidence"] = evidence[:2000]
+        source = str(item.get("source", "")).strip()
+        if source in {"user", "agent"}:
+            entry["source"] = source
         normalized.append(entry)
     return normalized
 

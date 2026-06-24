@@ -8,10 +8,22 @@ from app.services.agents.brand_agent import run_brand_agent
 from app.services.agents.expert_agent import (
     run_expert_coordinator,
     run_expert_for_audience,
-    run_expert_for_brief,
-    run_expert_populate_issue,
+    run_expert_for_conflicts,
     run_expert_reconcile,
 )
+
+__all__ = [
+    "AgentPipelineResult",
+    "discard_non_conflicting_pipeline_positions",
+    "merge_pipeline_into_project_graph",
+    "reconcile_pipeline_into_project_graph",
+    "run_audience_pipeline",
+    "run_brief_initial_pipeline",
+    "run_coordinator_pipeline",
+    "run_issue_population_pipeline",
+    "run_map_update_pipeline",
+    "run_reconcile_pipeline",
+]
 from app.services.pipeline_log import log_step
 from app.services.tools.ibis_graph import apply_node_updates
 
@@ -49,7 +61,10 @@ def _log_agent_output(step: str, output: dict[str, Any]) -> None:
 
 
 async def run_brief_initial_pipeline(project: dict[str, Any]) -> AgentPipelineResult:
-    """Brand Agent → Expert Agent；图节点经 persist_rationale_graph 工具落库。"""
+    """Brief 解析：只提取品牌需求，不生成 IBIS 节点。
+
+    节点生成由用户点击 Update Map 后的 run_map_update_pipeline 触发。
+    """
     project_id = str(project.get("_id") or "")
     log_step("pipeline.brief_initial", phase="IN", project_id=project_id)
 
@@ -58,16 +73,45 @@ async def run_brief_initial_pipeline(project: dict[str, Any]) -> AgentPipelineRe
     brand_result = await run_brand_agent(project, task_context="brief_parse")
     _log_agent_output("pipeline.brief_initial.brand_agent", brand_result)
     pipeline.brand_result = brand_result
+
+    log_step(
+        "pipeline.brief_initial",
+        phase="OUT",
+        project_id=project_id,
+        requirements=len((brand_result.get("explicit_requirements") or []) + (brand_result.get("implicit_requirements") or [])),
+    )
+    return pipeline
+
+
+async def run_map_update_pipeline(project: dict[str, Any]) -> AgentPipelineResult:
+    """Update Map: Brand + Audience positions → Expert conflict detection (issues only)."""
+    project_id = str(project.get("_id") or "")
+    log_step("pipeline.map_update", phase="IN", project_id=project_id)
+
+    pipeline = AgentPipelineResult()
+
+    log_step("pipeline.map_update.brand_agent", phase="IN", project_id=project_id)
+    brand_result = await run_brand_agent(project, task_context="coordinator")
+    _log_agent_output("pipeline.map_update.brand_agent", brand_result)
+    pipeline.brand_result = brand_result
     _extend_graph(pipeline, brand_result)
 
-    log_step("pipeline.brief_initial.expert_for_brief", phase="IN", project_id=project_id)
-    expert_result = await run_expert_for_brief(project, brand_result)
-    _log_agent_output("pipeline.brief_initial.expert_for_brief", expert_result)
+    audience_result = None
+    if project.get("active_persona_id"):
+        log_step("pipeline.map_update.audience_agent", phase="IN", project_id=project_id)
+        audience_result = await run_audience_agent(project)
+        _log_agent_output("pipeline.map_update.audience_agent", audience_result)
+        pipeline.audience_result = audience_result
+        _extend_graph(pipeline, audience_result)
+
+    log_step("pipeline.map_update.expert_conflicts", phase="IN", project_id=project_id)
+    expert_result = await run_expert_for_conflicts(project, brand_result, audience_result)
+    _log_agent_output("pipeline.map_update.expert_conflicts", expert_result)
     pipeline.expert_result = expert_result
     _extend_graph(pipeline, expert_result)
 
     log_step(
-        "pipeline.brief_initial",
+        "pipeline.map_update",
         phase="OUT",
         project_id=project_id,
         total_nodes=len(pipeline.proposed_nodes),
@@ -193,7 +237,7 @@ async def run_issue_population_pipeline(
     project: dict[str, Any],
     issue_id: str,
 ) -> AgentPipelineResult:
-    """Expert organizes ≥2 conflicting Positions around a user-created Issue."""
+    """Brand + Audience generate one position each for a user-created issue (scoped update)."""
     project_id = str(project.get("_id") or "")
     issue = next(
         (
@@ -205,14 +249,28 @@ async def run_issue_population_pipeline(
     )
     if issue is None:
         raise ValueError("Issue node not found")
+    if issue.get("created_by") != "user":
+        raise ValueError("Only user-created issues support Generate Position")
 
     log_step("pipeline.populate_issue", phase="IN", project_id=project_id, issue_id=issue_id)
     pipeline = AgentPipelineResult()
-    expert_result = await run_expert_populate_issue(project, issue)
-    _log_agent_output("pipeline.populate_issue.expert", expert_result)
-    pipeline.expert_result = expert_result
-    _extend_graph(pipeline, expert_result)
-    pipeline.assistant_reply = expert_result.get("assistant_reply", "")
+
+    log_step("pipeline.populate_issue.brand_agent", phase="IN", project_id=project_id, issue_id=issue_id)
+    brand_result = await run_brand_agent(project, task_context="issue_response", issue=issue)
+    _log_agent_output("pipeline.populate_issue.brand_agent", brand_result)
+    pipeline.brand_result = brand_result
+    _extend_graph(pipeline, brand_result)
+
+    if project.get("active_persona_id"):
+        log_step("pipeline.populate_issue.audience_agent", phase="IN", project_id=project_id, issue_id=issue_id)
+        audience_result = await run_audience_agent(project, task_context="issue_response", issue=issue)
+        _log_agent_output("pipeline.populate_issue.audience_agent", audience_result)
+        pipeline.audience_result = audience_result
+        _extend_graph(pipeline, audience_result)
+
+    pipeline.assistant_reply = (
+        f"已为议题「{issue.get('title', '')[:40]}」生成品牌与观众立场。"
+    )
 
     log_step(
         "pipeline.populate_issue",
@@ -297,3 +355,39 @@ def merge_pipeline_into_project_graph(
         replace_agent_sources=replace_agent_sources,
     )
     return nodes, edges, safe_nodes
+
+
+def discard_non_conflicting_pipeline_positions(
+    nodes: list[dict[str, Any]],
+    edges: list[dict[str, Any]],
+    pipeline: AgentPipelineResult,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Drop pipeline-added positions that are not linked to an issue via responds_to."""
+    pipeline_position_ids = {
+        str(n["node_id"])
+        for n in pipeline.proposed_nodes
+        if n.get("node_type") == "position"
+    }
+    if not pipeline_position_ids:
+        return nodes, edges
+
+    issue_ids = {str(n["node_id"]) for n in nodes if n.get("node_type") == "issue" and n.get("node_id")}
+    connected_positions = {
+        str(edge["from_node_id"])
+        for edge in edges
+        if edge.get("relation_type") == "responds_to"
+        and str(edge.get("to_node_id") or "") in issue_ids
+        and str(edge.get("from_node_id") or "") in pipeline_position_ids
+    }
+    remove_ids = pipeline_position_ids - connected_positions
+    if not remove_ids:
+        return nodes, edges
+
+    kept_nodes = [n for n in nodes if str(n.get("node_id") or "") not in remove_ids]
+    kept_edges = [
+        e
+        for e in edges
+        if str(e.get("from_node_id") or "") not in remove_ids
+        and str(e.get("to_node_id") or "") not in remove_ids
+    ]
+    return kept_nodes, kept_edges
