@@ -1,7 +1,11 @@
 from __future__ import annotations
 
-from typing import Any
+import json
+from typing import Any, Literal
 
+from pydantic import ValidationError
+
+from app.models.agent_outputs import BrandAgentOutput
 from app.repositories.projects import build_brand_insight
 from app.services.agent_context import assert_context_isolation, build_agent_context
 from app.services.agent_llm import (
@@ -17,10 +21,48 @@ from app.services.tavily_client import TavilyClient
 
 BRAND_SOURCES = {"brand_brief", "brand_inferred"}
 
+BrandTaskContext = Literal["brief_parse", "coordinator"]
+
+
+def _format_requirements_block(brand_perspective: dict[str, Any]) -> str:
+    """Render existing requirements as a readable text block for the LLM."""
+    lines: list[str] = ["## 已确认品牌需求（来自 Brief 解析）"]
+
+    explicit = brand_perspective.get("explicit_requirements") or []
+    lines.append("### 显式需求")
+    if explicit:
+        for i, req in enumerate(explicit, 1):
+            conf = req.get("confidence", "medium")
+            lines.append(f"{i}. [{conf}] {req.get('text', '')}")
+            if req.get("evidence"):
+                lines.append(f"   依据：{req['evidence']}")
+    else:
+        lines.append("（暂无）")
+
+    implicit = brand_perspective.get("implicit_requirements") or []
+    lines.append("### 隐性需求")
+    if implicit:
+        for i, req in enumerate(implicit, 1):
+            conf = req.get("confidence", "medium")
+            lines.append(f"{i}. [{conf}] {req.get('text', '')}")
+            if req.get("evidence"):
+                lines.append(f"   依据：{req['evidence']}")
+    else:
+        lines.append("（暂无）")
+
+    constraints = brand_perspective.get("constraints") or []
+    if constraints:
+        lines.append("### 创作约束")
+        for c in constraints:
+            lines.append(f"- {c}")
+
+    return "\n".join(lines)
+
 
 async def run_brand_agent(
     project: dict[str, Any],
     *,
+    task_context: BrandTaskContext = "coordinator",
     user_message: str | None = None,
     quotes: list[dict[str, Any]] | None = None,
     changed_row_ids: set[str] | None = None,
@@ -33,7 +75,7 @@ async def run_brand_agent(
     project_id = str(context.get("project_id") or project.get("_id") or "")
     script_version_id = context.get("current_script_version_id")
 
-    wiki = await brand_wiki_lookup(brief.get("filename"), mock=True)
+    wiki = await brand_wiki_lookup(brief.get("filename"), brief_text=text)
     tavily_snippets: list[str] = []
     if text:
         tavily = TavilyClient()
@@ -52,16 +94,30 @@ async def run_brand_agent(
         "brand_agent",
         phase="IN",
         project_id=project_id,
+        task_context=task_context,
         user_message=user_message,
         quotes=quotes,
         changed_row_ids=sorted(row_ids),
     )
 
+    # Choose brief representation based on calling context.
+    # brief_parse (initial or re-parse): inject raw text so the LLM can (re-)extract.
+    # coordinator: brief already structured; use existing requirements to avoid redundant
+    # re-extraction and give the LLM a stable, token-efficient representation.
+    existing_reqs = context.get("brand_perspective_result") or {}
+    has_requirements = bool(
+        existing_reqs.get("explicit_requirements") or existing_reqs.get("implicit_requirements")
+    )
+
+    if task_context == "brief_parse" or not has_requirements:
+        brief_section = f"## Brief（原文）\n{text[:3000]}"
+    else:
+        brief_section = _format_requirements_block(existing_reqs)
+
     context_block = "\n\n".join(
         [
-            f"## Brief\n{text[:3000]}",
-            f"## Brief 摘要\n{brief.get('summary', '')}",
-            f"## Brand Wiki\n{wiki.get('snippets', [])}",
+            brief_section,
+            f"## Brand Wiki（{wiki.get('source') or '无匹配手册'}）\n{wiki.get('full_text') or '（未找到对应品牌手册）'}",
             f"## Tavily\n{tavily_snippets}",
             f"## 脚本摘要\n{context.get('script_excerpt', '')}",
             f"## 变动/选段脚本\n{script_excerpt_for_rows(project, row_ids) if row_ids else ''}",
@@ -100,12 +156,19 @@ async def run_brand_agent(
             },
         }
 
-    payload = await invoke_agent_json(
+    raw_payload = await invoke_agent_json(
         agent_prompt_file="brand_agent.md",
         context=context_block,
         task_type="brand_analyze_brief",
         mock_payload=mock,
     )
+
+    try:
+        validated = BrandAgentOutput.model_validate(raw_payload)
+        payload = validated.model_dump()
+    except ValidationError as exc:
+        log_step("brand_agent.schema_validation_failed", phase="WARN", errors=exc.errors())
+        payload = raw_payload
 
     graph = persist_rationale_graph(
         project_id,

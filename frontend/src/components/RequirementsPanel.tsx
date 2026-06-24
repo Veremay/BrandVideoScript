@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { parseBrief, updateBrandRequirements } from "@/lib/api";
+import { parseBriefStream, updateBrandRequirements } from "@/lib/api";
 import {
   createEmptyRequirement,
   requirementsFromProject,
@@ -97,13 +97,18 @@ export function RequirementsPanel({ open, onClose }: RequirementsPanelProps) {
 
     setParsing(true);
     try {
-      const parsed = await parseBrief(currentProject._id, currentProject.user_id);
-      setProject(parsed.project);
-      const next = requirementsFromProject(parsed.project);
-      setExplicit(next.explicit);
-      setImplicit(next.implicit);
-      setBaselineExplicit(next.explicit);
-      setBaselineImplicit(next.implicit);
+      await parseBriefStream(currentProject._id, currentProject.user_id, (event) => {
+        if (event.type === "done") {
+          setProject(event.project);
+          const next = requirementsFromProject(event.project);
+          setExplicit(next.explicit);
+          setImplicit(next.implicit);
+          setBaselineExplicit(next.explicit);
+          setBaselineImplicit(next.implicit);
+        } else if (event.type === "error") {
+          window.alert(event.message);
+        }
+      });
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "Brief parse failed");
     } finally {

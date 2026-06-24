@@ -55,7 +55,7 @@ async def run_brief_initial_pipeline(project: dict[str, Any]) -> AgentPipelineRe
 
     pipeline = AgentPipelineResult()
     log_step("pipeline.brief_initial.brand_agent", phase="IN", project_id=project_id)
-    brand_result = await run_brand_agent(project)
+    brand_result = await run_brand_agent(project, task_context="brief_parse")
     _log_agent_output("pipeline.brief_initial.brand_agent", brand_result)
     pipeline.brand_result = brand_result
     _extend_graph(pipeline, brand_result)
@@ -134,6 +134,7 @@ async def run_coordinator_pipeline(
         log_step("pipeline.coordinator.brand_agent", phase="IN", project_id=project_id)
         brand_result = await run_brand_agent(
             project,
+            task_context="coordinator",
             user_message=user_message,
             quotes=quotes,
             changed_row_ids=row_ids,

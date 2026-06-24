@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.db.mongo import database_dependency
@@ -32,7 +33,7 @@ from app.models.schemas import (
 )
 from app.repositories.script_snapshots import create_script_snapshot, list_script_snapshots, restore_script_snapshot
 from app.repositories.share_sessions import create_or_get_share_session
-from app.services.coordinator_service import provision_personas_from_analytics, run_brief_initial_parse
+from app.services.coordinator_service import provision_personas_from_analytics, run_brief_initial_parse, stream_brief_parse
 from app.repositories.projects import (
     create_brand_insight,
     create_persona,
@@ -151,6 +152,19 @@ async def parse_brief(
         message = str(exc)
         status_code = 404 if message == "Project not found" else 400
         raise HTTPException(status_code=status_code, detail=message) from exc
+
+
+@router.post("/{project_id}/brief/parse/stream")
+async def parse_brief_stream(
+    project_id: str,
+    payload: BriefParseRequest,
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> StreamingResponse:
+    return StreamingResponse(
+        stream_brief_parse(db, project_id, payload.user_id.strip()),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.post("/{project_id}/persona/provision-from-analytics", response_model=PersonaProvisionResponse)

@@ -19,6 +19,7 @@ from app.models.modification_scheme_ops import (
     get_cell_value,
     normalize_scheme,
 )
+from app.models.negotiation_ops import build_negotiation_preparation
 from app.services.tools.ibis_graph import persist_rationale_graph
 
 EXPERT_SOURCES = {"expert_strategy"}
@@ -194,7 +195,7 @@ async def run_expert_for_brief(
 
     project_id = str(context.get("project_id") or project.get("_id") or "")
     script_version_id = context.get("current_script_version_id")
-    await domain_case_retriever(topic=context.get("brief_summary", ""), mock=True)
+    await domain_case_retriever(topic=context.get("brief_text", "")[:120], mock=True)
     kb = await script_structure_kb(query="brief_initial", mock=True)
 
     brand_position_ids = [
@@ -209,7 +210,7 @@ async def run_expert_for_brief(
     context_block = "\n\n".join(
         [
             f"## 场景\nbrief_initial — 在品牌 position 与创作立场之间识别冲突，派生 issue",
-            f"## Brief 摘要\n{context.get('brief_summary', '')}",
+            f"## Brief\n{context.get('brief_text', '')}",
             f"## Brand 结构化结果\n{perspective_result_json(brand_result)}",
             f"## 本轮 Brand position node_id\n{brand_position_ids}",
             f"## 知识库结构建议\n{kb.get('patterns', [])}",
@@ -394,7 +395,7 @@ async def run_expert_for_audience(
     )
 
     result = {
-        "brief_impact_summary": context.get("brief_summary", "")[:200],
+        "brief_impact_summary": context.get("brief_text", "")[:200],
         "creation_constraints": [],
         "strategy_notes": payload.get("strategy_notes") or audience_result.get("suggestions") or [],
         "recommended_directions": payload.get("recommended_directions") or ["audience_friendly"],
@@ -930,5 +931,180 @@ async def run_expert_generate_modification_schemes(
         phase="OUT",
         project_id=project_id,
         scheme_count=len(schemes),
+    )
+    return result
+
+
+def _support_feedback_nodes(project: dict[str, Any]) -> list[dict[str, Any]]:
+    nodes = project.get("rationale_nodes") or []
+    nodes_by_id = {n.get("node_id"): n for n in nodes if n.get("node_id")}
+    queue = project.get("communication_support_queue") or []
+    ordered = [nodes_by_id[node_id] for node_id in queue if node_id in nodes_by_id]
+    if ordered:
+        return ordered
+    return [n for n in nodes if n.get("in_communication_support_queue")]
+
+
+def _consideration_stance_nodes(project: dict[str, Any]) -> list[dict[str, Any]]:
+    nodes = project.get("rationale_nodes") or []
+    nodes_by_id = {n.get("node_id"): n for n in nodes if n.get("node_id")}
+    queue = project.get("consideration_queue") or []
+    ordered = [nodes_by_id[node_id] for node_id in queue if node_id in nodes_by_id]
+    if ordered:
+        return ordered
+    return [
+        n
+        for n in nodes
+        if n.get("node_type") == "position"
+        and (n.get("in_consideration_queue") or n.get("status") == "to_be_considered")
+    ]
+
+
+def _mock_negotiation_preparation(
+    project: dict[str, Any],
+    *,
+    support_nodes: list[dict[str, Any]],
+    stance_nodes: list[dict[str, Any]],
+) -> dict[str, Any]:
+    brief_summary = str((project.get("brief") or {}).get("text") or "").strip()
+    brand_result = project.get("brand_perspective_result") or {}
+    satisfied = [
+        str(item.get("text", "")).strip()
+        for item in (brand_result.get("explicit_requirements") or [])
+        if str(item.get("text", "")).strip()
+    ][:5]
+
+    stance_ids = [n.get("node_id") for n in stance_nodes if n.get("node_id")]
+    stance_points = [str(n.get("title", "")).strip() for n in stance_nodes if str(n.get("title", "")).strip()]
+    our_position = (stance_nodes[0].get("content") if stance_nodes else "") or (
+        "保留当前脚本的核心创意表达，同时说明已满足的品牌诉求。"
+    )
+
+    disputes: list[dict[str, Any]] = []
+    for node in support_nodes:
+        refs = node.get("linked_script_refs") or []
+        disputes.append(
+            {
+                "issue_node_id": node.get("node_id", ""),
+                "summary": str(node.get("title", "")).strip() or str(node.get("content", "")).strip()[:80],
+                "our_position": our_position[:600],
+                "acceptable_concession": "可在不破坏内容自然度的前提下，小幅强化品牌相关信息的呈现。",
+                "non_negotiable_line": "不接受会显著降低观众接受度或破坏叙事完整性的硬性植入。",
+                "talking_points": (stance_points or ["从创作者与观众视角解释当前设计的合理性。"])[:4],
+                "related_node_ids": [node.get("node_id", "")] + stance_ids,
+                "related_script_refs": [
+                    {
+                        "row_id": ref.get("row_id", ""),
+                        "column_id": ref.get("column_id", ""),
+                        "text_snapshot": ref.get("text_snapshot", ""),
+                    }
+                    for ref in refs
+                ],
+            }
+        )
+
+    return {
+        "assistant_reply": (
+            f"已基于 {len(support_nodes)} 条待协商反馈与 {len(stance_nodes)} 条采纳立场，"
+            "汇总品牌 / 观众 / 创作者三方视角生成协商沟通方案。"
+        ),
+        "negotiation_preparation": {
+            "title": "协商沟通方案",
+            "design_intent": brief_summary[:600]
+            or "在满足品牌核心诉求的同时，保持脚本的观众吸引力与叙事完整性。",
+            "satisfied_brand_needs": satisfied,
+            "open_disputes": disputes,
+            "recommended_communication_order": [n.get("node_id", "") for n in support_nodes if n.get("node_id")],
+        },
+    }
+
+
+async def run_expert_generate_negotiation(
+    project: dict[str, Any],
+    *,
+    message: str | None = None,
+) -> dict[str, Any]:
+    """Coordinator-style synthesis: aggregate brand / audience / creator perspectives into a
+    NegotiationPreparation that helps the creator argue the feedbacks on the communication
+    support list, grounded in the stances on the to-be-considered list.
+    """
+    context = build_agent_context("expert", project)
+    assert_context_isolation("expert", context)
+
+    project_id = str(context.get("project_id") or project.get("_id") or "")
+    script_version_id = context.get("current_script_version_id")
+
+    support_nodes = _support_feedback_nodes(project)
+    stance_nodes = _consideration_stance_nodes(project)
+    related_issue_ids = [n.get("node_id") for n in support_nodes if n.get("node_id")]
+
+    log_step(
+        "expert_agent.generate_negotiation",
+        phase="IN",
+        project_id=project_id,
+        support_nodes=[n.get("node_id") for n in support_nodes],
+        stance_nodes=[n.get("node_id") for n in stance_nodes],
+    )
+
+    disputes_block = "\n".join(
+        f"- node_id={n.get('node_id')} | 反馈：{str(n.get('content', n.get('title', '')))[:200]} | "
+        f"对应脚本行：{', '.join(ref.get('row_id', '') for ref in (n.get('linked_script_refs') or []))}"
+        for n in support_nodes
+    ) or "（创作者尚未把任何品牌反馈加入沟通支持清单）"
+
+    stances_block = "\n".join(
+        f"- node_id={n.get('node_id')} | {n.get('title', '')} | {str(n.get('content', ''))[:160]}"
+        for n in stance_nodes
+    ) or "（TO BE CONSIDERED 列表为空，请基于脚本与图整体推断创作者立场）"
+
+    context_block = "\n\n".join(
+        [
+            "## 场景\ngenerate_negotiation — 为创作者生成与品牌方协商的沟通方案",
+            f"## 创作者说明\n{message or '请帮助我准备与品牌方就以下反馈进行协商的方案'}",
+            f"## 待协商的品牌反馈（communication support list，每条对应一个 open_dispute）\n{disputes_block}",
+            f"## 创作者采纳的立场（TO BE CONSIDERED，用于支撑协商话术）\n{stances_block}",
+            f"## 品牌视角结论\n{perspective_result_json(project.get('brand_perspective_result') or {})}",
+            f"## 观众视角结论\n{perspective_result_json(project.get('audience_perspective_result') or {})}",
+            f"## 已有节点\n{existing_nodes_summary(project)}",
+            f"## 当前脚本\n{format_script_for_prompt(project)}",
+        ]
+    )
+
+    def mock() -> dict[str, Any]:
+        return _mock_negotiation_preparation(
+            project,
+            support_nodes=support_nodes,
+            stance_nodes=stance_nodes,
+        )
+
+    payload = await invoke_agent_json(
+        agent_prompt_file="negotiation_agent.md",
+        context=context_block,
+        task_type="expert_generate_negotiation",
+        mock_payload=mock,
+    )
+    # Negotiation flow must not create IBIS nodes.
+    payload.pop("ibis", None)
+
+    prep_payload = payload.get("negotiation_preparation")
+    if not isinstance(prep_payload, dict):
+        prep_payload = payload
+    prep = build_negotiation_preparation(
+        prep_payload,
+        project_id=project_id,
+        script_version_id=script_version_id,
+        related_issue_ids=related_issue_ids,
+    )
+
+    result = {
+        "assistant_reply": payload.get("assistant_reply", ""),
+        "negotiation_preparation": prep,
+        "tool_calls_used": ["negotiation_writer"],
+    }
+    log_step(
+        "expert_agent.generate_negotiation",
+        phase="OUT",
+        project_id=project_id,
+        open_disputes=len(prep.get("open_disputes") or []),
     )
     return result

@@ -28,6 +28,8 @@ def build_agent_context(role: AgentRole, project: dict[str, Any]) -> dict[str, A
             "project_id": project.get("_id"),
             "platform_context": project.get("platform_context", "other"),
             "brief": project.get("brief", {}),
+            # Existing requirements from a previous parse, used when brief is already parsed.
+            "brand_perspective_result": project.get("brand_perspective_result") or {},
             "brand_insights": project.get("brand_insights", []),
             "brand_feedback_rows": _feedback_rows(project),
             "current_script_version_id": project.get("current_script_version_id"),
@@ -46,7 +48,7 @@ def build_agent_context(role: AgentRole, project: dict[str, Any]) -> dict[str, A
         return {
             "project_id": project.get("_id"),
             "platform_context": project.get("platform_context", "other"),
-            "brief_summary": (project.get("brief") or {}).get("summary", ""),
+            "brief_text": str((project.get("brief") or {}).get("text") or "").strip(),
             "brand_perspective_result": project.get("brand_perspective_result") or {},
             "audience_perspective_result": project.get("audience_perspective_result") or {},
             "rationale_graph_summary": _graph_summary(project),

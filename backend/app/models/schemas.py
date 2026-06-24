@@ -209,6 +209,8 @@ class ProjectResponse(BaseModel):
     rationale_nodes: list[dict[str, Any]] = Field(default_factory=list)
     rationale_edges: list[dict[str, Any]] = Field(default_factory=list)
     consideration_queue: list[str] = Field(default_factory=list)
+    communication_support_queue: list[str] = Field(default_factory=list)
+    negotiation_preparation: dict[str, Any] | None = None
     modification_schemes: list[dict[str, Any]] = Field(default_factory=list)
     personas: list[dict[str, Any]]
     active_persona_id: str | None
@@ -357,6 +359,26 @@ class GraphEdgeCreateRequest(BaseModel):
 class GraphNodeConsiderationRequest(BaseModel):
     user_id: str = Field(min_length=1, max_length=80)
     in_queue: bool
+
+
+class CommunicationSupportToggleRequest(BaseModel):
+    """Argue a brand feedback row (add/remove it from the communication support list)."""
+
+    user_id: str = Field(min_length=1, max_length=80)
+    row_id: str = Field(min_length=1)
+    column_id: str = Field(min_length=1)
+    in_list: bool
+
+
+class NegotiationGenerateRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    message: str | None = Field(default=None, max_length=2000)
+
+
+class NegotiationGenerateResponse(BaseModel):
+    project: dict[str, Any]
+    negotiation_preparation: dict[str, Any] | None = None
+    assistant_reply: str = ""
 
 
 class GraphNodeLayoutItem(BaseModel):

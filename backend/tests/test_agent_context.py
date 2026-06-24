@@ -37,7 +37,8 @@ class AgentContextTest(unittest.TestCase):
         assert_context_isolation("expert", context)
         self.assertIn("brand_perspective_result", context)
         self.assertIn("audience_perspective_result", context)
-        self.assertEqual(context["brief_summary"], "通勤场景")
+        self.assertEqual(context["brief_text"], "必须展示真实通勤场景")
+        self.assertNotIn("brief_summary", context)
 
 
 if __name__ == "__main__":

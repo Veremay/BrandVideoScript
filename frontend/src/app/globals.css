@@ -5191,9 +5191,11 @@ textarea {
 .requirements-panel-body {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
   gap: 16px;
   padding: 24px 40px 40px;
-  overflow: auto;
+  overflow-y: auto;
 }
 
 .requirements-empty {
@@ -5322,4 +5324,219 @@ textarea {
 .requirements-add-btn:hover {
   border-color: var(--figma-primary);
   color: var(--figma-primary);
+}
+
+/* Brand feedback "Argue" control inside the script grid cell */
+.col-brand-feedback {
+  position: relative;
+}
+
+.feedback-argue-btn {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  z-index: 2;
+  height: 22px;
+  padding: 0 10px;
+  border: 1px solid var(--figma-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--figma-text);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.col-brand-feedback:hover .feedback-argue-btn {
+  opacity: 1;
+}
+
+.feedback-argue-btn:hover {
+  border-color: var(--figma-primary);
+  color: var(--figma-primary);
+}
+
+.feedback-argue-btn.is-active {
+  opacity: 1;
+  border-color: var(--figma-primary);
+  background: var(--figma-primary);
+  color: #fff;
+}
+
+.feedback-argue-btn:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* Communication panel (full workspace mode) */
+.comm-list,
+.comm-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.comm-hint,
+.comm-empty {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--figma-text-muted, #6b7280);
+}
+
+.comm-empty {
+  padding: 16px;
+  text-align: center;
+  border: 1px dashed var(--figma-border);
+  border-radius: 12px;
+}
+
+.comm-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--figma-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.comm-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.comm-card-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--figma-text);
+}
+
+.comm-card-meta {
+  font-size: 11px;
+  color: var(--figma-text-muted, #6b7280);
+}
+
+.comm-card-remove {
+  flex-shrink: 0;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--figma-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--figma-text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.comm-card-remove:hover {
+  border-color: #dc2626;
+  color: #dc2626;
+}
+
+.comm-plan-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.comm-plan-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--figma-text);
+}
+
+.comm-plan-subtitle {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--figma-text-muted, #6b7280);
+}
+
+.comm-plan-intent {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--figma-text);
+}
+
+.comm-plan-ul,
+.comm-plan-ol {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--figma-text);
+}
+
+.comm-dispute {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--figma-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.comm-dispute-summary {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--figma-text);
+}
+
+.comm-dispute-row {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--figma-text);
+}
+
+.comm-dispute-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--figma-text-muted, #6b7280);
+  margin-bottom: 2px;
+}
+
+.comm-dispute-line {
+  color: #b91c1c;
+}
+
+.comm-footer {
+  display: flex;
+}
+
+.comm-generate-btn {
+  flex: 1;
+  height: 40px;
+  border: none;
+  border-radius: 12px;
+  background: var(--figma-primary);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.comm-generate-btn:disabled {
+  cursor: default;
+  opacity: 0.5;
 }

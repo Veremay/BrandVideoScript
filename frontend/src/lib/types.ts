@@ -195,6 +195,8 @@ export type RationaleNode = {
   in_consideration_queue?: boolean;
   /** @deprecated Use in_consideration_queue on Position nodes */
   in_negotiation_queue?: boolean;
+  /** Brand feedback position is on the creator's communication support list. */
+  in_communication_support_queue?: boolean;
   linked_script_refs?: ScriptRefLink[];
   created_by: string;
   updated_at: string;
@@ -267,6 +269,32 @@ export type ModificationScheme = {
 
 export type HunkDecision = true | false | null;
 
+export type NegotiationDispute = {
+  issue_node_id: string;
+  summary: string;
+  our_position: string;
+  acceptable_concession: string;
+  non_negotiable_line: string;
+  talking_points: string[];
+  related_node_ids: string[];
+  related_script_refs: ScriptRefLink[];
+};
+
+export type NegotiationPreparation = {
+  prep_id: string;
+  project_id: string;
+  title: string;
+  based_on_script_version_id: string | null;
+  design_intent: string;
+  satisfied_brand_needs: string[];
+  open_disputes: NegotiationDispute[];
+  recommended_communication_order: string[];
+  related_issue_ids: string[];
+  status: "draft" | "reviewed" | "exported";
+  created_at: string;
+  updated_at: string;
+};
+
 export type PlatformContext = "xiaohongshu" | "douyin" | "bilibili" | "other";
 
 export type VideoCategory = "lifestyle";
@@ -288,6 +316,9 @@ export type Project = {
   consideration_queue?: string[];
   /** @deprecated Use consideration_queue */
   negotiation_queue?: string[];
+  /** Brand feedback positions the creator is arguing (communication support list). */
+  communication_support_queue?: string[];
+  negotiation_preparation?: NegotiationPreparation | null;
   modification_schemes?: ModificationScheme[];
   personas: Persona[];
   active_persona_id: string | null;

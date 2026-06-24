@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+from collections.abc import AsyncIterator
 from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -7,6 +9,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.models.artifact_stale import mark_persona_changed, stale_set_fields
 from app.models.script import now_iso
 from app.repositories.projects import get_project
+from app.services.sse import encode_sse
 from app.repositories.script_snapshots import snapshot_before_map_update
 from app.services.agent_orchestrator import (
     merge_pipeline_into_project_graph,
@@ -97,6 +100,36 @@ async def run_brief_initial_parse(
             "total_edges": len(edges),
         },
     }
+
+
+async def stream_brief_parse(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+) -> AsyncIterator[str]:
+    """SSE generator for brief parsing. Yields status → heartbeats → done/error."""
+    yield encode_sse("status", {"message": "Parsing…"})
+
+    task: asyncio.Task[dict[str, Any]] = asyncio.create_task(
+        run_brief_initial_parse(db, project_id, user_id)
+    )
+    # Send a heartbeat every 8 s so the connection stays alive during long LLM calls.
+    while not task.done():
+        try:
+            await asyncio.wait_for(asyncio.shield(task), timeout=8.0)
+        except asyncio.TimeoutError:
+            yield encode_sse("heartbeat", {})
+
+    exc = task.exception()
+    if exc is not None:
+        yield encode_sse("error", {"message": str(exc)})
+        return
+
+    result = task.result()
+    yield encode_sse("done", {
+        "project": result["project"],
+        "parse_summary": result.get("parse_summary", {}),
+    })
 
 
 async def run_persona_provisioned_parse(

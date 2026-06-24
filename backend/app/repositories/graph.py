@@ -279,6 +279,123 @@ async def toggle_consideration_queue(
     return await get_project(db, project_id, user_id)
 
 
+def _feedback_cell_value(script: dict[str, Any], row_id: str, column_id: str) -> str:
+    for row in script.get("rows", []):
+        if row.get("row_id") != row_id:
+            continue
+        for cell in row.get("cells", []):
+            if cell.get("column_id") == column_id:
+                return str(cell.get("value", "")).strip()
+    return ""
+
+
+def _find_feedback_node(nodes: list[dict[str, Any]], row_id: str) -> dict[str, Any] | None:
+    for node in nodes:
+        if node.get("source_type") != "brand_feedback" or node.get("node_type") != "position":
+            continue
+        for ref in node.get("linked_script_refs") or []:
+            if ref.get("row_id") == row_id:
+                return node
+    return None
+
+
+async def toggle_communication_support(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    *,
+    row_id: str,
+    column_id: str,
+    in_list: bool,
+) -> dict[str, Any] | None:
+    """Argue a brand-feedback row: turn it into a brand_feedback Position node and
+    add/remove it from the creator's communication support list.
+    """
+    project = await get_project(db, project_id, user_id)
+    if project is None:
+        return None
+
+    script = project.get("current_script") or {}
+    nodes = list(project.get("rationale_nodes") or [])
+    queue = list(project.get("communication_support_queue") or [])
+    existing = _find_feedback_node(nodes, row_id)
+
+    if in_list:
+        feedback_text = _feedback_cell_value(script, row_id, column_id)
+        if not feedback_text:
+            raise ValueError("This row has no brand feedback to argue")
+
+        if existing is None:
+            node = build_rationale_node(
+                project_id=project_id,
+                node_type="position",
+                title=feedback_text[:120],
+                content=feedback_text,
+                source_type="brand_feedback",
+                source_perspective="brand",
+                business_tags=["negotiation_point"],
+                status="needs_negotiation",
+                created_by="user",
+                based_on_script_version_id=project.get("current_script_version_id"),
+            )
+            node["in_communication_support_queue"] = True
+            node["linked_script_refs"] = [
+                {
+                    "row_id": row_id,
+                    "column_id": column_id,
+                    "text_snapshot": feedback_text,
+                    "script_version_id": project.get("current_script_version_id"),
+                }
+            ]
+            nodes.append(node)
+            node_id = node["node_id"]
+        else:
+            node_id = existing["node_id"]
+            nodes = [
+                {
+                    **item,
+                    "in_communication_support_queue": True,
+                    "status": "needs_negotiation",
+                    "updated_by": "user",
+                    "updated_at": now_iso(),
+                }
+                if item.get("node_id") == node_id
+                else item
+                for item in nodes
+            ]
+        if node_id not in queue:
+            queue.append(node_id)
+    else:
+        if existing is not None:
+            node_id = existing["node_id"]
+            nodes = [
+                {
+                    **item,
+                    "in_communication_support_queue": False,
+                    "status": "open" if item.get("status") == "needs_negotiation" else item.get("status"),
+                    "updated_by": "user",
+                    "updated_at": now_iso(),
+                }
+                if item.get("node_id") == node_id
+                else item
+                for item in nodes
+            ]
+            queue = [item for item in queue if item != node_id]
+
+    await db.projects.update_one(
+        {"_id": project_id, "user_id": user_id},
+        {
+            "$set": {
+                "rationale_nodes": nodes,
+                "communication_support_queue": queue,
+                "updated_at": now_iso(),
+                **stale_set_fields({"negotiation_preparation": "stale_brand_feedback"}),
+            }
+        },
+    )
+    return await get_project(db, project_id, user_id)
+
+
 async def batch_update_graph_layouts(
     db: AsyncIOMotorDatabase,
     project_id: str,

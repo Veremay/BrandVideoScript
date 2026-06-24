@@ -13,6 +13,7 @@ import type {
   RationaleEdge,
   RationaleNode,
   ModificationScheme,
+  NegotiationPreparation,
   RequestedPerspective,
   Script,
   ScriptSnapshotReason,
@@ -183,6 +184,66 @@ export async function parseBrief(
     BRIEF_PARSE_TIMEOUT_MS
   );
   return { ...data, project: normalizeProject(data.project)! };
+}
+
+type BriefParseStreamEvent =
+  | { type: "status"; message: string }
+  | { type: "heartbeat" }
+  | { type: "done"; project: Project; parse_summary: Record<string, number> }
+  | { type: "error"; message: string };
+
+function parseBriefSseBlock(block: string): BriefParseStreamEvent | null {
+  let event = "message";
+  let data = "";
+  for (const line of block.split("\n")) {
+    if (line.startsWith("event:")) event = line.slice(6).trim();
+    if (line.startsWith("data:")) data = line.slice(5).trim();
+  }
+  if (!data) return null;
+  const payload = JSON.parse(data) as Record<string, unknown>;
+  if (event === "status") return { type: "status", message: String(payload.message ?? "") };
+  if (event === "heartbeat") return { type: "heartbeat" };
+  if (event === "done") {
+    return {
+      type: "done",
+      project: normalizeProject(payload.project as Project)!,
+      parse_summary: (payload.parse_summary ?? {}) as Record<string, number>,
+    };
+  }
+  if (event === "error") return { type: "error", message: String(payload.message ?? "Parse failed") };
+  return null;
+}
+
+export async function parseBriefStream(
+  projectId: string,
+  userId: string,
+  onEvent: (event: BriefParseStreamEvent) => void
+): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/projects/${projectId}/brief/parse/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId }),
+  });
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Parse failed: ${response.status}`);
+  }
+  if (!response.body) throw new Error("Stream body missing");
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split("\n\n");
+    buffer = parts.pop() ?? "";
+    for (const part of parts) {
+      const ev = parseBriefSseBlock(part.trim());
+      if (ev) onEvent(ev);
+    }
+  }
 }
 
 export async function provisionPersonasFromAnalytics(
@@ -666,6 +727,41 @@ export async function applyModificationSchemeHunks(
     PROJECT_TIMEOUT_MS
   );
   return normalizeProject(data.project)!;
+}
+
+export async function toggleCommunicationSupport(
+  projectId: string,
+  userId: string,
+  rowId: string,
+  columnId: string,
+  inList: boolean
+): Promise<Project> {
+  return normalizeProject(
+    await request(`/projects/${projectId}/communication-support`, {
+      method: "PATCH",
+      body: JSON.stringify({ user_id: userId, row_id: rowId, column_id: columnId, in_list: inList })
+    })
+  )!;
+}
+
+export async function generateNegotiationPlan(
+  projectId: string,
+  userId: string,
+  message?: string
+): Promise<{ project: Project; negotiation_preparation: NegotiationPreparation | null; assistant_reply: string }> {
+  const data = await request<{
+    project: Project;
+    negotiation_preparation: NegotiationPreparation | null;
+    assistant_reply: string;
+  }>(
+    `/projects/${projectId}/negotiation/generate`,
+    {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId, message: message ?? null })
+    },
+    SCHEME_GENERATE_TIMEOUT_MS
+  );
+  return { ...data, project: normalizeProject(data.project)! };
 }
 
 export async function createShareLink(

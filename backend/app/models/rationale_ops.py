@@ -67,6 +67,8 @@ def build_rationale_node(
         "status": status,
         "in_consideration_queue": False,
         "in_negotiation_queue": False,
+        # Position is on the creator's communication support list (feedback being argued).
+        "in_communication_support_queue": False,
         "linked_script_refs": [],
         "related_reference_ids": [],
         "layout": layout or {"x": 160.0, "y": 120.0},

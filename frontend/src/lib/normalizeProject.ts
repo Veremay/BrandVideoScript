@@ -12,6 +12,8 @@ export function normalizeProject(raw: ProjectPayload | null): Project | null {
     rationale_nodes: (raw.rationale_nodes ?? []) as RationaleNode[],
     rationale_edges: (raw.rationale_edges ?? []) as RationaleEdge[],
     consideration_queue: raw.consideration_queue ?? raw.negotiation_queue ?? [],
+    communication_support_queue: raw.communication_support_queue ?? [],
+    negotiation_preparation: raw.negotiation_preparation ?? null,
     modification_schemes: (raw.modification_schemes ?? []).slice(-1),
     brand_perspective_result: raw.brand_perspective_result ?? null,
     audience_perspective_result: raw.audience_perspective_result ?? null,

@@ -35,7 +35,7 @@ async def invoke_agent_json(
 
     if client.settings.siliconflow_api_key:
         try:
-            result = await client.complete_json(
+            result = await client.complete_json_via_stream(
                 messages=[
                     {"role": "system", "content": system},
                     {"role": "user", "content": user},

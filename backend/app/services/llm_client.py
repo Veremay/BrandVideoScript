@@ -42,8 +42,9 @@ class LLMClient:
             "stream": stream,
             "temperature": 0.4,
             "top_p": 0.7,
-            "enable_thinking": should_enable_thinking(task_type, complexity),
         }
+        if should_enable_thinking(task_type, complexity):
+            payload["enable_thinking"] = True
         if response_format is not None:
             payload["response_format"] = response_format
 
@@ -97,14 +98,15 @@ class LLMClient:
                 await asyncio.sleep(0.02)
             return
 
-        payload = {
+        payload: dict[str, Any] = {
             "model": model,
             "messages": messages,
             "stream": True,
             "temperature": 0.4,
             "top_p": 0.7,
-            "enable_thinking": should_enable_thinking(task_type, complexity),
         }
+        if should_enable_thinking(task_type, complexity):
+            payload["enable_thinking"] = True
         collected: list[str] = []
         stream_timeout = self.settings.siliconflow_stream_timeout_seconds
         async with httpx.AsyncClient(base_url=self.settings.siliconflow_base_url, timeout=stream_timeout) as client:
@@ -188,6 +190,89 @@ class LLMClient:
                 extra="source=complete_json_repair",
             )
             return parsed
+
+    async def complete_json_via_stream(
+        self,
+        *,
+        messages: list[dict[str, str]],
+        task_type: str,
+        complexity: str = "high",
+        mock: bool | None = None,
+    ) -> dict[str, Any]:
+        """Same as complete_json but uses streaming to avoid ReadTimeout on slow models.
+
+        The streaming endpoint emits tokens incrementally, so the per-read timeout
+        (siliconflow_stream_timeout_seconds) only applies between chunks, not for the
+        entire generation. This prevents timeouts on long-running requests.
+        """
+        use_mock = mock if mock is not None else not self.settings.siliconflow_api_key
+        if use_mock:
+            raise RuntimeError("mock mode — caller should use fallback")
+
+        model = select_model(task_type, complexity)
+        log_llm_request(task_type=task_type, model=model, messages=messages, stream=True)
+
+        payload: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "stream": True,
+            "temperature": 0.4,
+            "top_p": 0.7,
+        }
+        if should_enable_thinking(task_type, complexity):
+            payload["enable_thinking"] = True
+
+        chunks: list[str] = []
+        stream_timeout = self.settings.siliconflow_stream_timeout_seconds
+        async with httpx.AsyncClient(base_url=self.settings.siliconflow_base_url, timeout=stream_timeout) as client:
+            async with client.stream(
+                "POST",
+                "/chat/completions",
+                headers={"Authorization": f"Bearer {self.settings.siliconflow_api_key}"},
+                json=payload,
+            ) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    chunk = line[5:].strip()
+                    if chunk == "[DONE]":
+                        break
+                    try:
+                        data = json.loads(chunk)
+                    except json.JSONDecodeError:
+                        continue
+                    choices = data.get("choices") or []
+                    if not choices:
+                        continue
+                    delta = choices[0].get("delta", {}).get("content")
+                    if delta:
+                        chunks.append(delta)
+
+        content = "".join(chunks)
+        log_llm_response(task_type=task_type, model=model, content=content, extra="source=stream")
+        try:
+            parsed = extract_json_object(content)
+            log_step(f"llm.complete_json_via_stream.{task_type}", phase="OUT", parsed_json=parsed)
+            return parsed
+        except (json.JSONDecodeError, ValueError):
+            repair = await self.complete_json_via_stream(
+                messages=[
+                    {"role": "system", "content": "Fix the JSON syntax only. Output valid JSON object, nothing else."},
+                    {"role": "user", "content": content},
+                ],
+                task_type="coordinator_structured",
+                complexity="normal",
+                mock=False,
+            )
+            log_llm_response(
+                task_type=task_type,
+                model=model,
+                content=json.dumps(repair, ensure_ascii=False),
+                parsed_json=repair,
+                extra="source=complete_json_via_stream_repair",
+            )
+            return repair
 
     def _extract_message_content(self, response: dict[str, Any]) -> str:
         if response.get("mock"):
