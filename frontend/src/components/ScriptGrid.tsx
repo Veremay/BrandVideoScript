@@ -3,7 +3,7 @@
 import { MouseEvent, PointerEvent, useEffect, useMemo, useState } from "react";
 
 import { CellHunkDiff, useCellHunkMap } from "@/components/ScriptCellModification";
-import { createGraphNode } from "@/lib/api";
+import { createGraphNode, toggleCommunicationSupport } from "@/lib/api";
 import { analyzeDurations, isBrandFeedbackColumn, isMultilineColumn } from "@/lib/scriptEditor";
 import type { HunkDecision, ModificationSchemeHunk, Script, ScriptColumn } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
@@ -72,6 +72,35 @@ function ScriptGridBody({
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const [rowHeights, setRowHeights] = useState<Record<string, number>>({});
+  const [argueBusyRowId, setArgueBusyRowId] = useState<string | null>(null);
+
+  const communicationSupportRowIds = useMemo(() => {
+    const queue = new Set(project?.communication_support_queue ?? []);
+    const ids = new Set<string>();
+    for (const node of project?.rationale_nodes ?? []) {
+      if (node.source_type !== "brand_feedback") continue;
+      const inList = Boolean(node.in_communication_support_queue) || queue.has(node.node_id);
+      if (!inList) continue;
+      for (const ref of node.linked_script_refs ?? []) {
+        if (ref.row_id) ids.add(ref.row_id);
+      }
+    }
+    return ids;
+  }, [project?.rationale_nodes, project?.communication_support_queue]);
+
+  async function handleToggleArgue(rowId: string, columnId: string) {
+    if (!project || argueBusyRowId) return;
+    const nextInList = !communicationSupportRowIds.has(rowId);
+    setArgueBusyRowId(rowId);
+    try {
+      const updated = await toggleCommunicationSupport(project._id, project.user_id, rowId, columnId, nextInList);
+      setProject(updated);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Failed to update communication support list");
+    } finally {
+      setArgueBusyRowId(null);
+    }
+  }
 
   const columns = [...script.columns].sort((a, b) => a.order - b.order);
   const rows = [...script.rows].sort((a, b) => a.order - b.order);
@@ -403,13 +432,16 @@ function ScriptGridBody({
                 <RowBlock
                   columns={columns}
                   columnWidths={columnWidths}
+                  argueBusy={!isShare && argueBusyRowId === row.row_id}
                   durationIssueMessages={isShare ? undefined : durationIssueByRowId.get(row.row_id)}
+                  feedbackArgued={!isShare && communicationSupportRowIds.has(row.row_id)}
                   hunkByCell={hunkByCell}
                   hunkDecisions={hunkDecisions}
                   index={rowIndex}
                   key={row.row_id}
                   linkedIssueMessages={isShare ? undefined : linkedIssueByRowId.get(row.row_id)}
                   mode={mode}
+                  onToggleArgue={isShare ? undefined : handleToggleArgue}
                   onAddRow={() => insertRowAfter(row.row_id)}
                   onDeleteRow={() => handleDeleteRow(row.row_id)}
                   onHunkAccept={(hunkId) => void acceptAndApplyHunk(hunkId)}
@@ -476,9 +508,11 @@ function formatRowHint(durationIssueMessages?: string[], linkedIssueMessages?: s
 }
 
 function RowBlock({
+  argueBusy = false,
   columns,
   columnWidths,
   durationIssueMessages,
+  feedbackArgued = false,
   hunkByCell,
   hunkDecisions,
   index,
@@ -491,14 +525,17 @@ function RowBlock({
   onResizeRow,
   onSelection,
   onSelectRow,
+  onToggleArgue,
   row,
   rowHeight,
   selected,
   updateCell
 }: {
+  argueBusy?: boolean;
   columns: Script["columns"];
   columnWidths: Record<string, number>;
   durationIssueMessages?: string[];
+  feedbackArgued?: boolean;
   hunkByCell: Map<string, ModificationSchemeHunk>;
   hunkDecisions: Record<string, HunkDecision>;
   index: number;
@@ -511,6 +548,7 @@ function RowBlock({
   onResizeRow: (event: PointerEvent<HTMLElement>) => void;
   onSelection: (event: MouseEvent<HTMLElement>, rowId: string, columnId: string) => void;
   onSelectRow: () => void;
+  onToggleArgue?: (rowId: string, columnId: string) => void;
   row: Script["rows"][number];
   rowHeight?: number;
   selected: boolean;
@@ -608,6 +646,21 @@ function RowBlock({
                   {...commonProps}
                 />
               )}
+              {brandFeedback && !isShare && value.trim() && onToggleArgue ? (
+                <button
+                  className={`feedback-argue-btn${feedbackArgued ? " is-active" : ""}`}
+                  onClick={() => onToggleArgue(row.row_id, column.column_id)}
+                  disabled={argueBusy}
+                  type="button"
+                  title={
+                    feedbackArgued
+                      ? "On your communication support list — click to remove"
+                      : "Argue this feedback (add to communication support list)"
+                  }
+                >
+                  {argueBusy ? "…" : feedbackArgued ? "Arguing ✓" : "Argue"}
+                </button>
+              ) : null}
             </td>
           );
         })}

@@ -1,8 +1,9 @@
 import unittest
 
 from app.services.agents.brand_agent import run_brand_agent
-from app.services.agents.expert_agent import run_expert_for_brief, run_expert_populate_issue
+from app.services.agents.expert_agent import run_expert_for_conflicts
 from app.services.agent_context import build_agent_context
+from app.services.agent_orchestrator import run_issue_population_pipeline
 
 
 class BriefParseAgentsTest(unittest.IsolatedAsyncioTestCase):
@@ -15,15 +16,22 @@ class BriefParseAgentsTest(unittest.IsolatedAsyncioTestCase):
                 "summary": "通勤与口播约束",
             },
             "brand_insights": [],
-            "personas": [],
-            "active_persona_id": None,
+            "brand_perspective_result": {
+                "explicit_requirements": [{"text": "必须展示真实通勤", "confidence": "high"}],
+                "implicit_requirements": [],
+            },
+            "personas": [{"persona_id": "persona_1", "name": "A", "trust_trigger": [], "reject_trigger": []}],
+            "active_persona_id": "persona_1",
             "current_script_version_id": "script_ver_1",
             "current_script": {"columns": [], "rows": []},
             "rationale_nodes": [],
             "rationale_edges": [],
         }
-        brand = await run_brand_agent(project)
-        expert = await run_expert_for_brief(project, brand)
+        brand = await run_brand_agent(project, task_context="coordinator")
+        from app.services.agents.audience_agent import run_audience_agent
+
+        audience = await run_audience_agent(project)
+        expert = await run_expert_for_conflicts(project, brand, audience)
 
         # Bottom-up model: Brand emits Positions (stances), never standalone Issues.
         brand_node_types = {node.get("node_type") for node in brand.get("proposed_nodes", [])}
@@ -35,20 +43,24 @@ class BriefParseAgentsTest(unittest.IsolatedAsyncioTestCase):
             if node.get("node_type") == "position"
         }
         self.assertTrue(brand_position_sources.intersection({"brand_brief", "brand_inferred"}))
-        self.assertGreaterEqual(len(brand.get("explicit_requirements", [])), 1)
 
-        # Expert derives a conflict Issue from the brand position + an expert counter-position.
+        # Expert derives conflict issues from brand + audience positions.
         expert_node_types = {node.get("node_type") for node in expert.get("proposed_nodes", [])}
         self.assertIn("issue", expert_node_types)
         relations = {edge.get("relation_type") for edge in expert.get("proposed_edges", [])}
         self.assertIn("responds_to", relations)
-        self.assertIn("conflicts_with", relations)
 
-    async def test_populate_issue_organizes_conflicting_positions(self) -> None:
+    async def test_populate_issue_generates_brand_and_audience_positions(self) -> None:
         issue_id = "node_issue_user_1"
         project = {
             "_id": "project_pop",
             "platform_context": "xiaohongshu",
+            "brand_perspective_result": {
+                "explicit_requirements": [{"text": "品牌露出", "confidence": "high"}],
+                "implicit_requirements": [],
+            },
+            "personas": [{"persona_id": "persona_1", "name": "A", "trust_trigger": [], "reject_trigger": []}],
+            "active_persona_id": "persona_1",
             "current_script_version_id": "ver_1",
             "current_script": {"columns": [], "rows": []},
             "rationale_nodes": [
@@ -63,16 +75,16 @@ class BriefParseAgentsTest(unittest.IsolatedAsyncioTestCase):
             ],
             "rationale_edges": [],
         }
-        issue = project["rationale_nodes"][0]
-        result = await run_expert_populate_issue(project, issue)
+        pipeline = await run_issue_population_pipeline(project, issue_id)
 
-        positions = [n for n in result["proposed_nodes"] if n.get("node_type") == "position"]
+        positions = [n for n in pipeline.proposed_nodes if n.get("node_type") == "position"]
         self.assertGreaterEqual(len(positions), 2)
-        responds = [e for e in result["proposed_edges"] if e["relation_type"] == "responds_to"]
-        conflicts = [e for e in result["proposed_edges"] if e["relation_type"] == "conflicts_with"]
+        responds = [e for e in pipeline.proposed_edges if e["relation_type"] == "responds_to"]
         self.assertGreaterEqual(len(responds), 2)
         self.assertTrue(all(e["to_node_id"] == issue_id for e in responds))
-        self.assertGreaterEqual(len(conflicts), 1)
+        sources = {p.get("source_type") for p in positions}
+        self.assertTrue(sources.intersection({"brand_brief", "brand_inferred"}))
+        self.assertTrue(sources.intersection({"audience_persona", "audience_simulation"}))
 
     def test_audience_context_cannot_see_brief(self) -> None:
         project = {

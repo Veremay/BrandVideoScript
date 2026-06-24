@@ -120,6 +120,7 @@ class BrandRequirementItem(BaseModel):
     text: str = Field(min_length=1, max_length=2000)
     evidence: str | None = Field(default=None, max_length=2000)
     confidence: Literal["high", "medium", "low"] = "medium"
+    source: Literal["user", "agent"] | None = None
 
 
 class BrandRequirementsUpdateRequest(BaseModel):

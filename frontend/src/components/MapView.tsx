@@ -26,7 +26,6 @@ import {
   computeIbisLayout,
   isValidVisualConnection,
   layoutForNode,
-  normalizeNodeType,
   NODE_HEIGHT,
   resolveFlowEndpoints,
   visualConnectionToStored
@@ -62,6 +61,7 @@ type IbisNodeData = {
   lifecycle?: "active" | "resolved" | "superseded";
   changeMark?: "none" | "modified" | "new";
   suggestion?: string | null;
+  createdBy?: string;
 } & Record<string, unknown>;
 
 type MapNodeSeed = IbisNodeData & {
@@ -103,8 +103,6 @@ function sourceLabel(source?: RationaleSourceType): string {
 
 const EDGE_STYLE = { stroke: "#7ed4fd", strokeWidth: 2 };
 const EDGE_FOCUS_STYLE = { stroke: "#006591", strokeWidth: 3 };
-// Conflict edges (position ↔ position) drive Issue creation; render them distinctly.
-const CONFLICT_EDGE_STYLE = { stroke: "#f4795b", strokeWidth: 2, strokeDasharray: "6 4" };
 const FLOW_EDGE_TYPE = "default";
 
 function buildUndirectedAdjacency(edgeList: Edge[]): Map<string, Set<string>> {
@@ -195,7 +193,8 @@ function rationaleToFlowNode(
       inConsiderationQueue: node.in_consideration_queue ?? node.in_negotiation_queue,
       lifecycle: node.lifecycle ?? "active",
       changeMark: node.change_mark ?? "none",
-      suggestion: node.suggestion ?? null
+      suggestion: node.suggestion ?? null,
+      createdBy: node.created_by
     }
   };
 }
@@ -205,27 +204,6 @@ function rationaleToFlowEdge(edge: RationaleEdge, nodeById: Map<string, Rational
     nodeById.get(edge.from_node_id)?.lifecycle === "resolved" ||
     nodeById.get(edge.to_node_id)?.lifecycle === "resolved";
   const dim = (style: Record<string, unknown>) => (touchesResolved ? { ...style, opacity: 0.4 } : style);
-  if (edge.relation_type === "conflicts_with") {
-    const fromNode = nodeById.get(edge.from_node_id);
-    const toNode = nodeById.get(edge.to_node_id);
-    if (!fromNode || !toNode) return null;
-    if (
-      normalizeNodeType(fromNode.node_type) !== "position" ||
-      normalizeNodeType(toNode.node_type) !== "position"
-    ) {
-      return null;
-    }
-    return {
-      id: edge.edge_id,
-      source: edge.from_node_id,
-      target: edge.to_node_id,
-      type: FLOW_EDGE_TYPE,
-      style: dim(CONFLICT_EDGE_STYLE),
-      label: "冲突",
-      reconnectable: false,
-      selectable: false
-    };
-  }
   const endpoints = resolveFlowEndpoints(edge, nodeById);
   if (!endpoints) return null;
   return {
@@ -320,8 +298,14 @@ function MapViewContent() {
   const project = useAppStore((state) => state.project);
   const setProject = useAppStore((state) => state.setProject);
   // Superseded nodes survive only in snapshots; never render them on the canvas.
-  const rationaleNodes = (project?.rationale_nodes ?? []).filter((node) => node.lifecycle !== "superseded");
-  const rationaleEdges = project?.rationale_edges ?? [];
+  const rationaleNodes = useMemo(
+    () => (project?.rationale_nodes ?? []).filter((node) => node.lifecycle !== "superseded"),
+    [project?.rationale_nodes]
+  );
+  const rationaleEdges = useMemo(
+    () => project?.rationale_edges ?? [],
+    [project?.rationale_edges]
+  );
   const nodeById = useMemo(
     () => new Map(rationaleNodes.map((node) => [node.node_id, node])),
     [rationaleNodes]
@@ -808,9 +792,19 @@ function MapViewContent() {
   const emptyGraph = flowNodes.length === 0;
   const scriptChanged = isGraphStaleFromScript(project?.stale);
   const mapSyncing = syncingMap || project?.stale?.rationale_graph === "generating";
+  const hasRequirements =
+    (project?.brand_perspective_result?.explicit_requirements?.length ?? 0) > 0 ||
+    (project?.brand_perspective_result?.implicit_requirements?.length ?? 0) > 0;
+  const hasPersona = (project?.personas?.length ?? 0) > 0;
+  const canUpdateMap = hasRequirements && hasPersona;
+  const updateMapBlockedReason = !hasRequirements
+    ? "Add brand requirements (parse Brief or edit Requirements) before updating the map."
+    : !hasPersona
+      ? "Provision at least one persona before updating the map."
+      : null;
 
   const handleUpdateMap = useCallback(async () => {
-    if (!project?._id || !project.user_id || syncingMap) return;
+    if (!project?._id || !project.user_id || syncingMap || !canUpdateMap) return;
     setSyncingMap(true);
     try {
       const updated = await syncMapFromScript(project._id, project.user_id);
@@ -831,7 +825,7 @@ function MapViewContent() {
     } finally {
       setSyncingMap(false);
     }
-  }, [project, setProject, syncingMap]);
+  }, [canUpdateMap, project, setProject, syncingMap]);
 
   return (
     <section className="map-workspace" ref={workspaceRef}>
@@ -839,8 +833,9 @@ function MapViewContent() {
       {scriptChanged || mapSyncing ? (
         <button
           className="map-update-map-btn"
-          disabled={mapSyncing}
+          disabled={mapSyncing || !canUpdateMap}
           onClick={() => void handleUpdateMap()}
+          title={!canUpdateMap ? (updateMapBlockedReason ?? undefined) : undefined}
           type="button"
           aria-busy={mapSyncing}
         >
@@ -854,7 +849,15 @@ function MapViewContent() {
       ) : null}
       {emptyGraph ? (
         <div className="map-empty-state">
-          <p>Upload a Brief and run parse, or provision Personas from analytics, to populate the IBIS graph.</p>
+          <p>
+            {!hasRequirements && !hasPersona
+              ? "Parse a Brief to extract requirements and provision Personas, then click Update Map to build the graph."
+              : !hasRequirements
+                ? "Parse a Brief or add requirements in the Requirements panel, then click Update Map."
+                : !hasPersona
+                  ? "Provision at least one Persona, then click Update Map to detect conflicts from the script."
+                  : "Edit the script, then click Update Map to detect brand vs audience conflicts."}
+          </p>
         </div>
       ) : null}
       <MapGraphActionsContext.Provider value={graphActions}>
@@ -1121,6 +1124,9 @@ function IbisNode({ data, id }: NodeProps) {
             {nodeData.sourceType ? <em className="map-node-source">{sourceLabel(nodeData.sourceType)}</em> : null}
           </span>
           <div className="map-node-header-actions">
+            {nodeData.createdBy === "user" ? (
+              <span className="map-node-status-tag map-node-status-user-created">手动</span>
+            ) : null}
             {nodeData.lifecycle === "resolved" ? (
               <span className="map-node-status-tag map-node-status-resolved">已解决</span>
             ) : null}
@@ -1171,7 +1177,7 @@ function IbisNode({ data, id }: NodeProps) {
                 >
                   Edit
                 </button>
-                {nodeData.nodeType === "issue" ? (
+                {nodeData.nodeType === "issue" && nodeData.createdBy === "user" ? (
                   <button
                     className="map-node-dropdown-item"
                     disabled={actions?.populatingIssueId === id}
@@ -1182,7 +1188,7 @@ function IbisNode({ data, id }: NodeProps) {
                     role="menuitem"
                     type="button"
                   >
-                    {actions?.populatingIssueId === id ? "Generating…" : "Generate positions"}
+                    {actions?.populatingIssueId === id ? "Generating…" : "Generate Position"}
                   </button>
                 ) : null}
                 {nodeData.nodeType === "position" ? (

@@ -10,7 +10,7 @@
 
 ### issue — 冲突（派生节点，不可孤立）
 表示 **≥2 个相互冲突 position 之间的争议焦点**。示例：「品牌露出强度 vs 内容自然性」。
-**约束**：必须由 **≥2 个 position** 通过 `responds_to` 指向它；同时建议在冲突的两个 position 之间建立 `conflicts_with`。**禁止**产出没有 position 的孤立 issue。
+**约束**：必须由 **≥2 个 position** 通过 `responds_to` 指向它。**禁止**产出没有 position 的孤立 issue。
 
 ### argument — 支撑 / 反对某立场的理由
 支持或反对某个 position 的论据。边：`supports` / `opposes` 指向 position（argument → position）。
@@ -23,7 +23,6 @@
 | relation_type | 方向 | 含义 |
 |---------------|------|------|
 | `responds_to` | position → issue | 该立场归属于某个冲突 |
-| `conflicts_with` | position ↔ position | 两个立场相互冲突 |
 | `supports` / `opposes` | argument → position | 论据支撑 / 反对立场 |
 
 ## source_type
@@ -48,8 +47,8 @@
 ```
 
 - 每条 `edges` / `external_edges` 的端点都可用 **本批下标**（`from_index` / `to_index`）或 **已有节点 id**（`from_node_id` / `to_node_id`）任意组合。
-- `external_edges` 用于把**已有图节点**接入本批新节点：典型用法是把来自 Brand / Audience / 已有图的多个 position 连到本批新建的 issue（`responds_to`），并在冲突的两个 position 间补 `conflicts_with`。
-- 产出 issue 时**必须**同时给出：① **≥2 条** `responds_to`（position → issue）；② 建议在冲突 position 间给出 `conflicts_with`。
+- `external_edges` 用于把**已有图节点**接入本批新节点：典型用法是把来自 Brand / Audience / 已有图的多个 position 连到本批新建的 issue（`responds_to`）。
+- 产出 issue 时**必须**给出 **≥2 条** `responds_to`（position → issue）。
 - position 可不连任何边（根级、暂无冲突）。argument 必须连到某个 position。
 - **不要**产出没有 position 的孤立 issue（会被丢弃）。
 - 只输出 JSON，不要 markdown 代码块。

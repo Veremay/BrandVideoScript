@@ -91,20 +91,27 @@ export function RequirementsPanel({ open, onClose }: RequirementsPanelProps) {
   }
 
   async function handleParseBrief() {
-    if (isDirty && !window.confirm("Parsing will reload requirements from the Brief and discard unsaved edits. Continue?")) {
-      return;
-    }
-
     setParsing(true);
     try {
       await parseBriefStream(currentProject._id, currentProject.user_id, (event) => {
         if (event.type === "done") {
           setProject(event.project);
-          const next = requirementsFromProject(event.project);
-          setExplicit(next.explicit);
-          setImplicit(next.implicit);
-          setBaselineExplicit(next.explicit);
-          setBaselineImplicit(next.implicit);
+          const parsed = requirementsFromProject(event.project);
+
+          // Append any locally unsaved user-created items not yet reflected in the parsed result.
+          const parsedExplicitIds = new Set(parsed.explicit.map((r) => r.id));
+          const parsedImplicitIds = new Set(parsed.implicit.map((r) => r.id));
+          const pendingExplicit = explicit.filter((r) => r.source === "user" && !parsedExplicitIds.has(r.id));
+          const pendingImplicit = implicit.filter((r) => r.source === "user" && !parsedImplicitIds.has(r.id));
+
+          const mergedExplicit = [...parsed.explicit, ...pendingExplicit];
+          const mergedImplicit = [...parsed.implicit, ...pendingImplicit];
+
+          setExplicit(mergedExplicit);
+          setImplicit(mergedImplicit);
+          // Baseline tracks what is persisted in DB; pending user items mark the panel as dirty.
+          setBaselineExplicit(parsed.explicit);
+          setBaselineImplicit(parsed.implicit);
         } else if (event.type === "error") {
           window.alert(event.message);
         }
@@ -183,15 +190,13 @@ export function RequirementsPanel({ open, onClose }: RequirementsPanelProps) {
         </div>
 
         <div className="requirements-panel-body">
-          {!hasParsedBrief ? (
+          {activeList.length === 0 ? (
             <p className="requirements-empty">
-              {hasBrief
-                ? 'Brief uploaded. Click "Parse from Brief" above to let the Brand Agent populate requirements here.'
-                : "Upload a Brief first, then click \u201CParse from Brief\u201D to populate requirements here."}
-            </p>
-          ) : activeList.length === 0 ? (
-            <p className="requirements-empty">
-              No {activeTab === "explicit" ? "explicit" : "implicit"} requirements yet. Add one below or re-parse your Brief.
+              {!hasParsedBrief
+                ? hasBrief
+                  ? 'Brief uploaded. Click "Parse from Brief" above to let the Brand Agent populate requirements here.'
+                  : "Upload a Brief first, then click \u201CParse from Brief\u201D to populate requirements here."
+                : `No ${activeTab === "explicit" ? "explicit" : "implicit"} requirements yet. Add one below or re-parse your Brief.`}
             </p>
           ) : (
             <ul className="requirements-list">

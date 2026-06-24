@@ -50,6 +50,7 @@ export type BrandRequirement = {
   text: string;
   evidence?: string;
   confidence: BrandRequirementConfidence;
+  source?: "user" | "agent";
 };
 
 export type BrandPerspectiveResult = {

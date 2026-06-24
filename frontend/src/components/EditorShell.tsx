@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 
+import { CommunicationPanel } from "@/components/CommunicationPanel";
 import { CoordinatorChat } from "@/components/CoordinatorChat";
 import { RevisionProposalsProvider } from "@/components/RevisionProposalsPanel";
 import { PersonaPanel } from "@/components/PersonaPanel";
@@ -45,6 +46,7 @@ export function EditorShell() {
   const activeView = isVanilla ? "editor" : layout.workspaceView;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [snapshotsOpen, setSnapshotsOpen] = useState(false);
+  const [communicationOpen, setCommunicationOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
   const coordinatorOpen = layout.coordinatorChatOpen;
   const staleHint = staleSummary(project?.stale);
@@ -355,6 +357,21 @@ export function EditorShell() {
           <>
             <RequirementsPanel onClose={() => setRequirementsPanelOpen(false)} open={layout.requirementsPanelOpen} />
             <PersonaPanel onClose={() => setPersonaPanelOpen(false)} open={layout.personaPanelOpen} />
+            <button
+              className={`figma-fab ${communicationOpen ? "figma-fab--open" : ""}`}
+              onClick={() => setCommunicationOpen((value) => !value)}
+              type="button"
+              aria-label={communicationOpen ? "Close Communication panel" : "Open Communication panel"}
+              aria-expanded={communicationOpen}
+            >
+              <IconHandshake />
+            </button>
+            <CommunicationPanel
+              open={communicationOpen}
+              onClose={() => setCommunicationOpen(false)}
+              projectId={project._id}
+              userId={project.user_id}
+            />
           </>
         )}
 
@@ -461,6 +478,18 @@ function IconLightning() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
       <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+    </svg>
+  );
+}
+
+function IconHandshake() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="m11 17 2 2a1 1 0 1 0 3-3" />
+      <path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4" />
+      <path d="m21 3 1 11h-2" />
+      <path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3" />
+      <path d="M3 4h8" />
     </svg>
   );
 }

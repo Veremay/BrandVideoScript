@@ -248,7 +248,6 @@ async def run_expert_for_brief(
             ibis["external_edges"].extend(
                 [
                     {"from_node_id": brand_pos, "to_index": 1, "relation_type": "responds_to"},
-                    {"from_node_id": brand_pos, "to_index": 0, "relation_type": "conflicts_with"},
                 ]
             )
         return {
@@ -355,7 +354,6 @@ async def run_expert_for_audience(
                 ibis["external_edges"].extend(
                     [
                         {"from_node_id": audience_pos, "to_index": 1, "relation_type": "responds_to"},
-                        {"from_node_id": audience_pos, "to_index": 0, "relation_type": "conflicts_with"},
                     ]
                 )
             else:
@@ -372,7 +370,6 @@ async def run_expert_for_audience(
                     [
                         {"from_node_id": audience_pos, "to_index": 0, "relation_type": "responds_to"},
                         {"from_node_id": counter_position_id, "to_index": 0, "relation_type": "responds_to"},
-                        {"from_node_id": audience_pos, "to_node_id": counter_position_id, "relation_type": "conflicts_with"},
                     ]
                 )
         return {
@@ -411,6 +408,112 @@ async def run_expert_for_audience(
         phase="OUT",
         project_id=project_id,
         proposed_nodes=len(result["proposed_nodes"]),
+    )
+    return result
+
+
+async def run_expert_for_conflicts(
+    project: dict[str, Any],
+    brand_result: dict[str, Any],
+    audience_result: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Identify conflicts between Brand and Audience positions; emit issues + edges only."""
+    context = build_agent_context("expert", project)
+    assert_context_isolation("expert", context)
+
+    project_id = str(context.get("project_id") or project.get("_id") or "")
+    script_version_id = context.get("current_script_version_id")
+
+    brand_position_ids = [
+        n["node_id"] for n in brand_result.get("proposed_nodes", []) if n.get("node_type") == "position"
+    ]
+    audience_position_ids: list[str] = []
+    if audience_result:
+        audience_position_ids = [
+            n["node_id"] for n in audience_result.get("proposed_nodes", []) if n.get("node_type") == "position"
+        ]
+
+    log_step(
+        "expert_agent.map_conflicts",
+        phase="IN",
+        project_id=project_id,
+        brand_position_ids=brand_position_ids,
+        audience_position_ids=audience_position_ids,
+    )
+    context_block = "\n\n".join(
+        [
+            "## 场景\nmap_update_conflicts — 在 Brand 与 Audience position 之间识别真实冲突，仅派生 issue",
+            f"## 脚本摘要\n{format_script_for_prompt(project)}",
+            f"## Brand 结构化结果\n{perspective_result_json(brand_result)}",
+            f"## Audience 结构化结果\n{perspective_result_json(audience_result or {})}",
+            f"## 本轮 Brand position node_id\n{brand_position_ids}",
+            f"## 本轮 Audience position node_id\n{audience_position_ids}",
+            f"## 已有节点\n{existing_nodes_summary(project)}",
+            "## 要求\n"
+            "- **不要**新建 position 节点\n"
+            "- 仅当 Brand 与 Audience 立场存在实质冲突时，创建 issue 节点\n"
+            "- 用 external_edges 将冲突的 position（from_node_id）以 responds_to 连到 issue（to_index）\n"
+            "- 无冲突的 position 不要连到任何 issue",
+        ]
+    )
+
+    def mock() -> dict[str, Any]:
+        ibis: dict[str, Any] = {"nodes": [], "edges": [], "external_edges": []}
+        if brand_position_ids and audience_position_ids:
+            brand_pos = brand_position_ids[0]
+            audience_pos = audience_position_ids[0]
+            ibis["nodes"].append(
+                {
+                    "node_type": "issue",
+                    "title": "品牌诉求 vs 观众体验",
+                    "content": "品牌露出立场与观众自然性立场存在冲突，待权衡。",
+                    "source_type": "expert_strategy",
+                    "source_perspective": "expert",
+                }
+            )
+            ibis["external_edges"].extend(
+                [
+                    {"from_node_id": brand_pos, "to_index": 0, "relation_type": "responds_to"},
+                    {"from_node_id": audience_pos, "to_index": 0, "relation_type": "responds_to"},
+                ]
+            )
+        return {
+            "strategy_notes": ["仅保留有冲突的立场组合"],
+            "recommended_directions": ["balanced"],
+            "ibis": ibis,
+        }
+
+    payload = await invoke_agent_json(
+        agent_prompt_file="expert_agent.md",
+        context=context_block,
+        task_type="expert_generate_suggestions",
+        mock_payload=mock,
+    )
+    graph = persist_rationale_graph(
+        project_id,
+        payload.get("ibis"),
+        script_version_id=script_version_id,
+        allowed_source_types=EXPERT_SOURCES,
+    )
+
+    result = {
+        "brief_impact_summary": "",
+        "creation_constraints": brand_result.get("constraints") or [],
+        "strategy_notes": payload.get("strategy_notes") or [],
+        "recommended_directions": payload.get("recommended_directions") or ["balanced"],
+        "modification_schemes": [],
+        "negotiation_preparation": None,
+        "proposed_nodes": graph.proposed_nodes,
+        "proposed_edges": graph.proposed_edges,
+        "node_updates": graph.node_updates,
+        "tool_calls_used": ["persist_rationale_graph"],
+    }
+    log_step(
+        "expert_agent.map_conflicts",
+        phase="OUT",
+        project_id=project_id,
+        proposed_nodes=len(result["proposed_nodes"]),
+        proposed_edges=len(result["proposed_edges"]),
     )
     return result
 
@@ -496,7 +599,6 @@ async def run_expert_coordinator(
                 [
                     {"from_node_id": pos_a, "to_index": 0, "relation_type": "responds_to"},
                     {"from_node_id": pos_b, "to_index": 0, "relation_type": "responds_to"},
-                    {"from_node_id": pos_a, "to_node_id": pos_b, "relation_type": "conflicts_with"},
                 ]
             )
         elif len(candidate_position_ids) == 1:
@@ -523,7 +625,6 @@ async def run_expert_coordinator(
             ibis["external_edges"].extend(
                 [
                     {"from_node_id": candidate_position_ids[0], "to_index": 1, "relation_type": "responds_to"},
-                    {"from_node_id": candidate_position_ids[0], "to_index": 0, "relation_type": "conflicts_with"},
                 ]
             )
         else:
@@ -584,7 +685,7 @@ async def run_expert_populate_issue(
 
     Bottom-up IBIS treats an Issue as a conflict, so when a creator drops an Issue
     on the canvas the Expert fills in the opposing stances that make the conflict
-    concrete (responds_to the issue + conflicts_with each other).
+    concrete (responds_to the issue).
     """
     context = build_agent_context("expert", project)
     assert_context_isolation("expert", context)
@@ -609,7 +710,7 @@ async def run_expert_populate_issue(
             f"## 脚本摘要\n{context.get('script_excerpt', '')}",
             f"## 已有节点\n{existing_nodes_summary(project)}",
             "## 要求\n输出至少 2 个相互对立的 position：用 external_edges 将每个 position（from_index）"
-            f"以 responds_to 连到该 issue（to_node_id={issue_id}），并在两个 position 间补 conflicts_with。",
+            f"以 responds_to 连到该 issue（to_node_id={issue_id}）。",
         ]
     )
 
@@ -634,7 +735,7 @@ async def run_expert_populate_issue(
                         "source_perspective": "expert",
                     },
                 ],
-                "edges": [{"from_index": 0, "to_index": 1, "relation_type": "conflicts_with"}],
+                "edges": [],
                 "external_edges": [
                     {"from_index": 0, "to_node_id": issue_id, "relation_type": "responds_to"},
                     {"from_index": 1, "to_node_id": issue_id, "relation_type": "responds_to"},
@@ -772,7 +873,7 @@ async def run_expert_reconcile(
                 "2) node_modifications：仅当某个 position/argument 内容发生实质变化时，"
                 "给出 {node_id, new_title, new_content, reason}。\n"
                 "3) ibis：仅放【全新】冲突（≥2 个对立 position + 一个 issue，"
-                "用 responds_to / conflicts_with 连接；可用 external_edges 接现有 position）。\n"
+                "用 responds_to 连接；可用 external_edges 接现有 position）。\n"
                 "不要改动 created_by=user 的节点，只在必要时通过 reason 说明。"
             ),
         ]

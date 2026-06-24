@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from app.services.agent_context import assert_context_isolation, build_agent_context
 from app.services.agent_llm import (
@@ -14,10 +14,67 @@ from app.services.tools.ibis_graph import persist_rationale_graph
 
 AUDIENCE_SOURCES = {"audience_persona", "audience_simulation"}
 
+AudienceTaskContext = Literal["coordinator", "issue_response"]
+
+_DEFAULT_TASK_INSTRUCTIONS = """\
+## 你的任务
+
+1. 评估自然度、广告感、信任门槛、划走风险。
+2. 推理观众向 **IBIS position（观众立场 / 期待）**，通过 `ibis` 字段交给 **`persist_rationale_graph`** 落库。
+3. **只产 position**（把观众视角表达为明确立场）；**不要产 issue**——冲突由 Expert 汇总判定。`source_type` 限：`audience_persona`、`audience_simulation`。position 可独立存在，**不要写 edges**。"""
+
+_DEFAULT_OUTPUT_SCHEMA = """\
+## 输出 JSON
+
+```json
+{
+  "naturalness": "…",
+  "ad_sense": "…",
+  "trust": "…",
+  "drop_off_risk": "…",
+  "suggestions": ["…"],
+  "structured_issues": [{ "title": "…", "content": "…" }],
+  "ibis": {
+    "nodes": [],
+    "edges": [],
+    "external_edges": [],
+    "node_updates": []
+  }
+}
+```"""
+
+_ISSUE_RESPONSE_TASK_INSTRUCTIONS = """\
+## 任务：针对用户 Issue 生成观众立场
+
+用户提出了一个议题（Issue）。从当前 Persona 视角给出**唯一一条** position 立场。
+- 仅输出 1 个 position 节点
+- 用 external_edges 将该 position（from_index: 0）以 responds_to 连到目标 issue（to_node_id）
+- position 的 source_type 限：`audience_persona`、`audience_simulation`
+- 不要输出 issue 节点"""
+
+_ISSUE_RESPONSE_OUTPUT_SCHEMA = """\
+## 输出 JSON
+
+```json
+{
+  "ibis": {
+    "nodes": [
+      { "node_type": "position", "title": "…", "content": "…", "source_type": "audience_simulation", "source_perspective": "audience" }
+    ],
+    "edges": [],
+    "external_edges": [
+      { "from_index": 0, "to_node_id": "<issue_id>", "relation_type": "responds_to" }
+    ]
+  }
+}
+```"""
+
 
 async def run_audience_agent(
     project: dict[str, Any],
     *,
+    task_context: AudienceTaskContext = "coordinator",
+    issue: dict[str, Any] | None = None,
     quotes: list[dict[str, Any]] | None = None,
     changed_row_ids: set[str] | None = None,
 ) -> dict[str, Any]:
@@ -28,6 +85,28 @@ async def run_audience_agent(
     if not persona:
         raise ValueError("Active persona is required for audience analysis")
 
+    if task_context == "issue_response":
+        if issue is None:
+            raise ValueError("issue is required for issue_response")
+        return await _run_issue_response(project, issue=issue, persona=persona)
+
+    return await _run_script_analysis(
+        project,
+        context=context,
+        persona=persona,
+        quotes=quotes,
+        changed_row_ids=changed_row_ids,
+    )
+
+
+async def _run_script_analysis(
+    project: dict[str, Any],
+    *,
+    context: dict[str, Any],
+    persona: dict[str, Any],
+    quotes: list[dict[str, Any]] | None = None,
+    changed_row_ids: set[str] | None = None,
+) -> dict[str, Any]:
     project_id = str(context.get("project_id") or project.get("_id") or "")
     script_version_id = context.get("current_script_version_id")
 
@@ -84,6 +163,10 @@ async def run_audience_agent(
         context=context_block,
         task_type="audience_analyze_script",
         mock_payload=mock,
+        extra_vars={
+            "TASK_INSTRUCTIONS": _DEFAULT_TASK_INSTRUCTIONS,
+            "OUTPUT_SCHEMA": _DEFAULT_OUTPUT_SCHEMA,
+        },
     )
 
     graph = persist_rationale_graph(
@@ -111,5 +194,101 @@ async def run_audience_agent(
         project_id=project_id,
         proposed_nodes=len(result["proposed_nodes"]),
         suggestions=result["suggestions"],
+    )
+    return result
+
+
+async def _run_issue_response(
+    project: dict[str, Any],
+    *,
+    issue: dict[str, Any],
+    persona: dict[str, Any],
+) -> dict[str, Any]:
+    context = build_agent_context("audience", project)
+    project_id = str(context.get("project_id") or project.get("_id") or "")
+    script_version_id = context.get("current_script_version_id")
+    issue_id = str(issue.get("node_id") or "")
+    issue_title = str(issue.get("title") or "")
+    issue_content = str(issue.get("content") or "")
+
+    log_step(
+        "audience_agent.issue_response",
+        phase="IN",
+        project_id=project_id,
+        issue_id=issue_id,
+        persona_id=persona.get("persona_id"),
+    )
+
+    context_block = "\n\n".join(
+        [
+            f"## 目标 Issue\nid={issue_id}\n标题：{issue_title}\n内容：{issue_content}",
+            f"## Persona\n{persona}",
+            f"## 平台\n{context.get('platform_context', 'other')}",
+            f"## 脚本摘要\n{context.get('script_excerpt', '')}",
+            f"## 已有节点\n{existing_nodes_summary(project)}",
+        ]
+    )
+
+    def mock() -> dict[str, Any]:
+        label = issue_title[:30] or "该议题"
+        return {
+            "naturalness": f"以 {persona.get('name')} 视角回应议题",
+            "ad_sense": "",
+            "trust": "",
+            "drop_off_risk": "",
+            "suggestions": [],
+            "structured_issues": [],
+            "ibis": {
+                "nodes": [
+                    {
+                        "node_type": "position",
+                        "title": "观众立场",
+                        "content": f"针对「{label}」，{persona.get('name', '观众')}更关注内容自然性与信任感。",
+                        "source_type": "audience_simulation",
+                        "source_perspective": "audience",
+                    }
+                ],
+                "edges": [],
+                "external_edges": [
+                    {"from_index": 0, "to_node_id": issue_id, "relation_type": "responds_to"},
+                ],
+            },
+        }
+
+    payload = await invoke_agent_json(
+        agent_prompt_file="audience_agent.md",
+        context=context_block,
+        task_type="audience_issue_response",
+        mock_payload=mock,
+        extra_vars={
+            "TASK_INSTRUCTIONS": _ISSUE_RESPONSE_TASK_INSTRUCTIONS,
+            "OUTPUT_SCHEMA": _ISSUE_RESPONSE_OUTPUT_SCHEMA.replace("<issue_id>", issue_id),
+        },
+    )
+
+    graph = persist_rationale_graph(
+        project_id,
+        payload.get("ibis"),
+        script_version_id=script_version_id,
+        allowed_source_types=AUDIENCE_SOURCES,
+    )
+
+    result = {
+        "naturalness": payload.get("naturalness", ""),
+        "ad_sense": payload.get("ad_sense", ""),
+        "trust": payload.get("trust", ""),
+        "drop_off_risk": payload.get("drop_off_risk", ""),
+        "suggestions": payload.get("suggestions") or [],
+        "structured_issues": payload.get("structured_issues") or [],
+        "proposed_nodes": graph.proposed_nodes,
+        "proposed_edges": graph.proposed_edges,
+        "node_updates": graph.node_updates,
+        "tool_calls_used": ["persist_rationale_graph"],
+    }
+    log_step(
+        "audience_agent.issue_response",
+        phase="OUT",
+        project_id=project_id,
+        proposed_nodes=len(result["proposed_nodes"]),
     )
     return result

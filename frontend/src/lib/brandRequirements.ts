@@ -13,12 +13,14 @@ export function requirementFromRaw(raw: unknown, index: number, prefix: string):
 
   const id = String(record.id ?? "").trim() || `${prefix}_${index}_${Date.now()}`;
   const evidence = String(record.evidence ?? "").trim();
+  const source = record.source === "user" ? "user" : record.source === "agent" ? "agent" : undefined;
 
   return {
     id,
     text,
     confidence: normalizeConfidence(record.confidence),
-    ...(evidence ? { evidence } : {})
+    ...(evidence ? { evidence } : {}),
+    ...(source ? { source } : {})
   };
 }
 
@@ -51,7 +53,8 @@ export function createEmptyRequirement(prefix: string): BrandRequirement {
   return {
     id: `${prefix}_${crypto.randomUUID()}`,
     text: "",
-    confidence: "medium"
+    confidence: "medium",
+    source: "user"
   };
 }
 
@@ -61,7 +64,8 @@ export function toApiRequirements(items: BrandRequirement[]) {
       id: item.id,
       text: item.text.trim(),
       evidence: item.evidence?.trim() || undefined,
-      confidence: item.confidence
+      confidence: item.confidence,
+      ...(item.source ? { source: item.source } : {})
     }))
     .filter((item) => item.text.length > 0);
 }
