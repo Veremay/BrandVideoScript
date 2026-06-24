@@ -50,6 +50,7 @@ def build_agent_context(role: AgentRole, project: dict[str, Any]) -> dict[str, A
             "platform_context": project.get("platform_context", "other"),
             "brief_text": str((project.get("brief") or {}).get("text") or "").strip(),
             "brand_perspective_result": project.get("brand_perspective_result") or {},
+            "brand_insights": project.get("brand_insights", []),
             "audience_perspective_result": project.get("audience_perspective_result") or {},
             "rationale_graph_summary": _graph_summary(project),
             "current_script_version_id": project.get("current_script_version_id"),

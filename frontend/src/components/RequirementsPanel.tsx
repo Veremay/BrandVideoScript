@@ -4,11 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 
 import { parseBriefStream, updateBrandRequirements } from "@/lib/api";
 import {
-  createEmptyRequirement,
-  requirementsFromProject,
-  toApiRequirements
+  createEmptyInsight,
+  insightsFromProject,
+  toApiBrandInsights
 } from "@/lib/brandRequirements";
-import type { BrandRequirement, BrandRequirementConfidence } from "@/lib/types";
+import type { BrandInsight, BrandInsightCategory, BrandInsightConfidence } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
 
 type RequirementsPanelProps = {
@@ -18,17 +18,21 @@ type RequirementsPanelProps = {
 
 type RequirementTab = "explicit" | "implicit";
 
-function listsEqual(a: BrandRequirement[], b: BrandRequirement[]) {
+function listsEqual(a: BrandInsight[], b: BrandInsight[]) {
   return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function tabToCategory(tab: RequirementTab): BrandInsightCategory {
+  return tab === "explicit" ? "explicit_requirement" : "implicit_requirement";
 }
 
 export function RequirementsPanel({ open, onClose }: RequirementsPanelProps) {
   const { project, setProject } = useAppStore();
   const [activeTab, setActiveTab] = useState<RequirementTab>("explicit");
-  const [explicit, setExplicit] = useState<BrandRequirement[]>([]);
-  const [implicit, setImplicit] = useState<BrandRequirement[]>([]);
-  const [baselineExplicit, setBaselineExplicit] = useState<BrandRequirement[]>([]);
-  const [baselineImplicit, setBaselineImplicit] = useState<BrandRequirement[]>([]);
+  const [explicit, setExplicit] = useState<BrandInsight[]>([]);
+  const [implicit, setImplicit] = useState<BrandInsight[]>([]);
+  const [baselineExplicit, setBaselineExplicit] = useState<BrandInsight[]>([]);
+  const [baselineImplicit, setBaselineImplicit] = useState<BrandInsight[]>([]);
   const [saving, setSaving] = useState(false);
   const [parsing, setParsing] = useState(false);
 
@@ -41,13 +45,13 @@ export function RequirementsPanel({ open, onClose }: RequirementsPanelProps) {
 
   useEffect(() => {
     if (!open || !project) return;
-    const { explicit: nextExplicit, implicit: nextImplicit } = requirementsFromProject(project);
+    const { explicit: nextExplicit, implicit: nextImplicit } = insightsFromProject(project);
     setExplicit(nextExplicit);
     setImplicit(nextImplicit);
     setBaselineExplicit(nextExplicit);
     setBaselineImplicit(nextImplicit);
     setActiveTab("explicit");
-  }, [open, project?._id, project?.brand_perspective_result, project?.updated_at]);
+  }, [open, project?._id, project?.brand_insights, project?.updated_at]);
 
   if (!open || !project) return null;
 
@@ -55,30 +59,30 @@ export function RequirementsPanel({ open, onClose }: RequirementsPanelProps) {
   const activeList = activeTab === "explicit" ? explicit : implicit;
   const setActiveList = activeTab === "explicit" ? setExplicit : setImplicit;
 
-  function updateRequirement(id: string, patch: Partial<BrandRequirement>) {
-    setActiveList((items) => items.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+  function updateInsight(insightId: string, patch: Partial<BrandInsight>) {
+    setActiveList((items) =>
+      items.map((item) => (item.insight_id === insightId ? { ...item, ...patch } : item))
+    );
   }
 
-  function addRequirement() {
-    setActiveList((items) => [...items, createEmptyRequirement(activeTab)]);
+  function addInsight() {
+    setActiveList((items) => [...items, createEmptyInsight(tabToCategory(activeTab))]);
   }
 
-  function removeRequirement(id: string) {
-    setActiveList((items) => items.filter((item) => item.id !== id));
+  function removeInsight(insightId: string) {
+    setActiveList((items) => items.filter((item) => item.insight_id !== insightId));
   }
 
   async function handleSave() {
-    const payloadExplicit = toApiRequirements(explicit);
-    const payloadImplicit = toApiRequirements(implicit);
+    const payloadInsights = toApiBrandInsights([...explicit, ...implicit]);
 
     setSaving(true);
     try {
       const savedProject = await updateBrandRequirements(currentProject._id, currentProject.user_id, {
-        explicit_requirements: payloadExplicit,
-        implicit_requirements: payloadImplicit
+        brand_insights: payloadInsights
       });
       setProject(savedProject);
-      const next = requirementsFromProject(savedProject);
+      const next = insightsFromProject(savedProject);
       setExplicit(next.explicit);
       setImplicit(next.implicit);
       setBaselineExplicit(next.explicit);
@@ -96,20 +100,22 @@ export function RequirementsPanel({ open, onClose }: RequirementsPanelProps) {
       await parseBriefStream(currentProject._id, currentProject.user_id, (event) => {
         if (event.type === "done") {
           setProject(event.project);
-          const parsed = requirementsFromProject(event.project);
+          const parsed = insightsFromProject(event.project);
 
-          // Append any locally unsaved user-created items not yet reflected in the parsed result.
-          const parsedExplicitIds = new Set(parsed.explicit.map((r) => r.id));
-          const parsedImplicitIds = new Set(parsed.implicit.map((r) => r.id));
-          const pendingExplicit = explicit.filter((r) => r.source === "user" && !parsedExplicitIds.has(r.id));
-          const pendingImplicit = implicit.filter((r) => r.source === "user" && !parsedImplicitIds.has(r.id));
+          const parsedExplicitIds = new Set(parsed.explicit.map((r) => r.insight_id));
+          const parsedImplicitIds = new Set(parsed.implicit.map((r) => r.insight_id));
+          const pendingExplicit = explicit.filter(
+            (r) => r.created_by === "user" && !parsedExplicitIds.has(r.insight_id)
+          );
+          const pendingImplicit = implicit.filter(
+            (r) => r.created_by === "user" && !parsedImplicitIds.has(r.insight_id)
+          );
 
           const mergedExplicit = [...parsed.explicit, ...pendingExplicit];
           const mergedImplicit = [...parsed.implicit, ...pendingImplicit];
 
           setExplicit(mergedExplicit);
           setImplicit(mergedImplicit);
-          // Baseline tracks what is persisted in DB; pending user items mark the panel as dirty.
           setBaselineExplicit(parsed.explicit);
           setBaselineImplicit(parsed.implicit);
         } else if (event.type === "error") {
@@ -201,7 +207,7 @@ export function RequirementsPanel({ open, onClose }: RequirementsPanelProps) {
           ) : (
             <ul className="requirements-list">
               {activeList.map((item, index) => (
-                <li className="requirement-card" key={item.id}>
+                <li className="requirement-card" key={item.insight_id}>
                   <div className="requirement-card-header">
                     <span className="requirement-card-index">#{index + 1}</span>
                     <label className="requirement-confidence-label">
@@ -209,8 +215,8 @@ export function RequirementsPanel({ open, onClose }: RequirementsPanelProps) {
                       <select
                         className="requirement-confidence-select"
                         onChange={(event) =>
-                          updateRequirement(item.id, {
-                            confidence: event.target.value as BrandRequirementConfidence
+                          updateInsight(item.insight_id, {
+                            confidence: event.target.value as BrandInsightConfidence
                           })
                         }
                         value={item.confidence}
@@ -223,28 +229,37 @@ export function RequirementsPanel({ open, onClose }: RequirementsPanelProps) {
                     <button
                       aria-label="Delete requirement"
                       className="requirement-delete-btn"
-                      onClick={() => removeRequirement(item.id)}
+                      onClick={() => removeInsight(item.insight_id)}
                       type="button"
                     >
                       <IconTrash />
                     </button>
                   </div>
                   <label className="requirement-field">
-                    <span>Requirement</span>
-                    <textarea
-                      onChange={(event) => updateRequirement(item.id, { text: event.target.value })}
-                      placeholder="Describe the brand requirement…"
-                      rows={3}
-                      value={item.text}
+                    <span>Title</span>
+                    <input
+                      onChange={(event) => updateInsight(item.insight_id, { title: event.target.value })}
+                      placeholder="Short label for this requirement"
+                      type="text"
+                      value={item.title}
                     />
                   </label>
                   <label className="requirement-field">
-                    <span>Evidence (optional)</span>
-                    <input
-                      onChange={(event) => updateRequirement(item.id, { evidence: event.target.value })}
-                      placeholder="Brief quote or source note"
-                      type="text"
-                      value={item.evidence ?? ""}
+                    <span>Content</span>
+                    <textarea
+                      onChange={(event) => updateInsight(item.insight_id, { content: event.target.value })}
+                      placeholder="Describe the brand requirement…"
+                      rows={3}
+                      value={item.content}
+                    />
+                  </label>
+                  <label className="requirement-field">
+                    <span>Reason</span>
+                    <textarea
+                      onChange={(event) => updateInsight(item.insight_id, { reason: event.target.value })}
+                      placeholder="Why this requirement exists (from Brief or inference)"
+                      rows={2}
+                      value={item.reason}
                     />
                   </label>
                 </li>
@@ -252,7 +267,7 @@ export function RequirementsPanel({ open, onClose }: RequirementsPanelProps) {
             </ul>
           )}
 
-          <button className="requirements-add-btn" onClick={addRequirement} type="button">
+          <button className="requirements-add-btn" onClick={addInsight} type="button">
             <IconPlus />
             Add {activeTab === "explicit" ? "explicit" : "implicit"} requirement
           </button>

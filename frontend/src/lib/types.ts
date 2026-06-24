@@ -54,8 +54,6 @@ export type BrandRequirement = {
 };
 
 export type BrandPerspectiveResult = {
-  explicit_requirements?: BrandRequirement[];
-  implicit_requirements?: BrandRequirement[];
   constraints?: string[];
   pr_risks?: string[];
   tool_calls_used?: string[];

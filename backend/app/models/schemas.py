@@ -115,18 +115,20 @@ class BrandInsightUpdateRequest(BaseModel):
     status: Literal["new", "confirmed", "pending", "ignored"] | None = None
 
 
-class BrandRequirementItem(BaseModel):
-    id: str | None = Field(default=None, max_length=80)
-    text: str = Field(min_length=1, max_length=2000)
-    evidence: str | None = Field(default=None, max_length=2000)
+class BrandInsightUpdateItem(BaseModel):
+    insight_id: str = Field(min_length=1, max_length=80)
+    title: str = Field(default="", max_length=120)
+    content: str = Field(min_length=1, max_length=4000)
+    reason: str = Field(default="", max_length=2000)
     confidence: Literal["high", "medium", "low"] = "medium"
-    source: Literal["user", "agent"] | None = None
+    category: Literal["explicit_requirement", "implicit_requirement"] = "explicit_requirement"
+    status: Literal["new", "confirmed", "pending", "ignored"] = "new"
+    created_by: Literal["agent", "user"] | None = None
 
 
 class BrandRequirementsUpdateRequest(BaseModel):
     user_id: str = Field(min_length=1, max_length=80)
-    explicit_requirements: list[BrandRequirementItem] = Field(default_factory=list)
-    implicit_requirements: list[BrandRequirementItem] = Field(default_factory=list)
+    brand_insights: list[BrandInsightUpdateItem] = Field(default_factory=list)
 
 
 class PersonaCreateRequest(BaseModel):

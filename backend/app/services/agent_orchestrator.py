@@ -78,7 +78,7 @@ async def run_brief_initial_pipeline(project: dict[str, Any]) -> AgentPipelineRe
         "pipeline.brief_initial",
         phase="OUT",
         project_id=project_id,
-        requirements=len((brand_result.get("explicit_requirements") or []) + (brand_result.get("implicit_requirements") or [])),
+        requirements=len(brand_result.get("brand_insights") or []),
     )
     return pipeline
 

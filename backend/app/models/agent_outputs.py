@@ -108,16 +108,9 @@ def _coerce_string_list(v: Any) -> list[str]:
 class BrandRequirementsOutput(BaseModel):
     """Phase 1 output: requirements extraction only (no ibis)."""
 
-    explicit_requirements: list[BrandRequirementItem] = Field(default_factory=list)
-    implicit_requirements: list[BrandRequirementItem] = Field(default_factory=list)
     constraints: list[str] = Field(default_factory=list)
     pr_risks: list[str] = Field(default_factory=list)
     brand_insights: list[BrandInsightItem] = Field(default_factory=list)
-
-    @field_validator("explicit_requirements", "implicit_requirements", mode="before")
-    @classmethod
-    def coerce_requirements(cls, v: Any) -> list:
-        return _coerce_requirements(v)
 
     @field_validator("constraints", "pr_risks", mode="before")
     @classmethod
@@ -153,17 +146,10 @@ class BrandIbisOutput(BaseModel):
 class BrandAgentOutput(BaseModel):
     """Combined output (kept for backward compatibility / mock fallback)."""
 
-    explicit_requirements: list[BrandRequirementItem] = Field(default_factory=list)
-    implicit_requirements: list[BrandRequirementItem] = Field(default_factory=list)
     constraints: list[str] = Field(default_factory=list)
     pr_risks: list[str] = Field(default_factory=list)
     brand_insights: list[BrandInsightItem] = Field(default_factory=list)
     ibis: IbisOutput = Field(default_factory=IbisOutput)
-
-    @field_validator("explicit_requirements", "implicit_requirements", mode="before")
-    @classmethod
-    def coerce_requirements(cls, v: Any) -> list:
-        return _coerce_requirements(v)
 
     @field_validator("constraints", "pr_risks", mode="before")
     @classmethod

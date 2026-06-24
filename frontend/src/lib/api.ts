@@ -3,7 +3,6 @@ import type {
   BrandInsightCategory,
   BrandInsightConfidence,
   BrandInsightStatus,
-  BrandRequirement,
   CoordinatorMessage,
   CoordinatorQuote,
   PersonaAdSensitivity,
@@ -321,16 +320,23 @@ export async function updateBrandRequirements(
   projectId: string,
   userId: string,
   payload: {
-    explicit_requirements: BrandRequirement[];
-    implicit_requirements: BrandRequirement[];
+    brand_insights: Array<{
+      insight_id: string;
+      title: string;
+      content: string;
+      reason: string;
+      confidence: BrandInsightConfidence;
+      category: BrandInsightCategory;
+      status: BrandInsightStatus;
+      created_by?: "user" | "agent";
+    }>;
   }
 ): Promise<Project> {
   const project = await request<Project>(`/projects/${projectId}/brand/requirements`, {
     method: "PATCH",
     body: JSON.stringify({
       user_id: userId,
-      explicit_requirements: payload.explicit_requirements,
-      implicit_requirements: payload.implicit_requirements
+      brand_insights: payload.brand_insights
     })
   });
   return normalizeProject(project)!;

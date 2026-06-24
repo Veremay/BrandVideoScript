@@ -792,9 +792,10 @@ function MapViewContent() {
   const emptyGraph = flowNodes.length === 0;
   const scriptChanged = isGraphStaleFromScript(project?.stale);
   const mapSyncing = syncingMap || project?.stale?.rationale_graph === "generating";
-  const hasRequirements =
-    (project?.brand_perspective_result?.explicit_requirements?.length ?? 0) > 0 ||
-    (project?.brand_perspective_result?.implicit_requirements?.length ?? 0) > 0;
+  const hasRequirements = (project?.brand_insights ?? []).some(
+    (insight) =>
+      insight.category === "explicit_requirement" || insight.category === "implicit_requirement"
+  );
   const hasPersona = (project?.personas?.length ?? 0) > 0;
   const canUpdateMap = hasRequirements && hasPersona;
   const updateMapBlockedReason = !hasRequirements

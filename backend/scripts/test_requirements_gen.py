@@ -107,8 +107,12 @@ async def main() -> None:
     print("\n  正在调用 Brand Agent (task_context=brief_parse)...\n", flush=True)
     result = await run_brand_agent(project, task_context="brief_parse")
 
-    _print_section("显式需求（Explicit）", result.get("explicit_requirements", []))
-    _print_section("隐性需求（Implicit）", result.get("implicit_requirements", []))
+    _print_section("显式需求（Explicit）", [
+        i for i in result.get("brand_insights", []) if i.get("category") == "explicit_requirement"
+    ])
+    _print_section("隐性需求（Implicit）", [
+        i for i in result.get("brand_insights", []) if i.get("category") == "implicit_requirement"
+    ])
 
     constraints = result.get("constraints", [])
     print(f"\n{'─' * 55}")

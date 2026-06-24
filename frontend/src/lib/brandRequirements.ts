@@ -1,71 +1,107 @@
-import type { BrandPerspectiveResult, BrandRequirement, BrandRequirementConfidence, Project } from "@/lib/types";
+import type {
+  BrandInsight,
+  BrandInsightCategory,
+  BrandInsightConfidence,
+  Project
+} from "@/lib/types";
 
-function normalizeConfidence(value: unknown): BrandRequirementConfidence {
+function normalizeConfidence(value: unknown): BrandInsightConfidence {
   if (value === "high" || value === "low") return value;
   return "medium";
 }
 
-export function requirementFromRaw(raw: unknown, index: number, prefix: string): BrandRequirement | null {
+function normalizeCategory(value: unknown, fallback: BrandInsightCategory): BrandInsightCategory {
+  if (value === "explicit_requirement" || value === "implicit_requirement") return value;
+  return fallback;
+}
+
+export function insightFromRaw(raw: unknown, fallbackCategory: BrandInsightCategory): BrandInsight | null {
   if (!raw || typeof raw !== "object") return null;
   const record = raw as Record<string, unknown>;
-  const text = String(record.text ?? "").trim();
-  if (!text) return null;
+  const content = String(record.content ?? "").trim();
+  if (!content) return null;
 
-  const id = String(record.id ?? "").trim() || `${prefix}_${index}_${Date.now()}`;
-  const evidence = String(record.evidence ?? "").trim();
-  const source = record.source === "user" ? "user" : record.source === "agent" ? "agent" : undefined;
+  const now = new Date().toISOString();
+  const insightId = String(record.insight_id ?? "").trim() || `insight_${crypto.randomUUID()}`;
+  const createdBy = record.created_by === "agent" ? "agent" : "user";
 
   return {
-    id,
-    text,
+    insight_id: insightId,
+    agent_type: "brand",
+    category: normalizeCategory(record.category, fallbackCategory),
+    title: String(record.title ?? "").trim(),
+    content,
+    reason: String(record.reason ?? "").trim(),
+    evidence: Array.isArray(record.evidence) ? (record.evidence as BrandInsight["evidence"]) : [],
     confidence: normalizeConfidence(record.confidence),
-    ...(evidence ? { evidence } : {}),
-    ...(source ? { source } : {})
+    status:
+      record.status === "confirmed" ||
+      record.status === "pending" ||
+      record.status === "ignored"
+        ? record.status
+        : "new",
+    created_by: createdBy,
+    updated_by: record.updated_by === "agent" ? "agent" : createdBy,
+    based_on_script_version_id:
+      typeof record.based_on_script_version_id === "string" ? record.based_on_script_version_id : null,
+    created_at: String(record.created_at ?? now),
+    updated_at: String(record.updated_at ?? now)
   };
 }
 
-export function requirementsFromProject(project: Project): {
-  explicit: BrandRequirement[];
-  implicit: BrandRequirement[];
+export function insightsFromProject(project: Project): {
+  explicit: BrandInsight[];
+  implicit: BrandInsight[];
 } {
-  const result = project.brand_perspective_result;
-  return requirementsFromPerspective(result);
-}
-
-export function requirementsFromPerspective(result: BrandPerspectiveResult | null | undefined): {
-  explicit: BrandRequirement[];
-  implicit: BrandRequirement[];
-} {
-  const explicitRaw = Array.isArray(result?.explicit_requirements) ? result.explicit_requirements : [];
-  const implicitRaw = Array.isArray(result?.implicit_requirements) ? result.implicit_requirements : [];
-
-  const explicit = explicitRaw
-    .map((item, index) => requirementFromRaw(item, index, "explicit"))
-    .filter((item): item is BrandRequirement => item !== null);
-  const implicit = implicitRaw
-    .map((item, index) => requirementFromRaw(item, index, "implicit"))
-    .filter((item): item is BrandRequirement => item !== null);
+  const insights = Array.isArray(project.brand_insights) ? project.brand_insights : [];
+  const explicit = insights
+    .filter((item) => item.category === "explicit_requirement")
+    .map((item) => insightFromRaw(item, "explicit_requirement"))
+    .filter((item): item is BrandInsight => item !== null);
+  const implicit = insights
+    .filter((item) => item.category === "implicit_requirement")
+    .map((item) => insightFromRaw(item, "implicit_requirement"))
+    .filter((item): item is BrandInsight => item !== null);
 
   return { explicit, implicit };
 }
 
-export function createEmptyRequirement(prefix: string): BrandRequirement {
+/** @deprecated Use insightsFromProject */
+export function requirementsFromProject(project: Project) {
+  return insightsFromProject(project);
+}
+
+export function createEmptyInsight(category: BrandInsightCategory): BrandInsight {
+  const now = new Date().toISOString();
   return {
-    id: `${prefix}_${crypto.randomUUID()}`,
-    text: "",
+    insight_id: `insight_${crypto.randomUUID()}`,
+    agent_type: "brand",
+    category,
+    title: "",
+    content: "",
+    reason: "",
+    evidence: [],
     confidence: "medium",
-    source: "user"
+    status: "new",
+    created_by: "user",
+    updated_by: "user",
+    based_on_script_version_id: null,
+    created_at: now,
+    updated_at: now
   };
 }
 
-export function toApiRequirements(items: BrandRequirement[]) {
+export function toApiBrandInsights(items: BrandInsight[]) {
   return items
     .map((item) => ({
-      id: item.id,
-      text: item.text.trim(),
-      evidence: item.evidence?.trim() || undefined,
+      insight_id: item.insight_id,
+      title: item.title.trim(),
+      content: item.content.trim(),
+      reason: item.reason.trim(),
       confidence: item.confidence,
-      ...(item.source ? { source: item.source } : {})
+      category: item.category,
+      status: item.status,
+      ...(item.created_by ? { created_by: item.created_by } : {})
     }))
-    .filter((item) => item.text.length > 0);
+    .filter((item) => item.content.length > 0);
 }

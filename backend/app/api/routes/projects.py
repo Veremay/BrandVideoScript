@@ -196,14 +196,12 @@ async def save_brand_requirements(
     payload: BrandRequirementsUpdateRequest,
     db: AsyncIOMotorDatabase = Depends(database_dependency),
 ) -> dict:
-    explicit = [item.model_dump() for item in payload.explicit_requirements]
-    implicit = [item.model_dump() for item in payload.implicit_requirements]
+    brand_insights = [item.model_dump() for item in payload.brand_insights]
     project = await update_brand_requirements(
         db,
         project_id,
         payload.user_id.strip(),
-        explicit_requirements=explicit,
-        implicit_requirements=implicit,
+        brand_insights=brand_insights,
     )
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")

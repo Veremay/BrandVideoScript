@@ -645,33 +645,109 @@ def normalize_brand_requirements(items: list[dict] | None) -> list[dict]:
     return normalized
 
 
+def normalize_brand_insights_requirements(
+    items: list[dict] | None,
+    *,
+    existing_by_id: dict[str, dict] | None = None,
+) -> list[dict]:
+    """Normalize requirement-category brand insights for persistence."""
+    existing_by_id = existing_by_id or {}
+    normalized: list[dict] = []
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        content = str(item.get("content") or "").strip()
+        if not content:
+            continue
+        category = str(item.get("category") or "explicit_requirement").strip()
+        if category not in {"explicit_requirement", "implicit_requirement"}:
+            continue
+        confidence = str(item.get("confidence") or "medium")
+        if confidence not in {"high", "medium", "low"}:
+            confidence = "medium"
+        status = str(item.get("status") or "new")
+        if status not in {"new", "confirmed", "pending", "ignored"}:
+            status = "new"
+        insight_id = str(item.get("insight_id") or "").strip()
+        existing = existing_by_id.get(insight_id) if insight_id else None
+        created_by = str(item.get("created_by") or (existing or {}).get("created_by") or "user")
+        if created_by not in {"user", "agent"}:
+            created_by = "user"
+        now = now_iso()
+        if existing:
+            normalized.append({
+                **existing,
+                "insight_id": insight_id,
+                "agent_type": "brand",
+                "category": category,
+                "title": str(item.get("title") or existing.get("title") or "").strip()[:120],
+                "content": content,
+                "reason": str(item.get("reason") or existing.get("reason") or "").strip(),
+                "confidence": confidence,
+                "status": status,
+                "updated_by": "user",
+                "updated_at": now,
+            })
+            continue
+        normalized.append(
+            build_brand_insight(
+                category=category,
+                title=str(item.get("title") or "").strip()[:120] or "Brand requirement",
+                content=content,
+                reason=str(item.get("reason") or "").strip(),
+                evidence=item.get("evidence") if isinstance(item.get("evidence"), list) else [],
+                confidence=confidence,
+                status=status,
+                created_by=created_by,
+            )
+            if not insight_id
+            else {
+                "insight_id": insight_id,
+                "agent_type": "brand",
+                "category": category,
+                "title": str(item.get("title") or "").strip()[:120] or "Brand requirement",
+                "content": content,
+                "reason": str(item.get("reason") or "").strip(),
+                "evidence": item.get("evidence") if isinstance(item.get("evidence"), list) else [],
+                "confidence": confidence,
+                "status": status,
+                "created_by": created_by,
+                "updated_by": "user",
+                "based_on_script_version_id": None,
+                "created_at": now,
+                "updated_at": now,
+            }
+        )
+    return normalized
+
+
 async def update_brand_requirements(
     db: AsyncIOMotorDatabase,
     project_id: str,
     user_id: str,
     *,
-    explicit_requirements: list[dict],
-    implicit_requirements: list[dict],
+    brand_insights: list[dict],
 ) -> dict | None:
     project = await get_project(db, project_id, user_id)
     if project is None:
         return None
 
-    perspective = dict(project.get("brand_perspective_result") or {})
-    perspective["explicit_requirements"] = normalize_brand_requirements(explicit_requirements)
-    perspective["implicit_requirements"] = normalize_brand_requirements(implicit_requirements)
-
-    await db.projects.update_one(
-        {"_id": project_id, "user_id": user_id},
-        {
-            "$set": {
-                "brand_perspective_result": perspective,
-                "updated_at": now_iso(),
-                "stale.modification_schemes": "stale_graph_changed",
-            }
-        },
+    existing = project.get("brand_insights") or []
+    existing_by_id = {
+        str(i.get("insight_id")): i
+        for i in existing
+        if isinstance(i, dict) and i.get("insight_id")
+    }
+    preserved = [
+        i for i in existing
+        if isinstance(i, dict) and i.get("category") == "brand_feedback"
+    ]
+    requirement_insights = normalize_brand_insights_requirements(
+        brand_insights,
+        existing_by_id=existing_by_id,
     )
-    return await get_project(db, project_id, user_id)
+    merged_insights = [*requirement_insights, *preserved]
+    return await _write_brand_insights(db, project_id, user_id, merged_insights)
 
 
 async def _write_brand_insights(db: AsyncIOMotorDatabase, project_id: str, user_id: str, insights: list[dict]) -> dict | None:

@@ -1068,11 +1068,10 @@ def _mock_negotiation_preparation(
     stance_nodes: list[dict[str, Any]],
 ) -> dict[str, Any]:
     brief_summary = str((project.get("brief") or {}).get("text") or "").strip()
-    brand_result = project.get("brand_perspective_result") or {}
     satisfied = [
-        str(item.get("text", "")).strip()
-        for item in (brand_result.get("explicit_requirements") or [])
-        if str(item.get("text", "")).strip()
+        str(item.get("content", "")).strip()
+        for item in project.get("brand_insights", [])
+        if item.get("category") == "explicit_requirement" and str(item.get("content", "")).strip()
     ][:5]
 
     stance_ids = [n.get("node_id") for n in stance_nodes if n.get("node_id")]

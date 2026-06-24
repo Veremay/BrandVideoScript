@@ -43,38 +43,18 @@ async def run_brief_initial_parse(
         pipeline = await run_brief_initial_pipeline(project)
         brand_result = pipeline.brand_result or {}
 
-        # Merge agent requirements with user-saved ones (never overwrite user edits).
-        existing_perspective = project.get("brand_perspective_result") or {}
-        saved_user_explicit = [
-            r for r in (existing_perspective.get("explicit_requirements") or [])
-            if isinstance(r, dict) and r.get("source") == "user"
-        ]
-        saved_user_implicit = [
-            r for r in (existing_perspective.get("implicit_requirements") or [])
-            if isinstance(r, dict) and r.get("source") == "user"
-        ]
-        agent_explicit = brand_result.get("explicit_requirements") or []
-        agent_implicit = brand_result.get("implicit_requirements") or []
-        agent_explicit_ids = {r.get("id") for r in agent_explicit if isinstance(r, dict) and r.get("id")}
-        agent_implicit_ids = {r.get("id") for r in agent_implicit if isinstance(r, dict) and r.get("id")}
-        merged_explicit = agent_explicit + [r for r in saved_user_explicit if r.get("id") not in agent_explicit_ids]
-        merged_implicit = agent_implicit + [r for r in saved_user_implicit if r.get("id") not in agent_implicit_ids]
-
+        # Merge agent insights with user-saved ones (never overwrite user edits).
         existing_insights = [
             insight for insight in project.get("brand_insights", []) if insight.get("created_by") != "agent"
         ]
         new_insights = [*existing_insights, *brand_result.get("brand_insights", [])]
 
         # Brief parse only saves requirements — IBIS graph is NOT touched here.
-        # Nodes are generated when user clicks Update Map (sync_graph_from_script).
         brand_perspective = {
             k: v
             for k, v in brand_result.items()
-            if k not in {"brand_insights", "proposed_nodes", "proposed_edges", "node_updates",
-                         "explicit_requirements", "implicit_requirements"}
+            if k not in {"brand_insights", "proposed_nodes", "proposed_edges", "node_updates"}
         }
-        brand_perspective["explicit_requirements"] = merged_explicit
-        brand_perspective["implicit_requirements"] = merged_implicit
 
         await db.projects.update_one(
             {"_id": project_id, "user_id": user_id},
@@ -97,8 +77,9 @@ async def run_brief_initial_parse(
         raise
 
     updated = await get_project(db, project_id, user_id)
-    explicit_count = len(updated.get("brand_perspective_result", {}).get("explicit_requirements") or [])
-    implicit_count = len(updated.get("brand_perspective_result", {}).get("implicit_requirements") or [])
+    insights = updated.get("brand_insights") or []
+    explicit_count = sum(1 for i in insights if i.get("category") == "explicit_requirement")
+    implicit_count = sum(1 for i in insights if i.get("category") == "implicit_requirement")
     return {
         "project": updated,
         "parse_summary": {

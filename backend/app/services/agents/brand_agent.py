@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import json
 from typing import Any, Literal
 
 from pydantic import ValidationError
 
-from app.models.agent_outputs import BrandAgentOutput, BrandIbisOutput, BrandRequirementsOutput
+from app.models.agent_outputs import BrandIbisOutput, BrandRequirementsOutput
 from app.repositories.projects import build_brand_insight
 from app.services.agent_context import assert_context_isolation, build_agent_context
 from app.services.agent_llm import (
@@ -43,8 +42,6 @@ _PHASE1_OUTPUT_SCHEMA = """\
 
 ```json
 {
-  "explicit_requirements": [{ "text": "…", "confidence": "high|medium|low" }],
-  "implicit_requirements": [{ "text": "…", "confidence": "high|medium|low" }],
   "constraints": ["纯文本，约束条件放这里"],
   "pr_risks": ["纯文本，审片风险放这里"],
   "brand_insights": [
@@ -111,33 +108,44 @@ _ISSUE_RESPONSE_OUTPUT_SCHEMA = """\
 ```"""
 
 
-def _format_requirements_block(brand_perspective: dict[str, Any]) -> str:
-    """Render existing requirements as a readable text block for the LLM."""
+def _format_requirements_block(
+    brand_insights: list[dict[str, Any]],
+    *,
+    constraints: list[str] | None = None,
+) -> str:
+    """Render brand insights as a readable text block for the LLM."""
     lines: list[str] = ["## 已确认品牌需求（来自 Brief 解析）"]
 
-    explicit = brand_perspective.get("explicit_requirements") or []
+    explicit = [i for i in brand_insights if i.get("category") == "explicit_requirement"]
     lines.append("### 显式需求")
     if explicit:
-        for i, req in enumerate(explicit, 1):
-            conf = req.get("confidence", "medium")
-            lines.append(f"{i}. [{conf}] {req.get('text', '')}")
-            if req.get("evidence"):
-                lines.append(f"   依据：{req['evidence']}")
+        for i, insight in enumerate(explicit, 1):
+            conf = insight.get("confidence", "medium")
+            title = str(insight.get("title", "")).strip()
+            content = str(insight.get("content", "")).strip()
+            label = f"{title}: {content}" if title else content
+            lines.append(f"{i}. [{conf}] {label}")
+            reason = str(insight.get("reason", "")).strip()
+            if reason:
+                lines.append(f"   Reason：{reason}")
     else:
         lines.append("（暂无）")
 
-    implicit = brand_perspective.get("implicit_requirements") or []
+    implicit = [i for i in brand_insights if i.get("category") == "implicit_requirement"]
     lines.append("### 隐性需求")
     if implicit:
-        for i, req in enumerate(implicit, 1):
-            conf = req.get("confidence", "medium")
-            lines.append(f"{i}. [{conf}] {req.get('text', '')}")
-            if req.get("evidence"):
-                lines.append(f"   依据：{req['evidence']}")
+        for i, insight in enumerate(implicit, 1):
+            conf = insight.get("confidence", "medium")
+            title = str(insight.get("title", "")).strip()
+            content = str(insight.get("content", "")).strip()
+            label = f"{title}: {content}" if title else content
+            lines.append(f"{i}. [{conf}] {label}")
+            reason = str(insight.get("reason", "")).strip()
+            if reason:
+                lines.append(f"   Reason：{reason}")
     else:
         lines.append("（暂无）")
 
-    constraints = brand_perspective.get("constraints") or []
     if constraints:
         lines.append("### 创作约束")
         for c in constraints:
@@ -203,8 +211,6 @@ async def _run_requirements_extraction(project: dict[str, Any]) -> dict[str, Any
 
     def mock() -> dict[str, Any]:
         return {
-            "explicit_requirements": [{"text": text[:120] or "Brief 约束", "confidence": "high"}],
-            "implicit_requirements": [],
             "constraints": [],
             "pr_risks": ["口播感过强"],
             "brand_insights": [{
@@ -235,9 +241,9 @@ async def _run_requirements_extraction(project: dict[str, Any]) -> dict[str, Any
         payload = raw
 
     brand_insights = _build_insights(payload)
+    explicit_count = sum(1 for i in brand_insights if i.get("category") == "explicit_requirement")
+    implicit_count = sum(1 for i in brand_insights if i.get("category") == "implicit_requirement")
     result = {
-        "explicit_requirements": payload.get("explicit_requirements") or [],
-        "implicit_requirements": payload.get("implicit_requirements") or [],
         "constraints": payload.get("constraints") or [],
         "pr_risks": payload.get("pr_risks") or [],
         "proposed_nodes": [],
@@ -250,8 +256,8 @@ async def _run_requirements_extraction(project: dict[str, Any]) -> dict[str, Any
         "brand_agent.extract_requirements",
         phase="OUT",
         project_id=project_id,
-        explicit=len(result["explicit_requirements"]),
-        implicit=len(result["implicit_requirements"]),
+        explicit=explicit_count,
+        implicit=implicit_count,
         brand_insights=len(brand_insights),
     )
     return result
@@ -285,18 +291,14 @@ async def _run_nodes_generation(
         changed_row_ids=sorted(row_ids),
     )
 
+    brand_insights = context.get("brand_insights") or []
     existing_reqs = context.get("brand_perspective_result") or {}
-    req_summary = json.dumps(
-        {
-            "explicit_requirements": existing_reqs.get("explicit_requirements") or [],
-            "implicit_requirements": existing_reqs.get("implicit_requirements") or [],
-            "constraints": existing_reqs.get("constraints") or [],
-        },
-        ensure_ascii=False,
-        indent=2,
+    req_block = _format_requirements_block(
+        brand_insights,
+        constraints=existing_reqs.get("constraints") or [],
     )
     context_block = "\n\n".join([
-        f"## 品牌需求（已提取）\n{req_summary}",
+        req_block,
         f"## 变动脚本\n{script_excerpt_for_rows(project, row_ids) if row_ids else '（无变动）'}",
         f"## 用户问题\n{user_message or '（无）'}",
         f"## Quotes\n{format_quotes(quotes)}",
@@ -346,8 +348,6 @@ async def _run_nodes_generation(
         allowed_source_types=BRAND_SOURCES,
     )
     result = {
-        "explicit_requirements": [],
-        "implicit_requirements": [],
         "constraints": [],
         "pr_risks": [],
         "proposed_nodes": graph.proposed_nodes,
@@ -380,15 +380,11 @@ async def _run_issue_response(
     issue_title = str(issue.get("title") or "")
     issue_content = str(issue.get("content") or "")
 
+    brand_insights = context.get("brand_insights") or []
     existing_reqs = context.get("brand_perspective_result") or {}
-    req_summary = json.dumps(
-        {
-            "explicit_requirements": existing_reqs.get("explicit_requirements") or [],
-            "implicit_requirements": existing_reqs.get("implicit_requirements") or [],
-            "constraints": existing_reqs.get("constraints") or [],
-        },
-        ensure_ascii=False,
-        indent=2,
+    req_block = _format_requirements_block(
+        brand_insights,
+        constraints=existing_reqs.get("constraints") or [],
     )
 
     log_step(
@@ -401,7 +397,7 @@ async def _run_issue_response(
 
     context_block = "\n\n".join([
         f"## 目标 Issue\nid={issue_id}\n标题：{issue_title}\n内容：{issue_content}",
-        f"## 品牌需求（已提取）\n{req_summary}",
+        req_block,
         f"## 已有节点\n{existing_nodes_summary(project)}",
     ])
 
@@ -449,8 +445,6 @@ async def _run_issue_response(
         allowed_source_types=BRAND_SOURCES,
     )
     result = {
-        "explicit_requirements": [],
-        "implicit_requirements": [],
         "constraints": [],
         "pr_risks": [],
         "proposed_nodes": graph.proposed_nodes,
