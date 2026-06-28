@@ -109,9 +109,13 @@ class BriefParseAgentsTest(unittest.IsolatedAsyncioTestCase):
         pipeline = await run_issue_population_pipeline(project, issue_id)
 
         positions = [n for n in pipeline.proposed_nodes if n.get("node_type") == "position"]
+        arguments = [n for n in pipeline.proposed_nodes if n.get("node_type") == "argument"]
         self.assertGreaterEqual(len(positions), 2)
+        self.assertGreaterEqual(len(arguments), 2)
         responds = [e for e in pipeline.proposed_edges if e["relation_type"] == "responds_to"]
+        supports = [e for e in pipeline.proposed_edges if e["relation_type"] in {"supports", "opposes"}]
         self.assertGreaterEqual(len(responds), 2)
+        self.assertGreaterEqual(len(supports), 2)
         self.assertTrue(all(e["to_node_id"] == issue_id for e in responds))
         sources = {p.get("source_type") for p in positions}
         self.assertTrue(sources.intersection({"brand_brief", "brand_inferred"}))

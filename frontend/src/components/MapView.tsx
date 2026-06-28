@@ -1126,7 +1126,7 @@ function IbisNode({ data, id }: NodeProps) {
           </span>
           <div className="map-node-header-actions">
             {nodeData.createdBy === "user" ? (
-              <span className="map-node-status-tag map-node-status-user-created">手动</span>
+              <span className="map-node-status-tag map-node-status-user-created">User</span>
             ) : null}
             {nodeData.lifecycle === "resolved" ? (
               <span className="map-node-status-tag map-node-status-resolved">已解决</span>
@@ -1189,7 +1189,7 @@ function IbisNode({ data, id }: NodeProps) {
                     role="menuitem"
                     type="button"
                   >
-                    {actions?.populatingIssueId === id ? "Generating…" : "Generate Position"}
+                    {actions?.populatingIssueId === id ? "Generating…" : "Generate stance & argument"}
                   </button>
                 ) : null}
                 {nodeData.nodeType === "position" ? (

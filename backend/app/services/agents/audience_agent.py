@@ -6,6 +6,7 @@ from app.services.agent_context import assert_context_isolation, build_agent_con
 from app.services.agent_llm import (
     existing_nodes_summary,
     format_quotes,
+    format_script_for_prompt,
     invoke_agent_json,
     script_excerpt_for_rows,
 )
@@ -44,12 +45,14 @@ _DEFAULT_OUTPUT_SCHEMA = """\
 ```"""
 
 _ISSUE_RESPONSE_TASK_INSTRUCTIONS = """\
-## 任务：针对用户 Issue 生成观众立场
+## 任务：针对用户 Issue 生成观众立场与论据
 
-用户提出了一个议题（Issue）。从当前 Persona 视角给出**唯一一条** position 立场。
-- 仅输出 1 个 position 节点
-- 用 external_edges 将该 position（from_index: 0）以 responds_to 连到目标 issue（to_node_id）
-- position 的 source_type 限：`audience_persona`、`audience_simulation`
+用户提出了一个议题（Issue）。从当前 Persona 视角给出：
+- **1 个 position** 节点（观众立场）
+- **1~2 个 argument** 节点（支撑或反对该 position 的理由）
+- 用 `external_edges` 将 position（from_index: 0）以 `responds_to` 连到目标 issue（to_node_id）
+- 用 `edges` 将每个 argument（from_index）以 `supports` 或 `opposes` 连到 position（to_index: 0）
+- position / argument 的 `source_type` 限：`audience_persona`、`audience_simulation`
 - 不要输出 issue 节点"""
 
 _ISSUE_RESPONSE_OUTPUT_SCHEMA = """\
@@ -59,9 +62,12 @@ _ISSUE_RESPONSE_OUTPUT_SCHEMA = """\
 {
   "ibis": {
     "nodes": [
-      { "node_type": "position", "title": "…", "content": "…", "source_type": "audience_simulation", "source_perspective": "audience" }
+      { "node_type": "position", "title": "…", "content": "…", "source_type": "audience_simulation", "source_perspective": "audience" },
+      { "node_type": "argument", "title": "…", "content": "…", "source_type": "audience_simulation", "source_perspective": "audience" }
     ],
-    "edges": [],
+    "edges": [
+      { "from_index": 1, "to_index": 0, "relation_type": "supports" }
+    ],
     "external_edges": [
       { "from_index": 0, "to_node_id": "<issue_id>", "relation_type": "responds_to" }
     ]
@@ -77,6 +83,7 @@ async def run_audience_agent(
     issue: dict[str, Any] | None = None,
     quotes: list[dict[str, Any]] | None = None,
     changed_row_ids: set[str] | None = None,
+    full_script: bool = False,
 ) -> dict[str, Any]:
     context = build_agent_context("audience", project)
     assert_context_isolation("audience", context)
@@ -96,6 +103,7 @@ async def run_audience_agent(
         persona=persona,
         quotes=quotes,
         changed_row_ids=changed_row_ids,
+        full_script=full_script,
     )
 
 
@@ -106,6 +114,7 @@ async def _run_script_analysis(
     persona: dict[str, Any],
     quotes: list[dict[str, Any]] | None = None,
     changed_row_ids: set[str] | None = None,
+    full_script: bool = False,
 ) -> dict[str, Any]:
     project_id = str(context.get("project_id") or project.get("_id") or "")
     script_version_id = context.get("current_script_version_id")
@@ -125,12 +134,18 @@ async def _run_script_analysis(
         changed_row_ids=sorted(row_ids),
     )
 
+    if full_script:
+        script_block = f"## 当前脚本\n{format_script_for_prompt(project)}"
+    elif row_ids:
+        script_block = f"## 变动/选段脚本\n{script_excerpt_for_rows(project, row_ids)}"
+    else:
+        script_block = f"## 脚本摘要\n{context.get('script_excerpt', '')}"
+
     context_block = "\n\n".join(
         [
             f"## Persona\n{persona}",
             f"## 平台\n{context.get('platform_context', 'other')}",
-            f"## 脚本摘要\n{context.get('script_excerpt', '')}",
-            f"## 变动/选段脚本\n{script_excerpt_for_rows(project, row_ids) if row_ids else ''}",
+            script_block,
             f"## Quotes\n{format_quotes(quotes)}",
             f"## 已有节点\n{existing_nodes_summary(project)}",
         ]
@@ -246,9 +261,18 @@ async def _run_issue_response(
                         "content": f"针对「{label}」，{persona.get('name', '观众')}更关注内容自然性与信任感。",
                         "source_type": "audience_simulation",
                         "source_perspective": "audience",
-                    }
+                    },
+                    {
+                        "node_type": "argument",
+                        "title": "Persona 反应",
+                        "content": f"{persona.get('name', '观众')}对硬广话术敏感，自然表达更易建立信任。",
+                        "source_type": "audience_simulation",
+                        "source_perspective": "audience",
+                    },
                 ],
-                "edges": [],
+                "edges": [
+                    {"from_index": 1, "to_index": 0, "relation_type": "supports"},
+                ],
                 "external_edges": [
                     {"from_index": 0, "to_node_id": issue_id, "relation_type": "responds_to"},
                 ],

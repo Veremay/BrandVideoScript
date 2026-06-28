@@ -3,8 +3,95 @@
 import { useMemo, useState } from "react";
 
 import { generateNegotiationPlan, toggleCommunicationSupport } from "@/lib/api";
-import type { RationaleNode } from "@/lib/types";
+import type { NegotiationPreparation, RationaleNode } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
+
+// ─── Dev mock ────────────────────────────────────────────────────────────────
+const USE_MOCK = process.env.NODE_ENV === "development";
+
+const MOCK_ARGUE_NODES: RationaleNode[] = [
+  {
+    node_id: "mock-1",
+    project_id: "mock",
+    node_type: "issue",
+    title: "品牌色调偏冷",
+    content: "整体视频色调偏冷蓝，与品牌暖橙色系不符，建议增加暖色调镜头以强化品牌识别。",
+    source_type: "brand_feedback",
+    source_perspective: "brand",
+    in_communication_support_queue: true,
+    linked_script_refs: [{ row_id: "第 2 幕", column_id: "col-visual" }],
+    created_by: "brand",
+    updated_at: new Date().toISOString(),
+  },
+  {
+    node_id: "mock-2",
+    project_id: "mock",
+    node_type: "issue",
+    title: "产品露出时长不足",
+    content: "产品在第 3–5 幕出镜时间过短，品牌方要求至少 8 秒清晰展示。",
+    source_type: "brand_feedback",
+    source_perspective: "brand",
+    in_communication_support_queue: true,
+    linked_script_refs: [{ row_id: "第 4 幕", column_id: "col-action" }],
+    created_by: "brand",
+    updated_at: new Date().toISOString(),
+  },
+];
+
+const MOCK_PLAN: NegotiationPreparation = {
+  prep_id: "mock-plan-1",
+  project_id: "mock",
+  title: "沟通准备方案 · 第一稿",
+  based_on_script_version_id: null,
+  design_intent:
+    "本视频以「真实生活方式」为创作核心，色调的选取服务于叙事氛围而非品牌视觉规范，两者可以并存。",
+  satisfied_brand_needs: [
+    "已在片尾 10 秒完整展示产品及 Logo",
+    "口播台词已包含全部品牌 Slogan",
+    "视频封面使用品牌主色进行了突出处理",
+  ],
+  open_disputes: [
+    {
+      issue_node_id: "mock-1",
+      summary: "视频整体色调与品牌暖橙色系存在偏差",
+      our_position:
+        "色调设计服务于「傍晚咖啡馆」叙事场景，冷暖对比是有意为之的情绪节奏。",
+      acceptable_concession:
+        "可在第 1 幕片头增加 2 秒暖色调品牌卡，强化品牌识别。",
+      non_negotiable_line:
+        "主体叙事段落的色调调整将破坏整体观感，不予修改。",
+      talking_points: [
+        "冷色调前段与暖色调产品特写形成对比，令产品更突出",
+        "同类竞品案例亦采用类似的色彩策略",
+        "可通过后期调色在不影响叙事的前提下微调色温 +200K",
+      ],
+      related_node_ids: [],
+      related_script_refs: [],
+    },
+    {
+      issue_node_id: "mock-2",
+      summary: "产品出镜时长未达品牌方 8 秒要求",
+      our_position:
+        "过长的产品镜头会使视频显得广告感过重，影响完播率。",
+      acceptable_concession:
+        "可将第 4 幕产品特写从 3 秒延长至 5 秒，并在第 6 幕补充一个 2 秒的产品 B-Roll。",
+      non_negotiable_line: "单次产品镜头不超过 5 秒，总时长不超过 10 秒。",
+      talking_points: [
+        "数据显示超过 8 秒的产品镜头会导致滑走率上升 15%",
+        "将产品融入真实使用场景比静态展示更有说服力",
+        "目前已有 3 处产品自然出镜，累计约 6 秒",
+      ],
+      related_node_ids: [],
+      related_script_refs: [],
+    },
+  ],
+  recommended_communication_order: ["mock-1", "mock-2"],
+  related_issue_ids: ["mock-1", "mock-2"],
+  status: "draft",
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+};
+// ─────────────────────────────────────────────────────────────────────────────
 
 type CommunicationTab = "argue" | "plan";
 
@@ -25,15 +112,22 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
 
   const argueNodes = useMemo(() => {
     const queue = new Set(project?.communication_support_queue ?? []);
-    return (project?.rationale_nodes ?? []).filter(
+    const real = (project?.rationale_nodes ?? []).filter(
       (node) =>
         node.source_type === "brand_feedback" &&
         (Boolean(node.in_communication_support_queue) || queue.has(node.node_id))
     );
+    return USE_MOCK && real.length === 0 ? MOCK_ARGUE_NODES : real;
   }, [project?.rationale_nodes, project?.communication_support_queue]);
 
-  const considerationCount = project?.consideration_queue?.length ?? 0;
-  const plan = project?.negotiation_preparation ?? null;
+  const considerationCount =
+    USE_MOCK && (project?.consideration_queue?.length ?? 0) === 0
+      ? 3
+      : (project?.consideration_queue?.length ?? 0);
+  const plan =
+    USE_MOCK && project?.negotiation_preparation == null
+      ? MOCK_PLAN
+      : (project?.negotiation_preparation ?? null);
 
   if (!open) return null;
 
@@ -129,12 +223,13 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
                         {ref?.row_id ? <span className="comm-card-meta">Scene row: {ref.row_id}</span> : null}
                       </div>
                       <button
-                        className="comm-card-remove"
+                        aria-label="Remove from argue list"
+                        className="requirement-delete-btn"
                         onClick={() => void handleRemove(node)}
                         disabled={busyNodeId === node.node_id}
                         type="button"
                       >
-                        {busyNodeId === node.node_id ? "…" : "Remove"}
+                        <IconTrash />
                       </button>
                     </article>
                   );
@@ -251,6 +346,16 @@ function IconClose() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
       <line x1="18" y1="6" x2="6" y2="18" />
       <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
+}
+
+function IconTrash() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M3 6h18" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
     </svg>
   );
 }

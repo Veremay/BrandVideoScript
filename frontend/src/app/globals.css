@@ -1769,6 +1769,7 @@ textarea {
   flex-direction: column;
   min-height: 0;
   overflow-y: auto;
+  padding: 16px;
   background: rgba(255, 255, 255, 0.3);
   scrollbar-color: #eaefff transparent;
   scrollbar-width: thin;
@@ -5425,24 +5426,6 @@ textarea {
 .comm-card-meta {
   font-size: 11px;
   color: var(--figma-text-muted, #6b7280);
-}
-
-.comm-card-remove {
-  flex-shrink: 0;
-  height: 26px;
-  padding: 0 10px;
-  border: 1px solid var(--figma-border);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--figma-text);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.comm-card-remove:hover {
-  border-color: #dc2626;
-  color: #dc2626;
 }
 
 .comm-plan-section {

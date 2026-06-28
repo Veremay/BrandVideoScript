@@ -10,6 +10,7 @@ from app.services.agent_context import assert_context_isolation, build_agent_con
 from app.services.agent_llm import (
     existing_nodes_summary,
     format_quotes,
+    format_script_for_prompt,
     invoke_agent_json,
     script_excerpt_for_rows,
 )
@@ -81,12 +82,14 @@ _PHASE2_OUTPUT_SCHEMA = """\
 {{IBIS_TYPES}}"""
 
 _ISSUE_RESPONSE_TASK_INSTRUCTIONS = """\
-## 任务：针对用户 Issue 生成品牌立场
+## 任务：针对用户 Issue 生成品牌立场与论据
 
-用户提出了一个议题（Issue）。从品牌方视角给出**唯一一条** position 立场。
-- 仅输出 1 个 position 节点
-- 用 external_edges 将该 position（from_index: 0）以 responds_to 连到目标 issue（to_node_id）
-- position 的 source_type 限：`brand_brief`、`brand_inferred`
+用户提出了一个议题（Issue）。从品牌方视角给出：
+- **1 个 position** 节点（品牌立场）
+- **1~2 个 argument** 节点（支撑或反对该 position 的理由）
+- 用 `external_edges` 将 position（from_index: 0）以 `responds_to` 连到目标 issue（to_node_id）
+- 用 `edges` 将每个 argument（from_index）以 `supports` 或 `opposes` 连到 position（to_index: 0）
+- position / argument 的 `source_type` 限：`brand_brief`、`brand_inferred`
 - 不要输出 issue 节点"""
 
 _ISSUE_RESPONSE_OUTPUT_SCHEMA = """\
@@ -96,9 +99,12 @@ _ISSUE_RESPONSE_OUTPUT_SCHEMA = """\
 {
   "ibis": {
     "nodes": [
-      { "node_type": "position", "title": "…", "content": "…", "source_type": "brand_brief", "source_perspective": "brand" }
+      { "node_type": "position", "title": "…", "content": "…", "source_type": "brand_brief", "source_perspective": "brand" },
+      { "node_type": "argument", "title": "…", "content": "…", "source_type": "brand_brief", "source_perspective": "brand" }
     ],
-    "edges": [],
+    "edges": [
+      { "from_index": 1, "to_index": 0, "relation_type": "supports" }
+    ],
     "external_edges": [
       { "from_index": 0, "to_node_id": "<issue_id>", "relation_type": "responds_to" }
     ],
@@ -162,6 +168,7 @@ async def run_brand_agent(
     user_message: str | None = None,
     quotes: list[dict[str, Any]] | None = None,
     changed_row_ids: set[str] | None = None,
+    full_script: bool = False,
 ) -> dict[str, Any]:
     """Dispatch to the appropriate phase based on task_context.
 
@@ -180,6 +187,7 @@ async def run_brand_agent(
         user_message=user_message,
         quotes=quotes,
         changed_row_ids=changed_row_ids,
+        full_script=full_script,
     )
 
 
@@ -269,6 +277,7 @@ async def _run_nodes_generation(
     user_message: str | None = None,
     quotes: list[dict[str, Any]] | None = None,
     changed_row_ids: set[str] | None = None,
+    full_script: bool = False,
 ) -> dict[str, Any]:
     """coordinator 触发：从已有需求生成 IBIS position 节点，不重读 Brief/Wiki。"""
     context = build_agent_context("brand", project)
@@ -297,9 +306,15 @@ async def _run_nodes_generation(
         brand_insights,
         constraints=existing_reqs.get("constraints") or [],
     )
+    if full_script:
+        script_block = f"## 当前脚本\n{format_script_for_prompt(project)}"
+    elif row_ids:
+        script_block = f"## 变动脚本\n{script_excerpt_for_rows(project, row_ids)}"
+    else:
+        script_block = "## 变动脚本\n（无变动）"
     context_block = "\n\n".join([
         req_block,
-        f"## 变动脚本\n{script_excerpt_for_rows(project, row_ids) if row_ids else '（无变动）'}",
+        script_block,
         f"## 用户问题\n{user_message or '（无）'}",
         f"## Quotes\n{format_quotes(quotes)}",
         f"## 已有节点\n{existing_nodes_summary(project)}",
@@ -370,7 +385,7 @@ async def _run_issue_response(
     *,
     issue: dict[str, Any],
 ) -> dict[str, Any]:
-    """Generate a single brand position responding to a user-created issue."""
+    """Generate brand position + arguments responding to a user-created issue."""
     context = build_agent_context("brand", project)
     assert_context_isolation("brand", context)
 
@@ -405,14 +420,25 @@ async def _run_issue_response(
         label = issue_title[:30] or "该议题"
         return {
             "ibis": {
-                "nodes": [{
-                    "node_type": "position",
-                    "title": "品牌立场",
-                    "content": f"针对「{label}」，品牌方更关注 Brief 约束与核心信息露出。",
-                    "source_type": "brand_brief",
-                    "source_perspective": "brand",
-                }],
-                "edges": [],
+                "nodes": [
+                    {
+                        "node_type": "position",
+                        "title": "品牌立场",
+                        "content": f"针对「{label}」，品牌方更关注 Brief 约束与核心信息露出。",
+                        "source_type": "brand_brief",
+                        "source_perspective": "brand",
+                    },
+                    {
+                        "node_type": "argument",
+                        "title": "Brief 依据",
+                        "content": f"品牌需求明确要求在「{label}」相关段落体现核心信息。",
+                        "source_type": "brand_brief",
+                        "source_perspective": "brand",
+                    },
+                ],
+                "edges": [
+                    {"from_index": 1, "to_index": 0, "relation_type": "supports"},
+                ],
                 "external_edges": [
                     {"from_index": 0, "to_node_id": issue_id, "relation_type": "responds_to"},
                 ],

@@ -8,6 +8,7 @@ from app.models.script import now_iso
 from app.repositories.projects import get_project
 from app.repositories.script_snapshots import snapshot_before_map_update
 from app.services.agent_orchestrator import (
+    MAP_UPDATE_REPLACE_SOURCES,
     discard_non_conflicting_pipeline_positions,
     merge_pipeline_into_project_graph,
     reconcile_pipeline_into_project_graph,
@@ -25,7 +26,7 @@ async def sync_graph_from_script(
     *,
     changed_row_ids: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Anchored reconcile after script edits: re-evaluate each Issue and merge changes."""
+    """Re-analyze script on Update Map: fresh positions/issues, then reconcile existing issues."""
     project = await get_project(db, project_id, user_id)
     if project is None:
         raise ValueError("Project not found")
@@ -51,24 +52,35 @@ async def sync_graph_from_script(
     )
 
     try:
-        if not has_agent_nodes:
-            # 图还是空的（首次 Update Map）：Brand + Audience positions → Expert 冲突检测。
-            map_pipeline = await run_map_update_pipeline(project)
-            nodes, edges, _ = merge_pipeline_into_project_graph(project, map_pipeline)
-            nodes, edges = discard_non_conflicting_pipeline_positions(nodes, edges, map_pipeline)
-            pipeline = map_pipeline
-            node_modifications: list[dict[str, Any]] = []
-            issue_reviews: list[dict[str, Any]] = []
-        else:
-            # 已有节点：走 reconcile，重新评估 issues。
-            pipeline = await run_reconcile_pipeline(
-                project,
+        # Always re-run Brand + Audience on the script, then detect new conflicts.
+        map_pipeline = await run_map_update_pipeline(project, changed_row_ids=row_ids)
+        replace_sources = MAP_UPDATE_REPLACE_SOURCES if has_agent_nodes else None
+        nodes, edges, _ = merge_pipeline_into_project_graph(
+            project,
+            map_pipeline,
+            replace_agent_sources=replace_sources,
+        )
+        nodes, edges = discard_non_conflicting_pipeline_positions(nodes, edges, map_pipeline)
+        pipeline = map_pipeline
+        node_modifications: list[dict[str, Any]] = []
+        issue_reviews: list[dict[str, Any]] = []
+
+        if has_agent_nodes:
+            interim = {
+                **project,
+                "rationale_nodes": nodes,
+                "rationale_edges": edges,
+            }
+            reconcile_pipeline = await run_reconcile_pipeline(
+                interim,
                 user_message="脚本已更新。请重新评估每个冲突 issue 是否仍成立，并识别新冲突。",
                 changed_row_ids=row_ids,
             )
-            nodes, edges = reconcile_pipeline_into_project_graph(project, pipeline)
-            node_modifications = pipeline.node_modifications
-            issue_reviews = pipeline.issue_reviews
+            nodes, edges = reconcile_pipeline_into_project_graph(interim, reconcile_pipeline)
+            node_modifications = reconcile_pipeline.node_modifications
+            issue_reviews = reconcile_pipeline.issue_reviews
+            if reconcile_pipeline.assistant_reply:
+                pipeline.assistant_reply = reconcile_pipeline.assistant_reply
 
         await db.projects.update_one(
             {"_id": project_id, "user_id": user_id},

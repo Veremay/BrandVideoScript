@@ -27,6 +27,13 @@ __all__ = [
 from app.services.pipeline_log import log_step
 from app.services.tools.ibis_graph import apply_node_updates
 
+MAP_UPDATE_REPLACE_SOURCES = {
+    "brand_brief",
+    "brand_inferred",
+    "audience_persona",
+    "audience_simulation",
+}
+
 
 @dataclass
 class AgentPipelineResult:
@@ -83,15 +90,31 @@ async def run_brief_initial_pipeline(project: dict[str, Any]) -> AgentPipelineRe
     return pipeline
 
 
-async def run_map_update_pipeline(project: dict[str, Any]) -> AgentPipelineResult:
+async def run_map_update_pipeline(
+    project: dict[str, Any],
+    *,
+    changed_row_ids: set[str] | None = None,
+) -> AgentPipelineResult:
     """Update Map: Brand + Audience positions → Expert conflict detection (issues only)."""
     project_id = str(project.get("_id") or "")
-    log_step("pipeline.map_update", phase="IN", project_id=project_id)
+    row_ids = set(changed_row_ids or [])
+    log_step("pipeline.map_update", phase="IN", project_id=project_id, changed_row_ids=sorted(row_ids))
 
     pipeline = AgentPipelineResult()
+    map_message = (
+        "请基于变动脚本行重新分析品牌立场。"
+        if row_ids
+        else "请基于当前完整脚本重新分析品牌立场。"
+    )
 
     log_step("pipeline.map_update.brand_agent", phase="IN", project_id=project_id)
-    brand_result = await run_brand_agent(project, task_context="coordinator")
+    brand_result = await run_brand_agent(
+        project,
+        task_context="coordinator",
+        user_message=map_message,
+        changed_row_ids=row_ids,
+        full_script=not row_ids,
+    )
     _log_agent_output("pipeline.map_update.brand_agent", brand_result)
     pipeline.brand_result = brand_result
     _extend_graph(pipeline, brand_result)
@@ -99,7 +122,11 @@ async def run_map_update_pipeline(project: dict[str, Any]) -> AgentPipelineResul
     audience_result = None
     if project.get("active_persona_id"):
         log_step("pipeline.map_update.audience_agent", phase="IN", project_id=project_id)
-        audience_result = await run_audience_agent(project)
+        audience_result = await run_audience_agent(
+            project,
+            changed_row_ids=row_ids,
+            full_script=not row_ids,
+        )
         _log_agent_output("pipeline.map_update.audience_agent", audience_result)
         pipeline.audience_result = audience_result
         _extend_graph(pipeline, audience_result)
@@ -269,7 +296,7 @@ async def run_issue_population_pipeline(
         _extend_graph(pipeline, audience_result)
 
     pipeline.assistant_reply = (
-        f"已为议题「{issue.get('title', '')[:40]}」生成品牌与观众立场。"
+        f"已为议题「{issue.get('title', '')[:40]}」生成品牌与观众的立场及论据。"
     )
 
     log_step(
