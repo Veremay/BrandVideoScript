@@ -1174,6 +1174,35 @@ textarea {
   border-color: rgba(192, 86, 33, 0.35);
 }
 
+/* Conflict group tag: [A], [B], … — shown on position nodes */
+.map-conflict-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: "SF Mono", "Fira Mono", monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: help;
+  border: 1px solid transparent;
+  /* Default (tag A): red conflict indicator */
+  background: rgba(254, 226, 226, 0.97);
+  color: #b91c1c;
+  border-color: rgba(185, 28, 28, 0.3);
+}
+
+/* Per-letter color palette — wraps gracefully if >7 conflict groups */
+.map-conflict-tag[data-tag="A"] { background: rgba(254, 226, 226, 0.97); color: #b91c1c; border-color: rgba(185, 28, 28, 0.3); }
+.map-conflict-tag[data-tag="B"] { background: rgba(219, 234, 254, 0.97); color: #1d4ed8; border-color: rgba(29,  78, 216, 0.3); }
+.map-conflict-tag[data-tag="C"] { background: rgba(220, 252, 231, 0.97); color: #15803d; border-color: rgba(21, 128,  61, 0.3); }
+.map-conflict-tag[data-tag="D"] { background: rgba(254, 243, 199, 0.97); color: #b45309; border-color: rgba(180,  83,   9, 0.3); }
+.map-conflict-tag[data-tag="E"] { background: rgba(237, 233, 254, 0.97); color: #6d28d9; border-color: rgba(109,  40, 217, 0.3); }
+.map-conflict-tag[data-tag="F"] { background: rgba(204, 251, 241, 0.97); color: #0f766e; border-color: rgba( 15, 118, 110, 0.3); }
+.map-conflict-tag[data-tag="G"] { background: rgba(255, 228, 230, 0.97); color: #be123c; border-color: rgba(190,  18,  60, 0.3); }
+
 .map-node-menu-wrap {
   position: relative;
   flex-shrink: 0;

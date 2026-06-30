@@ -26,9 +26,10 @@ RELATION_TYPES = {
     "updates",
 }
 
-# An Issue represents a conflict, so it must aggregate at least this many
-# mutually-conflicting Positions. Issues never exist on their own.
-MIN_ISSUE_POSITIONS = 2
+# An Issue represents a question/topic; it must have at least this many responding
+# Positions to be considered structurally complete by agent-generated nodes.
+# User-created Issues are exempt from this check and may start empty.
+MIN_ISSUE_POSITIONS = 1
 
 
 def build_rationale_node(
@@ -41,6 +42,7 @@ def build_rationale_node(
     source_perspective: str = "brand",
     layout: dict[str, float] | None = None,
     business_tags: list[str] | None = None,
+    conflict_tags: list[str] | None = None,
     stance: str = "neutral",
     confidence: str = "medium",
     status: str = "open",
@@ -62,6 +64,10 @@ def build_rationale_node(
         "source_type": source_type,
         "source_perspective": source_perspective,
         "business_tags": business_tags or [],
+        # conflict_tags: uppercase-letter labels (A, B, C…) set by the Coordinator conflict
+        # analysis to indicate that two or more Positions sharing a tag are in conflict.
+        # Only meaningful on position nodes; empty list means no identified conflict.
+        "conflict_tags": conflict_tags or [],
         "stance": stance,
         "confidence": confidence,
         "status": status,
@@ -99,14 +105,16 @@ def _ibis_column(node_type: str) -> str:
 
 
 def validate_ibis_edge(from_node: dict[str, Any], to_node: dict[str, Any], relation_type: str) -> None:
-    """Canonical storage (bottom-up IBIS):
+    """Canonical IBIS edge rules:
 
-    - position → issue (``responds_to``): a stance belongs to a conflict.
-    - position ↔ position (``conflicts_with``): two stances are in conflict.
+    - position → issue (``responds_to``): a stance addresses a question/topic.
+    - position ↔ position (``conflicts_with``): legacy edge, retained for backward
+      compatibility but no longer actively generated; conflict is now expressed via
+      ``conflict_tags`` on position nodes.
     - argument → position (``supports`` / ``opposes``).
 
-    Positions are the primitives and may exist on their own. Issues are derived
-    from conflicting positions, and arguments always link to a position.
+    Positions are the primitives and may exist on their own. Issues are topics
+    that questions are raised around, and arguments always link to a position.
     """
     from_type = _ibis_column(str(from_node.get("node_type", "issue")))
     to_type = _ibis_column(str(to_node.get("node_type", "issue")))
@@ -246,17 +254,16 @@ def validate_ibis_graph_integrity(
     node_ids: set[str] | None = None,
     require_linked_for: Any | None = None,
 ) -> None:
-    """Enforce bottom-up IBIS structural rules.
+    """Enforce IBIS structural rules.
 
-    - Position: a primitive; may stand alone with no edges (no conflict yet).
-    - Issue: represents a conflict, so it must aggregate at least
-      ``MIN_ISSUE_POSITIONS`` positions via ``responds_to``. It never exists alone.
+    - Position: a primitive; may stand alone with no edges.
+    - Issue: represents a question/topic; agent-created issues must have at least
+      ``MIN_ISSUE_POSITIONS`` position(s) via ``responds_to``. User-created issues
+      may start empty while the user adds positions.
     - Argument: must support or oppose a position.
 
     By default only agent-created nodes are checked so users can add a node first
-    and connect it on the canvas afterward. An agent-created Issue that fails to
-    aggregate ≥2 conflicting Positions raises here (surfaced as an error) rather
-    than being silently dropped.
+    and connect it on the canvas afterward.
     """
     if require_linked_for is None:
         require_linked_for = lambda node: node.get("created_by") != "user"
@@ -278,8 +285,8 @@ def validate_ibis_graph_integrity(
             continue
         if column == "issue" and len(issue_positions.get(node_id, set())) < MIN_ISSUE_POSITIONS:
             raise ValueError(
-                f"Issue must aggregate at least {MIN_ISSUE_POSITIONS} conflicting Positions "
-                f"(responds_to); it cannot exist alone: {title}"
+                f"Issue must have at least {MIN_ISSUE_POSITIONS} Position(s) responding to it "
+                f"(responds_to); it cannot exist alone as an agent node: {title}"
             )
         if column == "argument" and node_id not in arguments_linked:
             raise ValueError(f"Argument must support or oppose a Position: {title}")

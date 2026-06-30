@@ -8,13 +8,13 @@ from app.services.agents.brand_agent import run_brand_agent
 from app.services.agents.expert_agent import (
     run_expert_coordinator,
     run_expert_for_audience,
-    run_expert_for_conflicts,
+    run_expert_for_map_update,
     run_expert_reconcile,
 )
+from app.services.agents.coordinator_agent import run_conflict_tagging
 
 __all__ = [
     "AgentPipelineResult",
-    "discard_non_conflicting_pipeline_positions",
     "merge_pipeline_into_project_graph",
     "reconcile_pipeline_into_project_graph",
     "run_audience_pipeline",
@@ -32,6 +32,7 @@ MAP_UPDATE_REPLACE_SOURCES = {
     "brand_inferred",
     "audience_persona",
     "audience_simulation",
+    "expert_strategy",
 }
 
 
@@ -43,6 +44,8 @@ class AgentPipelineResult:
     # Reconcile (anchored re-evaluation) outputs.
     issue_reviews: list[dict[str, Any]] = field(default_factory=list)
     node_modifications: list[dict[str, Any]] = field(default_factory=list)
+    # Conflict tagging: [{node_id, conflict_tags}] for existing positions; applied post-merge.
+    conflict_tag_updates: list[dict[str, Any]] = field(default_factory=list)
     assistant_reply: str = ""
     brand_result: dict[str, Any] | None = None
     audience_result: dict[str, Any] | None = None
@@ -95,7 +98,11 @@ async def run_map_update_pipeline(
     *,
     changed_row_ids: set[str] | None = None,
 ) -> AgentPipelineResult:
-    """Update Map: Brand + Audience positions → Expert conflict detection (issues only)."""
+    """Update Map: Brand + Audience + Expert generate positions; Coordinator assigns conflict_tags.
+
+    No Issue nodes are created in this pipeline — conflicts are expressed as
+    ``conflict_tags`` (e.g. ["A"]) on the position nodes themselves.
+    """
     project_id = str(project.get("_id") or "")
     row_ids = set(changed_row_ids or [])
     log_step("pipeline.map_update", phase="IN", project_id=project_id, changed_row_ids=sorted(row_ids))
@@ -131,11 +138,41 @@ async def run_map_update_pipeline(
         pipeline.audience_result = audience_result
         _extend_graph(pipeline, audience_result)
 
-    log_step("pipeline.map_update.expert_conflicts", phase="IN", project_id=project_id)
-    expert_result = await run_expert_for_conflicts(project, brand_result, audience_result)
-    _log_agent_output("pipeline.map_update.expert_conflicts", expert_result)
+    log_step("pipeline.map_update.expert_agent", phase="IN", project_id=project_id)
+    expert_result = await run_expert_for_map_update(
+        project,
+        brand_result=brand_result,
+        audience_result=audience_result,
+        changed_row_ids=row_ids,
+        full_script=not row_ids,
+    )
+    _log_agent_output("pipeline.map_update.expert_agent", expert_result)
     pipeline.expert_result = expert_result
     _extend_graph(pipeline, expert_result)
+
+    # Coordinator conflict tagging: assign conflict_tags to positions; no Issue nodes created.
+    new_positions = [n for n in pipeline.proposed_nodes if n.get("node_type") == "position"]
+    if new_positions:
+        log_step("pipeline.map_update.conflict_tagging", phase="IN", project_id=project_id)
+        tag_result = await run_conflict_tagging(project, brand_result, audience_result, new_positions)
+
+        # Apply conflict_tags directly to the proposed position nodes (pre-merge)
+        tag_map: dict[str, list[str]] = tag_result.get("position_tag_map") or {}
+        for node in pipeline.proposed_nodes:
+            node_id = str(node.get("node_id", ""))
+            if node_id in tag_map:
+                node["conflict_tags"] = tag_map[node_id]
+
+        # Store existing-position tag updates on the pipeline for graph_sync to apply post-merge
+        pipeline.conflict_tag_updates = tag_result.get("existing_node_updates") or []
+
+        log_step(
+            "pipeline.map_update.conflict_tagging",
+            phase="OUT",
+            project_id=project_id,
+            tagged_new=len(tag_map),
+            existing_updates=len(pipeline.conflict_tag_updates),
+        )
 
     log_step(
         "pipeline.map_update",

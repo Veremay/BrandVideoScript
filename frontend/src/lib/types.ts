@@ -207,6 +207,12 @@ export type RationaleNode = {
   resolved_at?: string | null;
   /** Non-binding hint for user-owned nodes (e.g. "resolved?" / "modify?"). */
   suggestion?: string | null;
+  /**
+   * Conflict group tags assigned by the Coordinator (e.g. ["A", "B"]).
+   * Only meaningful on position nodes. Two positions sharing a tag are in conflict.
+   * Tags may span different issues.
+   */
+  conflict_tags?: string[];
 };
 
 export type RationaleEdge = {

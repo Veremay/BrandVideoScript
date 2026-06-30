@@ -1,16 +1,20 @@
-## IBIS 节点类型（自下而上 · 冲突驱动）
+## IBIS 节点类型
 
-论证网络以 **Position（立场）为基本单元，自下而上生成**：先有各方的 position，当 **≥2 个 position 相互冲突**时，才派生出一个 **Issue** 来表示这个冲突。
-
-> **核心约束：Issue 不能单独存在——Issue 即冲突。** 没有 ≥2 个相互冲突 position 的 Issue 会被服务端丢弃。
+论证网络以 **Position（立场）为基本单元**：各方先表达立场，Coordinator 负责分析立场之间的冲突，并通过 **conflict_tags** 标记冲突关系。Issue 恢复其经典含义——**待讨论的问题/议题**，而非冲突本身。
 
 ### position — 立场 / 观点（基本单元，可独立存在）
 某一方（品牌 / 观众 / 专家）对脚本或合作的明确立场或方案方向。示例：「产品信息必须在前 3 秒出现」。
-**约束**：position 是根级单元，**可以单独存在**（暂时没有与之冲突的立场）。无需连任何边即合法。
 
-### issue — 冲突（派生节点，不可孤立）
-表示 **≥2 个相互冲突 position 之间的争议焦点**。示例：「品牌露出强度 vs 内容自然性」。
-**约束**：必须由 **≥2 个 position** 通过 `responds_to` 指向它。**禁止**产出没有 position 的孤立 issue。
+**conflict_tags 字段**：`["A"]`、`["B"]`、`["A", "C"]` 等。由 Coordinator 在冲突分析步骤中填写。
+相同 tag 的两个 position 之间存在冲突，tag 可跨越不同的 issue。
+
+**约束**：position 是根级单元，**可以单独存在**，无需连任何边即合法。
+
+### issue — 议题 / 问题（待讨论的话题）
+表示**一个需要各方表态的议题或问题**。示例：「品牌露出时机如何平衡观众接受度？」。
+Issue **不再代表冲突本身**；冲突由 position 上的 conflict_tags 表达。
+
+**约束**：Agent 创建的 issue 必须有 **≥1 个 position** 通过 `responds_to` 指向它。用户手动创建的 issue 可以暂时为空（用户会手动补充或点击 Generate Position）。禁止产出没有任何连接的孤立 agent issue。
 
 ### argument — 支撑 / 反对某立场的理由
 支持或反对某个 position 的论据。边：`supports` / `opposes` 指向 position（argument → position）。
@@ -22,7 +26,7 @@
 
 | relation_type | 方向 | 含义 |
 |---------------|------|------|
-| `responds_to` | position → issue | 该立场归属于某个冲突 |
+| `responds_to` | position → issue | 该立场是对某个议题的回应 |
 | `supports` / `opposes` | argument → position | 论据支撑 / 反对立场 |
 
 ## source_type
@@ -33,13 +37,22 @@
 | `brand_inferred` | Wiki / 公开资料推断的隐性品牌立场 |
 | `audience_persona` | Persona 属性推论的观众立场 |
 | `audience_simulation` | 对脚本模拟观众反应得到的立场 |
-| `expert_strategy` | 创作策略立场、冲突判定与结构建议 |
+| `expert_strategy` | 创作策略立场与结构建议 |
 
 ## persist_rationale_graph 工具输入（ibis 字段）
 
 ```json
 {
-  "nodes": [{ "node_type": "position", "title": "…", "content": "…", "source_type": "brand_brief", "source_perspective": "brand" }],
+  "nodes": [
+    {
+      "node_type": "position",
+      "title": "…",
+      "content": "…",
+      "source_type": "brand_brief",
+      "source_perspective": "brand",
+      "conflict_tags": []
+    }
+  ],
   "edges": [{ "from_index": 1, "to_index": 0, "relation_type": "responds_to" }],
   "external_edges": [{ "from_node_id": "node_existing_position", "to_index": 0, "relation_type": "responds_to" }],
   "node_updates": [{ "node_id": "node_existing", "content": "…" }]
@@ -47,8 +60,8 @@
 ```
 
 - 每条 `edges` / `external_edges` 的端点都可用 **本批下标**（`from_index` / `to_index`）或 **已有节点 id**（`from_node_id` / `to_node_id`）任意组合。
-- `external_edges` 用于把**已有图节点**接入本批新节点：典型用法是把来自 Brand / Audience / 已有图的多个 position 连到本批新建的 issue（`responds_to`）。
-- 产出 issue 时**必须**给出 **≥2 条** `responds_to`（position → issue）。
-- position 可不连任何边（根级、暂无冲突）。argument 必须连到某个 position。
-- **不要**产出没有 position 的孤立 issue（会被丢弃）。
+- `external_edges` 用于把**已有图节点**接入本批新节点。
+- Agent 创建的 issue 至少需要 **1 条** `responds_to`（position → issue）。
+- position 可不连任何边（根级，暂无 issue 关联）。argument 必须连到某个 position。
+- **conflict_tags** 字段由 Brand / Audience / Expert Agent 产出时留空 `[]`；**Coordinator** 在独立的冲突分析步骤中填写。各 Agent **不需要**自行判断冲突。
 - 只输出 JSON，不要 markdown 代码块。

@@ -84,6 +84,7 @@ def persist_rationale_graph(
             source_type = "expert_strategy"
         if allowed_source_types and source_type not in allowed_source_types:
             continue
+        raw_conflict_tags = raw.get("conflict_tags")
         node = build_rationale_node(
             project_id=project_id,
             node_type=str(raw.get("node_type", "issue")),
@@ -92,6 +93,7 @@ def persist_rationale_graph(
             source_type=source_type,
             source_perspective=str(raw.get("source_perspective") or "expert"),
             business_tags=list(raw.get("business_tags") or []),
+            conflict_tags=list(raw_conflict_tags) if isinstance(raw_conflict_tags, list) else None,
             stance=str(raw.get("stance") or "neutral"),
             confidence=str(raw.get("confidence") or "medium"),
             status=str(raw.get("status") or "open"),

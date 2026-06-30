@@ -72,6 +72,7 @@ class IbisNodeItem(BaseModel):
     content: str = ""
     source_type: str = "brand_brief"
     source_perspective: str = "brand"
+    conflict_tags: list[str] = Field(default_factory=list)
 
 
 class IbisOutput(BaseModel):

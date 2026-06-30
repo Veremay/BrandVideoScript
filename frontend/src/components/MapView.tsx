@@ -62,6 +62,8 @@ type IbisNodeData = {
   changeMark?: "none" | "modified" | "new";
   suggestion?: string | null;
   createdBy?: string;
+  /** Conflict group labels assigned by Coordinator (e.g. ["A", "B"]). Position nodes only. */
+  conflictTags?: string[];
 } & Record<string, unknown>;
 
 type MapNodeSeed = IbisNodeData & {
@@ -194,7 +196,8 @@ function rationaleToFlowNode(
       lifecycle: node.lifecycle ?? "active",
       changeMark: node.change_mark ?? "none",
       suggestion: node.suggestion ?? null,
-      createdBy: node.created_by
+      createdBy: node.created_by,
+      conflictTags: node.conflict_tags && node.conflict_tags.length > 0 ? node.conflict_tags : undefined,
     }
   };
 }
@@ -1145,6 +1148,18 @@ function IbisNode({ data, id }: NodeProps) {
                 {nodeData.suggestion === "resolved?" ? "建议解决?" : "建议修改?"}
               </span>
             ) : null}
+            {nodeData.conflictTags && nodeData.conflictTags.length > 0
+              ? nodeData.conflictTags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="map-conflict-tag"
+                    data-tag={tag}
+                    title={`冲突组 ${tag} — 与其他标记 [${tag}] 的立场存在冲突`}
+                  >
+                    [{tag}]
+                  </span>
+                ))
+              : null}
             {nodeData.inConsiderationQueue ? (
               <span className="map-node-consideration-tag">Consider</span>
             ) : null}

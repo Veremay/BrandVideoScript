@@ -412,6 +412,132 @@ async def run_expert_for_audience(
     return result
 
 
+_MAP_UPDATE_TASK_INSTRUCTIONS = """\
+## 场景：map_update — 创作策略立场
+
+结合脚本与 Brand / Audience 已产出的立场，从**创作策略视角**补充 Expert 的 position（及可选 argument）。
+
+**要求**：
+1. 产出 **1~3 个 position**（`source_type=expert_strategy`，`source_perspective=expert`），表达可执行的创作/结构建议或折中方向。
+2. 可为每个 position 补 **0~2 个 argument**（`supports`/`opposes` 连到对应 position）。
+3. **不要**新建 issue；**不要**填写 `conflict_tags`（由 Coordinator 后续分析）。
+4. position 可独立存在，无需 `responds_to` 连到 issue。
+5. Expert 立场通常偏平衡、可执行；仅当与品牌/观众立场存在实质对立时才可能被 Coordinator 标记冲突。"""
+
+_MAP_UPDATE_OUTPUT_SCHEMA = """\
+## 输出 JSON
+
+```json
+{
+  "strategy_notes": ["…"],
+  "recommended_directions": ["balanced"],
+  "ibis": {
+    "nodes": [
+      { "node_type": "position", "title": "…", "content": "…", "source_type": "expert_strategy", "source_perspective": "expert" }
+    ],
+    "edges": [],
+    "external_edges": [],
+    "node_updates": []
+  }
+}
+```"""
+
+
+async def run_expert_for_map_update(
+    project: dict[str, Any],
+    *,
+    brand_result: dict[str, Any] | None = None,
+    audience_result: dict[str, Any] | None = None,
+    changed_row_ids: set[str] | None = None,
+    full_script: bool = False,
+) -> dict[str, Any]:
+    """Update Map: Expert generates creative-strategy positions from script.
+
+    Does not detect conflicts or create issues — Coordinator assigns conflict_tags.
+    """
+    context = build_agent_context("expert", project)
+    assert_context_isolation("expert", context)
+
+    project_id = str(context.get("project_id") or project.get("_id") or "")
+    script_version_id = context.get("current_script_version_id")
+    row_ids = set(changed_row_ids or [])
+
+    if full_script:
+        script_block = f"## 当前脚本\n{format_script_for_prompt(project)}"
+    elif row_ids:
+        script_block = f"## 变动脚本\n{script_excerpt_for_rows(project, row_ids)}"
+    else:
+        script_block = f"## 脚本摘要\n{context.get('script_excerpt', '')}"
+
+    log_step(
+        "expert_agent.map_update",
+        phase="IN",
+        project_id=project_id,
+        changed_row_ids=sorted(row_ids),
+    )
+
+    context_block = "\n\n".join([
+        _MAP_UPDATE_TASK_INSTRUCTIONS,
+        script_block,
+        f"## Brand 结构化结果\n{perspective_result_json(brand_result or {})}",
+        f"## Audience 结构化结果\n{perspective_result_json(audience_result or {})}",
+        f"## 已有节点\n{existing_nodes_summary(project)}",
+    ])
+
+    def mock() -> dict[str, Any]:
+        return {
+            "strategy_notes": ["从创作策略角度补充可执行折中方向"],
+            "recommended_directions": ["balanced"],
+            "ibis": {
+                "nodes": [{
+                    "node_type": "position",
+                    "title": "平衡品牌露出与内容自然性",
+                    "content": "在前段用场景化叙事引入产品，避免硬广式开场，同时保证核心信息在前 1/3 出现。",
+                    "source_type": "expert_strategy",
+                    "source_perspective": "expert",
+                }],
+                "edges": [],
+                "external_edges": [],
+                "node_updates": [],
+            },
+        }
+
+    payload = await invoke_agent_json(
+        agent_prompt_file="expert_agent.md",
+        context=context_block,
+        task_type="expert_map_update",
+        mock_payload=mock,
+        extra_vars={
+            "TASK_INSTRUCTIONS": _MAP_UPDATE_TASK_INSTRUCTIONS,
+            "OUTPUT_SCHEMA": _MAP_UPDATE_OUTPUT_SCHEMA,
+        },
+    )
+
+    graph = persist_rationale_graph(
+        project_id,
+        payload.get("ibis"),
+        script_version_id=script_version_id,
+        allowed_source_types=EXPERT_SOURCES,
+    )
+
+    result = {
+        "strategy_notes": payload.get("strategy_notes") or [],
+        "recommended_directions": payload.get("recommended_directions") or ["balanced"],
+        "proposed_nodes": graph.proposed_nodes,
+        "proposed_edges": graph.proposed_edges,
+        "node_updates": graph.node_updates,
+        "tool_calls_used": ["persist_rationale_graph"],
+    }
+    log_step(
+        "expert_agent.map_update",
+        phase="OUT",
+        project_id=project_id,
+        proposed_nodes=len(result["proposed_nodes"]),
+        proposed_edges=len(result["proposed_edges"]),
+    )
+    return result
+
+
 async def run_expert_for_conflicts(
     project: dict[str, Any],
     brand_result: dict[str, Any],
@@ -1208,3 +1334,4 @@ async def run_expert_generate_negotiation(
         open_disputes=len(prep.get("open_disputes") or []),
     )
     return result
+

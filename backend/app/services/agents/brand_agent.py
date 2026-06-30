@@ -55,7 +55,7 @@ _PHASE2_TASK_INSTRUCTIONS = """\
 ## 任务：品牌立场节点生成
 
 基于已提取的品牌需求，推理品牌方立场，生成 IBIS position 节点。
-- Brand 侧**只产 position**，不要产 issue（冲突由 Expert 汇总后判定）
+- Brand 侧**只产 position**，不要产 issue；冲突由 **Coordinator** 后续分析并分配 `conflict_tags`
 - `source_type` 限：`brand_brief`、`brand_inferred`
 - position 可独立存在，**不要写 edges**"""
 
