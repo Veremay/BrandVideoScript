@@ -43,7 +43,7 @@ import {
   toggleGraphConsiderationQueue,
   updateGraphNode
 } from "@/lib/api";
-import { isGraphStaleFromScript } from "@/lib/stale";
+import { isGraphStaleForUpdateMap } from "@/lib/stale";
 import { useAppStore } from "@/store/appStore";
 
 type MapNodeType = "issue" | "position" | "argument";
@@ -516,10 +516,26 @@ function MapViewContent() {
 
       setEditingNodeId((current) => (current && uniqueIds.includes(current) ? null : current));
 
+      const deletePriority = (id: string) => {
+        const nodeType = nodes.find((item) => item.id === id)?.data.nodeType;
+        if (nodeType === "issue") return 0;
+        if (nodeType === "position") return 1;
+        if (nodeType === "argument") return 2;
+        return 3;
+      };
+      const sortedIds = [...uniqueIds].sort((a, b) => deletePriority(a) - deletePriority(b));
+
       try {
         let updated = project;
-        for (const nodeId of uniqueIds) {
-          updated = (await deleteGraphNode(project._id, project.user_id, nodeId)) ?? updated;
+        for (const nodeId of sortedIds) {
+          try {
+            updated = (await deleteGraphNode(project._id, project.user_id, nodeId)) ?? updated;
+          } catch (error) {
+            if (error instanceof Error && error.message.toLowerCase().includes("not found")) {
+              continue;
+            }
+            throw error;
+          }
         }
         setProject(updated);
       } catch (error) {
@@ -793,14 +809,15 @@ function MapViewContent() {
   );
 
   const emptyGraph = flowNodes.length === 0;
-  const scriptChanged = isGraphStaleFromScript(project?.stale);
-  const mapSyncing = syncingMap || project?.stale?.rationale_graph === "generating";
   const hasRequirements = (project?.brand_insights ?? []).some(
     (insight) =>
       insight.category === "explicit_requirement" || insight.category === "implicit_requirement"
   );
   const hasPersona = (project?.personas?.length ?? 0) > 0;
   const canUpdateMap = hasRequirements && hasPersona;
+  const mapUpdateNeeded = isGraphStaleForUpdateMap(project?.stale);
+  const mapSyncing = syncingMap || project?.stale?.rationale_graph === "generating";
+  const showUpdateMapButton = mapUpdateNeeded || mapSyncing || (emptyGraph && canUpdateMap);
   const updateMapBlockedReason = !hasRequirements
     ? "Add brand requirements (parse Brief or edit Requirements) before updating the map."
     : !hasPersona
@@ -834,7 +851,7 @@ function MapViewContent() {
   return (
     <section className="map-workspace" ref={workspaceRef}>
       <div className="map-canvas-area">
-      {scriptChanged || mapSyncing ? (
+      {showUpdateMapButton ? (
         <button
           className="map-update-map-btn"
           disabled={mapSyncing || !canUpdateMap}
@@ -846,7 +863,7 @@ function MapViewContent() {
           {mapSyncing ? "Updating…" : "Update Map"}
         </button>
       ) : null}
-      {!emptyGraph && !scriptChanged && !mapSyncing ? (
+      {!emptyGraph && !mapUpdateNeeded && !mapSyncing ? (
         <div className="map-graph-status" aria-live="polite">
           {flowNodes.length} nodes · {flowEdges.length} edges
         </div>
@@ -860,7 +877,7 @@ function MapViewContent() {
                 ? "Parse a Brief or add requirements in the Requirements panel, then click Update Map."
                 : !hasPersona
                   ? "Provision at least one Persona, then click Update Map to detect conflicts from the script."
-                  : "Edit the script, then click Update Map to detect brand vs audience conflicts."}
+                  : "Edit the script, requirements, or persona, then click Update Map to refresh the graph."}
           </p>
         </div>
       ) : null}

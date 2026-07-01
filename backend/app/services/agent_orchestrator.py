@@ -26,6 +26,7 @@ __all__ = [
 ]
 from app.services.pipeline_log import log_step
 from app.services.tools.ibis_graph import apply_node_updates
+from app.models.rationale_ops import build_rationale_edge, build_rationale_node
 
 MAP_UPDATE_REPLACE_SOURCES = {
     "brand_brief",
@@ -68,6 +69,196 @@ def _log_agent_output(step: str, output: dict[str, Any]) -> None:
         assistant_reply=(output.get("assistant_reply") or "")[:500],
         summary={k: v for k, v in output.items() if k not in {"proposed_nodes", "proposed_edges", "node_updates"}},
     )
+
+
+def _normalize_issue_key(value: str) -> str:
+    return " ".join(value.strip().lower().split())
+
+
+def _existing_issue_position_sets(project: dict[str, Any]) -> dict[frozenset[str], str]:
+    issue_ids = {
+        str(n.get("node_id"))
+        for n in project.get("rationale_nodes", [])
+        if n.get("node_type") == "issue" and n.get("lifecycle", "active") == "active"
+    }
+    result: dict[frozenset[str], str] = {}
+    for issue_id in issue_ids:
+        position_ids = frozenset(
+            str(edge.get("from_node_id"))
+            for edge in project.get("rationale_edges", [])
+            if edge.get("relation_type") == "responds_to" and str(edge.get("to_node_id")) == issue_id
+        )
+        if position_ids:
+            result[position_ids] = issue_id
+    return result
+
+
+def _append_decision_issues(
+    project: dict[str, Any],
+    pipeline: AgentPipelineResult,
+    decision_issues: list[dict[str, Any]],
+) -> None:
+    """Materialize Coordinator-suggested decision axes as Issue nodes.
+
+    Conflict remains expressed by Position ``conflict_tags``. These Issues are
+    topic containers only: they group Positions that answer the same durable
+    decision question.
+    """
+    if not decision_issues:
+        return
+
+    project_id = str(project.get("_id") or "")
+    valid_position_ids = {
+        str(n.get("node_id"))
+        for n in [*project.get("rationale_nodes", []), *pipeline.proposed_nodes]
+        if n.get("node_type") == "position" and n.get("node_id")
+    }
+    existing_issue_titles = {
+        _normalize_issue_key(str(n.get("title") or ""))
+        for n in project.get("rationale_nodes", [])
+        if n.get("node_type") == "issue" and n.get("lifecycle", "active") == "active"
+    }
+    existing_position_sets = _existing_issue_position_sets(project)
+    seen_edges = {
+        (str(e.get("from_node_id")), str(e.get("to_node_id")), str(e.get("relation_type")))
+        for e in [*project.get("rationale_edges", []), *pipeline.proposed_edges]
+    }
+
+    for spec in decision_issues:
+        if not isinstance(spec, dict):
+            continue
+        title = str(spec.get("title") or "").strip()
+        content = str(spec.get("content") or spec.get("reason") or "").strip()
+        if not title:
+            continue
+        position_ids: list[str] = []
+        for raw_id in spec.get("position_ids") or []:
+            position_id = str(raw_id)
+            if position_id in valid_position_ids and position_id not in position_ids:
+                position_ids.append(position_id)
+        if not position_ids:
+            continue
+        position_set = frozenset(position_ids)
+        if _normalize_issue_key(title) in existing_issue_titles:
+            continue
+        if position_set in existing_position_sets:
+            continue
+
+        issue = build_rationale_node(
+            project_id=project_id,
+            node_type="issue",
+            title=title,
+            content=content,
+            source_type="expert_strategy",
+            source_perspective="expert",
+            created_by="agent",
+        )
+        pipeline.proposed_nodes.append(issue)
+        existing_issue_titles.add(_normalize_issue_key(title))
+        existing_position_sets[position_set] = str(issue["node_id"])
+        for position_id in position_ids:
+            key = (position_id, str(issue["node_id"]), "responds_to")
+            if key in seen_edges:
+                continue
+            seen_edges.add(key)
+            pipeline.proposed_edges.append(
+                build_rationale_edge(
+                    project_id=project_id,
+                    from_node_id=position_id,
+                    to_node_id=str(issue["node_id"]),
+                    relation_type="responds_to",
+                    created_by="agent",
+                )
+            )
+
+
+def _append_carrier_issues_for_orphan_positions(project: dict[str, Any], pipeline: AgentPipelineResult) -> None:
+    """Ensure every proposed Position has an Issue container."""
+    project_id = str(project.get("_id") or "")
+    existing_position_ids_with_issue = {
+        str(edge.get("from_node_id"))
+        for edge in project.get("rationale_edges", [])
+        if edge.get("relation_type") == "responds_to" and edge.get("from_node_id")
+    }
+    proposed_position_ids_with_issue = {
+        str(edge.get("from_node_id"))
+        for edge in pipeline.proposed_edges
+        if edge.get("relation_type") == "responds_to" and edge.get("from_node_id")
+    }
+    for position in list(pipeline.proposed_nodes):
+        if position.get("node_type") != "position" or not position.get("node_id"):
+            continue
+        position_id = str(position["node_id"])
+        if position_id in existing_position_ids_with_issue or position_id in proposed_position_ids_with_issue:
+            continue
+        title = str(position.get("title") or "").strip()
+        if not title:
+            continue
+        issue_title = f"关于「{title[:40]}」的议题"
+        issue = build_rationale_node(
+            project_id=project_id,
+            node_type="issue",
+            title=issue_title,
+            content=f"承载立场：{title}",
+            source_type=str(position.get("source_type") or "expert_strategy"),
+            source_perspective=str(position.get("source_perspective") or "expert"),
+            created_by=str(position.get("created_by") or "agent"),
+        )
+        pipeline.proposed_nodes.append(issue)
+        pipeline.proposed_edges.append(
+            build_rationale_edge(
+                project_id=project_id,
+                from_node_id=position_id,
+                to_node_id=str(issue["node_id"]),
+                relation_type="responds_to",
+                created_by=str(position.get("created_by") or "agent"),
+            )
+        )
+        proposed_position_ids_with_issue.add(position_id)
+
+
+def _append_carrier_arguments_for_orphan_positions(project: dict[str, Any], pipeline: AgentPipelineResult) -> None:
+    """Ensure every proposed Position has at least one Argument in generated graphs."""
+    project_id = str(project.get("_id") or "")
+    existing_position_ids_with_argument = {
+        str(edge.get("to_node_id"))
+        for edge in project.get("rationale_edges", [])
+        if edge.get("relation_type") in {"supports", "opposes"} and edge.get("to_node_id")
+    }
+    proposed_position_ids_with_argument = {
+        str(edge.get("to_node_id"))
+        for edge in pipeline.proposed_edges
+        if edge.get("relation_type") in {"supports", "opposes"} and edge.get("to_node_id")
+    }
+    for position in list(pipeline.proposed_nodes):
+        if position.get("node_type") != "position" or not position.get("node_id"):
+            continue
+        position_id = str(position["node_id"])
+        if position_id in existing_position_ids_with_argument or position_id in proposed_position_ids_with_argument:
+            continue
+        title = str(position.get("title") or "").strip()
+        if not title:
+            continue
+        argument = build_rationale_node(
+            project_id=project_id,
+            node_type="argument",
+            title=f"Rationale for: {title[:40]}",
+            content=f"Auto carrier argument for generated position: {title}",
+            source_type=str(position.get("source_type") or "expert_strategy"),
+            source_perspective=str(position.get("source_perspective") or "expert"),
+            created_by=str(position.get("created_by") or "agent"),
+        )
+        pipeline.proposed_nodes.append(argument)
+        pipeline.proposed_edges.append(
+            build_rationale_edge(
+                project_id=project_id,
+                from_node_id=str(argument["node_id"]),
+                to_node_id=position_id,
+                relation_type="supports",
+                created_by=str(position.get("created_by") or "agent"),
+            )
+        )
+        proposed_position_ids_with_argument.add(position_id)
 
 
 async def run_brief_initial_pipeline(project: dict[str, Any]) -> AgentPipelineResult:
@@ -165,6 +356,7 @@ async def run_map_update_pipeline(
 
         # Store existing-position tag updates on the pipeline for graph_sync to apply post-merge
         pipeline.conflict_tag_updates = tag_result.get("existing_node_updates") or []
+        _append_decision_issues(project, pipeline, tag_result.get("decision_issues") or [])
 
         log_step(
             "pipeline.map_update.conflict_tagging",
@@ -172,7 +364,10 @@ async def run_map_update_pipeline(
             project_id=project_id,
             tagged_new=len(tag_map),
             existing_updates=len(pipeline.conflict_tag_updates),
+            decision_issues=len(tag_result.get("decision_issues") or []),
         )
+    _append_carrier_issues_for_orphan_positions(project, pipeline)
+    _append_carrier_arguments_for_orphan_positions(project, pipeline)
 
     log_step(
         "pipeline.map_update",
@@ -368,6 +563,8 @@ async def run_reconcile_pipeline(
     pipeline.issue_reviews = expert_result.get("issue_reviews") or []
     pipeline.node_modifications = expert_result.get("node_modifications") or []
     pipeline.assistant_reply = expert_result.get("assistant_reply", "")
+    _append_carrier_issues_for_orphan_positions(project, pipeline)
+    _append_carrier_arguments_for_orphan_positions(project, pipeline)
 
     log_step(
         "pipeline.reconcile",
@@ -406,6 +603,8 @@ def merge_pipeline_into_project_graph(
 ) -> tuple[list[dict], list[dict], list[dict]]:
     from app.models.rationale_ops import merge_proposed_graph
 
+    _append_carrier_issues_for_orphan_positions(project, pipeline)
+    _append_carrier_arguments_for_orphan_positions(project, pipeline)
     user_node_ids = {n["node_id"] for n in project.get("rationale_nodes", []) if n.get("created_by") == "user"}
     safe_nodes = [n for n in pipeline.proposed_nodes if n.get("node_id") not in user_node_ids]
     updated_existing = apply_node_updates(project.get("rationale_nodes", []), pipeline.node_updates)

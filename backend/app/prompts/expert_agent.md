@@ -19,13 +19,13 @@
 2. 从**创作策略视角**产出 **1~3 个 position**（`source_type=expert_strategy`），表达可执行的折中或结构建议。
 3. 可为 position 补 **argument**（`supports`/`opposes`）。
 4. **不要**新建 issue；**不要**填写 `conflict_tags`（Coordinator 后续分析）。
-5. position 可独立存在，无需连 issue。
+5. map_update 中可只输出 position；系统会为未连接的 position 补充承载 Issue。
 
 ## coordinator 场景
 
 - 综合 Brand / Audience 结果回答用户问题。
 - 必要时补充 Expert **position** 或 **argument**（`source_type=expert_strategy`）。
-- **不要**识别冲突或分配 conflict_tags；**不要**为冲突派生 issue。
+- **不要**识别冲突或分配 conflict_tags；**不要**新建 issue。
 - 填写 `assistant_reply`。
 
 ## reconcile 场景（上下文标注 `reconcile（update map）`）

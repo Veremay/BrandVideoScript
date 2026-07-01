@@ -200,17 +200,17 @@ MVP 文件类型：`.md`、`.txt`、纯文本粘贴。PDF/DOC/PPT 等见 `develo
 
 ### 6. RationaleNode（IBIS）
 
-> **生成原则（自下而上 · 冲突驱动）：** 论证网络以 **Position 为基本单元**，先有各方立场；当 **≥2 个 Position 相互冲突**时才**派生** Issue。**Issue 不能单独存在——Issue 即冲突**，必须由 ≥2 个 Position 通过 `responds_to` 指向，并建议在冲突 Position 间建立 `conflicts_with`。Position 可作为根节点独立存在（暂无冲突）；Argument 必须 `supports`/`opposes` 某 Position。服务端在合并时对不满足 ≥2 Position 的 **agent 生成 Issue 直接报错**（`validate_ibis_graph_integrity`），而非静默丢弃。
+> **生成原则（Issue 承载 Position）：** 论证网络以 **Issue → Position → Argument** 为基本骨架。Position 表达各方立场，但**必须**通过 `responds_to` 依托某个 Issue 才能存在，且自动生成 / 合并时必须至少连接 1 个 Argument；冲突由 Position 上的 `conflict_tags` 表达。**Issue 是决策议题 / 问题框架，不是冲突本身**：当 Coordinator 发现多个 Position 反复围绕同一清晰决策轴时，可生成 Issue 并用 `responds_to` 连接相关 Position。即使是暂时独立的 Position，系统也会自动补充一个承载 Issue 和默认 Argument。Argument 必须 `supports`/`opposes` 某 Position。用户手动删除 Argument 不会反向级联删除 Position；服务端在合并时会移除没有 responding Position 的 agent Issue，用户手建 Issue 可暂时为空。
 >
-> **Agent 分工：** Brand / Audience **只产 Position**；Expert 负责在各方 Position 间识别冲突并派生 Issue（连 `responds_to` + `conflicts_with`）。
+> **Agent 分工：** Brand / Audience **只产 Position**；Expert 产创作策略 Position/Argument；Coordinator 负责识别冲突并填写 `conflict_tags`，必要时通过 `decision_issues` 生成稳定决策轴 Issue。
 >
-> **用户手建 Issue：** 创作者在画布上新建 Issue 后，可在该节点菜单手动点击 **Generate positions**，触发 Expert **围绕该 Issue 组织 ≥2 个对立 Position**（`responds_to` + `conflicts_with`，`populate_issue_with_positions`）。节点创建本身是即时的、不自动跑 Agent。
+> **用户手建 Issue：** 创作者在画布上新建 Issue 后，可在该节点菜单手动点击 **Generate positions**，触发 Expert **围绕该 Issue 组织多个回应 Position**（`responds_to`，`populate_issue_with_positions`）。节点创建本身是即时的、不自动跑 Agent。
 >
-> **Update Map = 锚定式 reconcile（`sync_graph_from_script` → `run_reconcile_pipeline` → `apply_reconcile`）：** 每次更新地图，Expert 对**每个已有 Issue**（含 active/resolved）逐个复评，返回 `still_holds` / `resolved` / `modified`，并可报告 Position/Argument 的实质修改与全新冲突：
+> **Update Map = 锚定式 reconcile（`sync_graph_from_script` → `run_reconcile_pipeline` → `apply_reconcile`）：** 每次更新地图，Expert 对**每个已有 Issue**（含 active/resolved）逐个复评，返回 `still_holds` / `resolved` / `modified`，并可报告 Position/Argument 的实质修改：
 > - `still_holds` → 节点与 id 完全不变（resolved 的会被复活回 active）。
-> - `resolved`（仅 Issue 层）→ id 不变，`lifecycle=resolved`，画布半透明 + 【已解决】；仅 Issue 及其 `responds_to`/`conflicts_with` 边变灰，关联 Position/Argument 保持 active。resolved Issue 不再受 ≥2 约束、可复活。
+> - `resolved`（仅 Issue 层）→ id 不变，`lifecycle=resolved`，画布半透明 + 【已解决】；仅 Issue 及其 `responds_to` 边变灰，关联 Position/Argument 保持 active。resolved Issue 不再受 linked-position 约束、可复活。
 > - `modified`（任意节点）→ **新建节点（新 id）继承旧节点全部边**，旧节点移出 live 图（仅留在更新前快照），新节点 `change_mark=modified` 并记 `predecessor_id`。
-> - 全新冲突 → 正常新增，`change_mark=new`。
+> - 全新决策议题 → 由 Coordinator 生成 Issue，正常新增，`change_mark=new`。
 > - **用户节点（`created_by=user`）永不被 supersede/resolve**，只在节点上挂 `suggestion`（如 `resolved?` / `modify?`）由创作者自行处理。
 > - **id 引用不迁移：** `consideration_queue` / `ModificationScheme` 仍绑定原 id；若该节点已不在 live 图中，前端在 TO BE CONSIDERED 列表显示「立场已更新/已失效」标签供清理。
 
@@ -286,8 +286,8 @@ MVP 文件类型：`.md`、`.txt`、纯文本粘贴。PDF/DOC/PPT 等见 `develo
 
 | relation_type | 典型方向 | 说明 |
 |---------------|----------|------|
-| responds_to | Position → Issue | 立场归属于某冲突（Issue 需 ≥2 条） |
-| conflicts_with | Position ↔ Position | **两立场冲突**，是 Issue 派生的依据 |
+| responds_to | Position → Issue | 立场回应某个决策议题 |
+| conflicts_with | Position ↔ Position | legacy；两立场冲突现在主要由 `conflict_tags` 表达 |
 | supports | Argument → Position | |
 | opposes | Argument → Position | |
 | evidenced_by | Argument → Reference | |

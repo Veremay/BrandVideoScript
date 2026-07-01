@@ -59,11 +59,10 @@ class BriefParseAgentsTest(unittest.IsolatedAsyncioTestCase):
         }
         self.assertTrue(brand_position_sources.intersection({"brand_brief", "brand_inferred"}))
 
-        # Expert derives conflict issues from brand + audience positions.
+        # Expert no longer derives Issues; Coordinator conflict_tagging handles conflicts.
         expert_node_types = {node.get("node_type") for node in expert.get("proposed_nodes", [])}
-        self.assertIn("issue", expert_node_types)
-        relations = {edge.get("relation_type") for edge in expert.get("proposed_edges", [])}
-        self.assertIn("responds_to", relations)
+        self.assertNotIn("issue", expert_node_types)
+        self.assertEqual(expert.get("proposed_edges", []), [])
 
     async def test_populate_issue_generates_brand_and_audience_positions(self) -> None:
         issue_id = "node_issue_user_1"

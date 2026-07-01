@@ -29,6 +29,7 @@ from app.repositories.graph import (
 )
 from app.repositories.projects import get_project
 from app.services.coordinator_stream import stream_coordinator_chat
+from app.services.coordinator_service import stream_graph_sync
 from app.services.graph_sync import populate_issue_with_positions, sync_graph_from_script
 
 router = APIRouter(prefix="/projects/{project_id}", tags=["coordinator"])
@@ -156,7 +157,10 @@ async def remove_graph_node(
     user_id: str = Query(min_length=1),
     db: AsyncIOMotorDatabase = Depends(database_dependency),
 ) -> dict:
-    project = await delete_graph_node(db, project_id, user_id.strip(), node_id)
+    try:
+        project = await delete_graph_node(db, project_id, user_id.strip(), node_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404 if "not found" in str(exc).lower() else 400, detail=str(exc)) from exc
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
     return project
@@ -169,7 +173,7 @@ async def populate_issue_node(
     user_id: str = Query(min_length=1),
     db: AsyncIOMotorDatabase = Depends(database_dependency),
 ) -> dict:
-    """Manually organize ≥2 conflicting Positions around a user-created Issue."""
+    """Manually organize responding Positions around a user-created Issue."""
     try:
         result = await populate_issue_with_positions(db, project_id, user_id.strip(), node_id)
     except ValueError as exc:
@@ -210,7 +214,10 @@ async def remove_graph_edge(
     user_id: str = Query(min_length=1),
     db: AsyncIOMotorDatabase = Depends(database_dependency),
 ) -> dict:
-    project = await delete_graph_edge(db, project_id, user_id.strip(), edge_id)
+    try:
+        project = await delete_graph_edge(db, project_id, user_id.strip(), edge_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404 if "not found" in str(exc).lower() else 400, detail=str(exc)) from exc
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
     return project
@@ -231,6 +238,24 @@ async def sync_graph_from_script_route(
         )
     except ValueError as exc:
         raise HTTPException(status_code=404 if "not found" in str(exc).lower() else 400, detail=str(exc)) from exc
+
+
+@graph_router.post("/sync-from-script/stream")
+async def sync_graph_from_script_stream_route(
+    project_id: str,
+    payload: GraphSyncFromScriptRequest,
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> StreamingResponse:
+    return StreamingResponse(
+        stream_graph_sync(
+            db,
+            project_id,
+            payload.user_id.strip(),
+            changed_row_ids=payload.changed_row_ids,
+        ),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @graph_router.patch("/nodes/{node_id}/consideration-queue", response_model=ProjectResponse)

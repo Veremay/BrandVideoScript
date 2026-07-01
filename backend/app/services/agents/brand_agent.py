@@ -55,9 +55,9 @@ _PHASE2_TASK_INSTRUCTIONS = """\
 ## 任务：品牌立场节点生成
 
 基于已提取的品牌需求，推理品牌方立场，生成 IBIS position 节点。
-- Brand 侧**只产 position**，不要产 issue；冲突由 **Coordinator** 后续分析并分配 `conflict_tags`
+- Brand 侧**只产 position**，不要产 issue；系统会为未连接的 position 补充承载 Issue，冲突由 **Coordinator** 后续分析并分配 `conflict_tags`
 - `source_type` 限：`brand_brief`、`brand_inferred`
-- position 可独立存在，**不要写 edges**"""
+- map_update 中不要写 edges；如果任务明确给定目标 Issue，才用 `responds_to` 连接"""
 
 _PHASE2_OUTPUT_SCHEMA = """\
 ## 输出 JSON（仅 ibis 节点，不要需求字段）
@@ -361,6 +361,7 @@ async def _run_nodes_generation(
         payload.get("ibis"),
         script_version_id=script_version_id,
         allowed_source_types=BRAND_SOURCES,
+        allow_unlinked_positions=True,
     )
     result = {
         "constraints": [],

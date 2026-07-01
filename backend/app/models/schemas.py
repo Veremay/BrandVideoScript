@@ -1,6 +1,6 @@
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class UserEnterRequest(BaseModel):
@@ -325,12 +325,20 @@ class GraphNodeCreateRequest(BaseModel):
         "creator_manual",
         "external_reference",
     ] = "creator_manual"
-    source_perspective: str = "creator"
+    source_perspective: Literal["brand", "audience", "creator", "expert", "system"] = "creator"
     layout: dict[str, float] | None = None
     status: Literal[
         "open", "in_review", "resolved", "needs_negotiation", "to_be_considered", "deferred", "dismissed"
     ] = "open"
     linked_script_refs: list[ScriptRefLink] = Field(default_factory=list)
+
+    @field_validator("title", "content")
+    @classmethod
+    def strip_required_text(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("must not be blank")
+        return stripped
 
 
 class GraphNodeUpdateRequest(BaseModel):
@@ -341,6 +349,16 @@ class GraphNodeUpdateRequest(BaseModel):
         "open", "in_review", "resolved", "needs_negotiation", "to_be_considered", "deferred", "dismissed"
     ] | None = None
     layout: dict[str, float] | None = None
+
+    @field_validator("title", "content")
+    @classmethod
+    def strip_optional_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("must not be blank")
+        return stripped
 
 
 class GraphEdgeCreateRequest(BaseModel):

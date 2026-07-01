@@ -757,7 +757,7 @@ async def _write_brand_insights(db: AsyncIOMotorDatabase, project_id: str, user_
             "$set": {
                 "brand_insights": insights,
                 "updated_at": now_iso(),
-                "stale.modification_schemes": "stale_graph_changed",
+                **stale_set_fields(mark_brief_changed()),
             }
         },
     )

@@ -34,7 +34,7 @@ def _resolve_spec_node_id(
 
     ``index_key`` (e.g. ``from_index``) points into this batch's ``nodes`` array;
     ``id_key`` (e.g. ``from_node_id``) references an already-persisted node. This
-    lets agents wire existing Positions into a freshly created conflict Issue.
+    lets agents wire existing Positions into a freshly created decision Issue.
     """
     raw_index = spec.get(index_key)
     if isinstance(raw_index, bool):
@@ -57,6 +57,7 @@ def persist_rationale_graph(
     *,
     script_version_id: str | None = None,
     allowed_source_types: set[str] | None = None,
+    allow_unlinked_positions: bool = False,
 ) -> PersistedIbisGraph:
     """
     Tool: validate LLM-proposed IBIS payload and materialize server-side node/edge documents.
@@ -64,9 +65,12 @@ def persist_rationale_graph(
 
     Edge endpoints (``edges`` and ``external_edges``) accept either a batch index
     (``from_index`` / ``to_index``) or an existing node id (``from_node_id`` /
-    ``to_node_id``), so conflict Issues can link Positions created by other agents.
-    Structural completeness (an Issue needs ≥2 conflicting Positions, an Argument
-    needs a Position) is enforced later during the full-graph merge.
+    ``to_node_id``), so decision Issues can link Positions created by other agents.
+    Structural completeness (an agent-created Issue needs at least one responding
+    Position, a Position needs an Issue, and an Argument needs a Position) is
+    enforced later during the full-graph merge. Some agent steps may opt into
+    ``allow_unlinked_positions`` because the orchestrator adds carrier Issues
+    after Coordinator conflict analysis.
     """
     if not ibis:
         return PersistedIbisGraph()
@@ -79,6 +83,9 @@ def persist_rationale_graph(
     for raw in raw_nodes:
         if not isinstance(raw, dict):
             continue
+        title = str(raw.get("title") or "").strip()
+        if not title:
+            continue
         source_type = str(raw.get("source_type", "expert_strategy"))
         if source_type not in SOURCE_TYPES:
             source_type = "expert_strategy"
@@ -88,7 +95,7 @@ def persist_rationale_graph(
         node = build_rationale_node(
             project_id=project_id,
             node_type=str(raw.get("node_type", "issue")),
-            title=str(raw.get("title") or "未命名节点"),
+            title=title,
             content=str(raw.get("content") or ""),
             source_type=source_type,
             source_perspective=str(raw.get("source_perspective") or "expert"),
@@ -162,6 +169,76 @@ def persist_rationale_graph(
             phase="OUT",
             project_id=project_id,
             edges_added=len(built_edges) - edge_count_before,
+        )
+
+    issue_titles_before = {
+        str(n["node_id"]): str(n.get("title") or n["node_id"])
+        for n in built_nodes
+        if n.get("node_id") and str(n.get("node_type") or "") == "issue"
+    }
+    built_node_ids_before = {str(n.get("node_id")) for n in built_nodes if n.get("node_id")}
+    issue_ids_with_responding_edges = {
+        str(edge.get("to_node_id"))
+        for edge in built_edges
+        if edge.get("relation_type") == "responds_to" and edge.get("to_node_id")
+    }
+    position_ids_with_issue_edges = {
+        str(edge.get("from_node_id"))
+        for edge in built_edges
+        if edge.get("relation_type") == "responds_to" and edge.get("from_node_id")
+    }
+    argument_ids_with_position_edges = {
+        str(edge.get("from_node_id"))
+        for edge in built_edges
+        if edge.get("relation_type") in {"supports", "opposes"} and edge.get("from_node_id")
+    }
+    built_nodes = [
+        node
+        for node in built_nodes
+        if (
+            (
+                str(node.get("node_type") or "") == "issue"
+                and (
+                    str(node.get("node_id") or "") in issue_ids_with_responding_edges
+                    or node.get("created_by") == "user"
+                )
+            )
+            or (
+                str(node.get("node_type") or "") == "position"
+                and (
+                    allow_unlinked_positions
+                    or str(node.get("node_id") or "") in position_ids_with_issue_edges
+                )
+            )
+            or (
+                str(node.get("node_type") or "") in {"argument", "reference"}
+                and str(node.get("node_id") or "") in argument_ids_with_position_edges
+            )
+        )
+    ]
+    kept_node_ids = {str(n.get("node_id")) for n in built_nodes if n.get("node_id")}
+    dropped_node_ids = built_node_ids_before - kept_node_ids
+    kept_issue_ids = {
+        str(n.get("node_id"))
+        for n in built_nodes
+        if n.get("node_id") and str(n.get("node_type") or "") == "issue"
+    }
+    dropped_issue_ids = set(issue_titles_before) - kept_issue_ids
+    built_edges = [
+        edge
+        for edge in built_edges
+        if (
+            str(edge.get("from_node_id") or "") not in dropped_node_ids
+            and str(edge.get("to_node_id") or "") not in dropped_node_ids
+        )
+    ]
+    if dropped_issue_ids:
+        log_step(
+            "persist_rationale_graph.drop_orphan_issues",
+            phase="WARN",
+            project_id=project_id,
+            dropped_count=len(dropped_issue_ids),
+            dropped_titles=[issue_titles_before[i] for i in sorted(dropped_issue_ids) if i in issue_titles_before],
         )
 
     updates = [

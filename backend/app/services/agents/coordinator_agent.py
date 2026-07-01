@@ -29,6 +29,7 @@ async def run_conflict_tagging(
     - ``position_tag_map``:       {node_id: [tag, …]} for newly proposed positions
     - ``existing_node_updates``:  [{node_id, conflict_tags}] for existing positions
     - ``conflict_groups``:        raw groups from the LLM
+    - ``decision_issues``:        optional Issue candidates for durable decision questions
     """
     project_id = str(project.get("_id") or "")
 
@@ -104,6 +105,7 @@ async def run_conflict_tagging(
     )
 
     conflict_groups: list[dict[str, Any]] = payload.get("conflict_groups") or []
+    decision_issues: list[dict[str, Any]] = payload.get("decision_issues") or []
 
     position_tag_map: dict[str, list[str]] = {}
     existing_position_tag_map: dict[str, list[str]] = {}
@@ -133,6 +135,7 @@ async def run_conflict_tagging(
         phase="OUT",
         project_id=project_id,
         conflict_groups=len(conflict_groups),
+        decision_issues=len(decision_issues),
         tagged_new=len(position_tag_map),
         tagged_existing=len(existing_position_tag_map),
     )
@@ -140,6 +143,7 @@ async def run_conflict_tagging(
         "position_tag_map": position_tag_map,
         "existing_node_updates": existing_node_updates,
         "conflict_groups": conflict_groups,
+        "decision_issues": decision_issues,
         "proposed_nodes": [],
         "proposed_edges": [],
         "node_updates": [],

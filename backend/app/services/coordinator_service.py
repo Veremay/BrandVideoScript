@@ -6,7 +6,7 @@ from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.models.artifact_stale import mark_persona_changed, stale_set_fields
+from app.models.artifact_stale import mark_brief_changed, mark_persona_changed, stale_set_fields
 from app.models.script import now_iso
 from app.repositories.projects import get_project
 from app.services.sse import encode_sse
@@ -17,8 +17,11 @@ from app.services.agent_orchestrator import (
     run_brief_initial_pipeline,
     run_map_update_pipeline,
 )
+from app.services.graph_sync import sync_graph_from_script
 from app.services.persona_analytics import PersonaAnalyticsContext, get_persona_analytics_provider
 from app.services.pipeline_log import log_step
+
+GRAPH_SYNC_HEARTBEAT_SECONDS = 8.0
 
 
 async def run_brief_initial_parse(
@@ -63,7 +66,7 @@ async def run_brief_initial_parse(
                     "brief.parse_status": "parsed",
                     "brand_perspective_result": brand_perspective,
                     "brand_insights": new_insights,
-                    "stale.rationale_graph": "stale_graph_changed",
+                    **stale_set_fields(mark_brief_changed()),
                     "updated_at": now_iso(),
                 }
             },
@@ -117,6 +120,34 @@ async def stream_brief_parse(
         "project": result["project"],
         "parse_summary": result.get("parse_summary", {}),
     })
+
+
+async def stream_graph_sync(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    *,
+    changed_row_ids: list[str] | None = None,
+) -> AsyncIterator[str]:
+    """SSE generator for Update Map. Keeps the frontend connection alive."""
+    yield encode_sse("status", {"message": "Updating map…"})
+
+    task: asyncio.Task[dict[str, Any]] = asyncio.create_task(
+        sync_graph_from_script(db, project_id, user_id, changed_row_ids=changed_row_ids)
+    )
+    while not task.done():
+        try:
+            await asyncio.wait_for(asyncio.shield(task), timeout=GRAPH_SYNC_HEARTBEAT_SECONDS)
+        except asyncio.TimeoutError:
+            yield encode_sse("heartbeat", {})
+
+    exc = task.exception()
+    if exc is not None:
+        yield encode_sse("error", {"message": str(exc)})
+        return
+
+    result = task.result()
+    yield encode_sse("done", {"project": result.get("project"), "nodes_added": result.get("nodes_added", 0)})
 
 
 async def run_persona_provisioned_parse(

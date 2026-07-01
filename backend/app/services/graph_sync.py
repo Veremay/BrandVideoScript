@@ -148,7 +148,7 @@ async def populate_issue_with_positions(
     user_id: str,
     issue_id: str,
 ) -> dict[str, Any]:
-    """Organize ≥2 conflicting Positions around a freshly created Issue and update the map."""
+    """Organize responding Positions around a freshly created Issue and update the map."""
     project = await get_project(db, project_id, user_id)
     if project is None:
         raise ValueError("Project not found")

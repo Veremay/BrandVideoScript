@@ -8,12 +8,37 @@ from app.models.artifact_stale import stale_set_fields
 from app.models.rationale_ops import (
     build_rationale_edge,
     build_rationale_node,
+    collect_issue_delete_cascade,
+    collect_position_delete_cascade,
+    drop_agent_issues_without_positions,
     validate_ibis_edge,
     validate_ibis_graph_integrity,
 )
 from app.models.script import now_iso
 from app.repositories.projects import get_project
 from app.repositories.script_snapshots import snapshot_before_map_update
+
+
+def _build_carrier_issue_for_position(project_id: str, position: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    title = str(position.get("title") or "立场").strip()
+    issue = build_rationale_node(
+        project_id=project_id,
+        node_type="issue",
+        title=f"关于「{title[:40]}」的议题",
+        content=f"承载立场：{title}",
+        source_type=str(position.get("source_type") or "creator_manual"),
+        source_perspective=str(position.get("source_perspective") or "creator"),
+        created_by=str(position.get("created_by") or "user"),
+        based_on_script_version_id=position.get("based_on_script_version_id"),
+    )
+    edge = build_rationale_edge(
+        project_id=project_id,
+        from_node_id=str(position["node_id"]),
+        to_node_id=str(issue["node_id"]),
+        relation_type="responds_to",
+        created_by=str(position.get("created_by") or "user"),
+    )
+    return issue, edge
 
 
 async def create_graph_node(
@@ -49,7 +74,12 @@ async def create_graph_node(
         node["linked_script_refs"] = linked_script_refs
 
     nodes = [*project.get("rationale_nodes", []), node]
-    await _write_graph(db, project_id, user_id, nodes=nodes, edges=project.get("rationale_edges", []))
+    edges = list(project.get("rationale_edges", []))
+    if node_type == "position":
+        issue, edge = _build_carrier_issue_for_position(project_id, node)
+        nodes.append(issue)
+        edges.append(edge)
+    await _write_graph(db, project_id, user_id, nodes=nodes, edges=edges)
     return node
 
 
@@ -95,46 +125,45 @@ async def delete_graph_node(
     target = nodes_by_id.get(node_id)
     if target is None:
         raise ValueError("Node not found")
-    affected_issue_ids: set[str] = set()
-    if str(target.get("node_type")) == "issue":
-        for edge in project.get("rationale_edges", []):
-            if edge.get("to_node_id") != node_id or edge.get("relation_type") != "responds_to":
-                continue
-            position = nodes_by_id.get(edge.get("from_node_id"))
-            if position and position.get("node_type") == "position":
-                raise ValueError(
-                    "Cannot delete Issue while Positions still respond to it; remove or re-link those Positions first"
-                )
-    if str(target.get("node_type")) == "position":
-        for edge in project.get("rationale_edges", []):
-            if edge.get("to_node_id") != node_id or edge.get("relation_type") not in {"supports", "opposes"}:
-                continue
-            argument = nodes_by_id.get(edge.get("from_node_id"))
-            if argument and argument.get("node_type") == "argument":
-                raise ValueError(
-                    "Cannot delete Position while Arguments still link to it; remove or re-link those Arguments first"
-                )
-        # Deleting a Position may drop an Issue below the 2-conflict minimum.
-        affected_issue_ids = {
-            str(edge.get("to_node_id"))
-            for edge in project.get("rationale_edges", [])
-            if edge.get("from_node_id") == node_id and edge.get("relation_type") == "responds_to"
-        }
 
-    nodes = [n for n in project.get("rationale_nodes", []) if n.get("node_id") != node_id]
+    project_edges = project.get("rationale_edges", [])
+    node_type = str(target.get("node_type"))
+    if node_type == "issue":
+        cascade_ids = collect_issue_delete_cascade(nodes_by_id, project_edges, node_id)
+    elif node_type == "position":
+        cascade_ids = collect_position_delete_cascade(nodes_by_id, project_edges, node_id)
+    else:
+        cascade_ids = {node_id}
+
+    affected_issue_ids: set[str] = set()
+    if node_type == "position":
+        for edge in project_edges:
+            if edge.get("from_node_id") not in cascade_ids or edge.get("relation_type") != "responds_to":
+                continue
+            issue_id = str(edge.get("to_node_id") or "")
+            if issue_id and issue_id not in cascade_ids:
+                affected_issue_ids.add(issue_id)
+
+    nodes = [n for n in project.get("rationale_nodes", []) if n.get("node_id") not in cascade_ids]
     edges = [
         e
-        for e in project.get("rationale_edges", [])
-        if e.get("from_node_id") != node_id and e.get("to_node_id") != node_id
+        for e in project_edges
+        if e.get("from_node_id") not in cascade_ids and e.get("to_node_id") not in cascade_ids
     ]
+    dropped_issue_ids: set[str] = set()
     if affected_issue_ids:
-        validate_ibis_graph_integrity(
-            nodes,
-            edges,
-            node_ids=affected_issue_ids,
-            require_linked_for=lambda _node: True,
+        nodes, edges, dropped_issue_ids = drop_agent_issues_without_positions(
+            nodes, edges, affected_issue_ids
         )
-    queue = [item for item in project.get("consideration_queue", []) if item != node_id]
+        remaining_affected = affected_issue_ids - dropped_issue_ids
+        if remaining_affected:
+            validate_ibis_graph_integrity(
+                nodes,
+                edges,
+                node_ids=remaining_affected,
+                require_linked_for=lambda _node: True,
+            )
+    queue = [item for item in project.get("consideration_queue", []) if item not in cascade_ids]
     await _write_graph(
         db,
         project_id,
@@ -193,22 +222,30 @@ async def delete_graph_edge(
         raise ValueError("Edge not found")
 
     edges = [e for e in project.get("rationale_edges", []) if e.get("edge_id") != edge_id]
-    nodes = project.get("rationale_nodes", [])
+    nodes = list(project.get("rationale_nodes", []))
     affected: set[str] = set()
     relation = removed.get("relation_type")
     if relation == "responds_to":
-        # Removing position→issue may drop the Issue below the 2-conflict minimum.
         affected.add(str(removed.get("to_node_id") or ""))
     elif relation in {"supports", "opposes"}:
         affected.add(str(removed.get("from_node_id") or ""))
+    dropped_issue_ids: set[str] = set()
     if affected:
-        validate_ibis_graph_integrity(
-            nodes,
-            edges,
-            node_ids=affected,
-            require_linked_for=lambda _node: True,
-        )
-    await _write_graph(db, project_id, user_id, nodes=project.get("rationale_nodes", []), edges=edges)
+        if relation == "responds_to":
+            nodes, edges, dropped_issue_ids = drop_agent_issues_without_positions(nodes, edges, affected)
+            remaining_affected = affected - dropped_issue_ids
+            if remaining_affected:
+                validate_ibis_graph_integrity(
+                    nodes,
+                    edges,
+                    node_ids=remaining_affected,
+                    require_linked_for=lambda _node: True,
+                )
+        else:
+            # Manual Argument deletion may intentionally leave a Position without
+            # arguments. Agent-generated graph merges still enforce completeness.
+            pass
+    await _write_graph(db, project_id, user_id, nodes=nodes, edges=edges)
     return await get_project(db, project_id, user_id)
 
 
@@ -348,9 +385,13 @@ async def toggle_communication_support(
                 }
             ]
             nodes.append(node)
+            issue, edge = _build_carrier_issue_for_position(project_id, node)
+            nodes.append(issue)
+            project_edges = [*project.get("rationale_edges", []), edge]
             node_id = node["node_id"]
         else:
             node_id = existing["node_id"]
+            project_edges = project.get("rationale_edges", [])
             nodes = [
                 {
                     **item,
@@ -387,6 +428,7 @@ async def toggle_communication_support(
         {
             "$set": {
                 "rationale_nodes": nodes,
+                "rationale_edges": project_edges if in_list else project.get("rationale_edges", []),
                 "communication_support_queue": queue,
                 "updated_at": now_iso(),
                 **stale_set_fields({"negotiation_preparation": "stale_brand_feedback"}),

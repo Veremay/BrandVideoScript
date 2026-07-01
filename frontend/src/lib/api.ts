@@ -26,7 +26,32 @@ const PROJECT_TIMEOUT_MS = 180000;
 const AGENT_PIPELINE_TIMEOUT_MS = 900000;
 const BRIEF_PARSE_TIMEOUT_MS = AGENT_PIPELINE_TIMEOUT_MS;
 const SCHEME_GENERATE_TIMEOUT_MS = AGENT_PIPELINE_TIMEOUT_MS;
-const GRAPH_SYNC_TIMEOUT_MS = 300000;
+
+function formatApiError(message: string, status: number): string {
+  const fallback = message.trim() || `Request failed: ${status}`;
+  try {
+    const parsed = JSON.parse(message) as { detail?: unknown };
+    const { detail } = parsed;
+    if (typeof detail === "string" && detail.trim()) {
+      return detail;
+    }
+    if (Array.isArray(detail)) {
+      const parts = detail
+        .map((item) => {
+          if (typeof item === "string") return item;
+          if (item && typeof item === "object" && "msg" in item && typeof item.msg === "string") {
+            return item.msg;
+          }
+          return null;
+        })
+        .filter((part): part is string => Boolean(part));
+      if (parts.length) return parts.join("; ");
+    }
+  } catch {
+    // Non-JSON error body — use raw text.
+  }
+  return fallback;
+}
 
 async function request<T>(path: string, init?: RequestInit, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
   const controller = new AbortController();
@@ -44,7 +69,7 @@ async function request<T>(path: string, init?: RequestInit, timeoutMs = REQUEST_
 
     if (!response.ok) {
       const message = await response.text();
-      throw new Error(message || `Request failed: ${response.status}`);
+      throw new Error(formatApiError(message, response.status));
     }
 
     if (response.status === 204) {
@@ -119,15 +144,17 @@ export async function syncMapFromScript(
   userId: string,
   changedRowIds: string[] = []
 ): Promise<Project> {
-  const data = await request<{ project: Project }>(
-    `/projects/${projectId}/graph/sync-from-script`,
-    {
-      method: "POST",
-      body: JSON.stringify({ user_id: userId, changed_row_ids: changedRowIds })
-    },
-    GRAPH_SYNC_TIMEOUT_MS
-  );
-  return normalizeProject(data.project)!;
+  let project: Project | null = null;
+  await syncMapFromScriptStream(projectId, userId, changedRowIds, (event) => {
+    if (event.type === "done") {
+      project = event.project;
+    }
+    if (event.type === "error") {
+      throw new Error(event.message);
+    }
+  });
+  if (!project) throw new Error("Map update finished without returning a project.");
+  return project;
 }
 
 export async function saveScript(projectId: string, userId: string, script: Script): Promise<Project> {
@@ -191,6 +218,33 @@ type BriefParseStreamEvent =
   | { type: "done"; project: Project; parse_summary: Record<string, number> }
   | { type: "error"; message: string };
 
+async function readSseStream<T>(
+  response: Response,
+  parseBlock: (block: string) => T | null,
+  onEvent: (event: T) => void
+): Promise<void> {
+  if (!response.body) throw new Error("Stream body missing");
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split("\n\n");
+    buffer = parts.pop() ?? "";
+    for (const part of parts) {
+      const event = parseBlock(part.trim());
+      if (event) onEvent(event);
+    }
+  }
+  if (buffer.trim()) {
+    const event = parseBlock(buffer.trim());
+    if (event) onEvent(event);
+  }
+}
+
 function parseBriefSseBlock(block: string): BriefParseStreamEvent | null {
   let event = "message";
   let data = "";
@@ -227,22 +281,47 @@ export async function parseBriefStream(
     const message = await response.text();
     throw new Error(message || `Parse failed: ${response.status}`);
   }
-  if (!response.body) throw new Error("Stream body missing");
+  await readSseStream(response, parseBriefSseBlock, onEvent);
+}
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const parts = buffer.split("\n\n");
-    buffer = parts.pop() ?? "";
-    for (const part of parts) {
-      const ev = parseBriefSseBlock(part.trim());
-      if (ev) onEvent(ev);
-    }
+type GraphSyncStreamEvent =
+  | { type: "status"; message: string }
+  | { type: "heartbeat" }
+  | { type: "done"; project: Project }
+  | { type: "error"; message: string };
+
+function parseGraphSyncSseBlock(block: string): GraphSyncStreamEvent | null {
+  let event = "message";
+  let data = "";
+  for (const line of block.split("\n")) {
+    if (line.startsWith("event:")) event = line.slice(6).trim();
+    if (line.startsWith("data:")) data = line.slice(5).trim();
   }
+  if (!data) return null;
+  const payload = JSON.parse(data) as Record<string, unknown>;
+  if (event === "status") return { type: "status", message: String(payload.message ?? "") };
+  if (event === "heartbeat") return { type: "heartbeat" };
+  if (event === "done") return { type: "done", project: normalizeProject(payload.project as Project)! };
+  if (event === "error") return { type: "error", message: String(payload.message ?? "Map update failed") };
+  return null;
+}
+
+export async function syncMapFromScriptStream(
+  projectId: string,
+  userId: string,
+  changedRowIds: string[],
+  onEvent: (event: GraphSyncStreamEvent) => void
+): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/projects/${projectId}/graph/sync-from-script/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId, changed_row_ids: changedRowIds }),
+  });
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Map update failed: ${response.status}`);
+  }
+  await readSseStream(response, parseGraphSyncSseBlock, onEvent);
 }
 
 export async function provisionPersonasFromAnalytics(
@@ -543,26 +622,7 @@ export async function streamCoordinatorMessage(
     const message = await response.text();
     throw new Error(message || `Stream failed: ${response.status}`);
   }
-  if (!response.body) throw new Error("Stream body missing");
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const parts = buffer.split("\n\n");
-    buffer = parts.pop() ?? "";
-    for (const part of parts) {
-      const event = parseSseBlock(part.trim());
-      if (event) onEvent(event);
-    }
-  }
-  if (buffer.trim()) {
-    const event = parseSseBlock(buffer.trim());
-    if (event) onEvent(event);
-  }
+  await readSseStream(response, parseSseBlock, onEvent);
 }
 
 export async function createGraphNode(

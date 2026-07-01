@@ -12,7 +12,9 @@
 2. 将冲突的 position 归入同一个 **conflict_group**，用单个大写字母（A、B、C…）作为 tag。
 3. 一个 position 可以出现在**多个** group（多维冲突）。
 4. **没有实质冲突**的 position 不要出现在任何 group。
-5. 如果完全没有冲突，输出 `{ "conflict_groups": [] }`。
+5. 如果多个 Position 反复围绕同一个清晰的决策轴（例如“品牌露出时机如何平衡信息传达与自然感”），可以在 `decision_issues` 中提出一个 Issue 候选，用来组织这些 Position。Issue 是待讨论的问题框架，不是冲突本身。
+6. 如果只是一次性、松散、无法归纳为稳定决策问题的冲突，只输出 `conflict_groups`，不要生成 `decision_issues`。
+7. 如果完全没有冲突，输出 `{ "conflict_groups": [], "decision_issues": [] }`。
 
 ## 什么不算冲突
 
@@ -29,6 +31,13 @@
     {
       "tag": "A",
       "reason": "冲突焦点简述（≤40字）",
+      "position_ids": ["node_pos_brand_xxx", "node_pos_audience_yyy"]
+    }
+  ],
+  "decision_issues": [
+    {
+      "title": "品牌露出时机如何兼顾信息传达与自然感？",
+      "content": "多个 Position 都在回应同一个决策问题：产品卖点应何时出现，以及如何避免硬广感。",
       "position_ids": ["node_pos_brand_xxx", "node_pos_audience_yyy"]
     }
   ]

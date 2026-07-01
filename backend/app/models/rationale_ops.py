@@ -25,6 +25,18 @@ RELATION_TYPES = {
     "conflicts_with",
     "updates",
 }
+SOURCE_PERSPECTIVES = {"brand", "audience", "creator", "expert", "system"}
+STANCE_VALUES = {"support", "oppose", "neutral", "not_applicable", "pro", "con"}
+CONFIDENCE_VALUES = {"high", "medium", "low"}
+STATUS_VALUES = {
+    "open",
+    "in_review",
+    "resolved",
+    "needs_negotiation",
+    "to_be_considered",
+    "deferred",
+    "dismissed",
+}
 
 # An Issue represents a question/topic; it must have at least this many responding
 # Positions to be considered structurally complete by agent-generated nodes.
@@ -53,6 +65,16 @@ def build_rationale_node(
         raise ValueError("Invalid rationale node_type")
     if source_type not in SOURCE_TYPES:
         raise ValueError("Invalid rationale source_type")
+    if not title.strip():
+        raise ValueError("Rationale node title is required")
+    if source_perspective not in SOURCE_PERSPECTIVES:
+        raise ValueError("Invalid rationale source_perspective")
+    if stance not in STANCE_VALUES:
+        raise ValueError("Invalid rationale stance")
+    if confidence not in CONFIDENCE_VALUES:
+        raise ValueError("Invalid rationale confidence")
+    if status not in STATUS_VALUES:
+        raise ValueError("Invalid rationale status")
 
     now = now_iso()
     return {
@@ -82,7 +104,7 @@ def build_rationale_node(
         "updated_by": created_by,
         "based_on_script_version_id": based_on_script_version_id,
         # Reconcile lifecycle (bottom-up IBIS):
-        #   lifecycle: active | resolved (issue conflict gone) | superseded (replaced)
+        #   lifecycle: active | resolved (issue no longer needs discussion) | superseded (replaced)
         #   change_mark: none | modified | new  (transient marker for the latest update)
         #   predecessor_id: id of the node this one replaced (modified)
         #   suggestion: non-binding hint for user-owned nodes (e.g. "resolved?" / "modify?")
@@ -113,7 +135,7 @@ def validate_ibis_edge(from_node: dict[str, Any], to_node: dict[str, Any], relat
       ``conflict_tags`` on position nodes.
     - argument → position (``supports`` / ``opposes``).
 
-    Positions are the primitives and may exist on their own. Issues are topics
+    Positions express stances but must be carried by Issues. Issues are topics
     that questions are raised around, and arguments always link to a position.
     """
     from_type = _ibis_column(str(from_node.get("node_type", "issue")))
@@ -152,6 +174,28 @@ def _issue_responding_positions(
     return result
 
 
+def _position_responding_issues(
+    nodes_by_id: dict[str, dict[str, Any]], edges: list[dict[str, Any]]
+) -> dict[str, set[str]]:
+    """Map each position id to the set of issue ids it ``responds_to``."""
+    result: dict[str, set[str]] = {}
+    for edge in edges:
+        if edge.get("relation_type") != "responds_to":
+            continue
+        from_id = str(edge.get("from_node_id") or "")
+        to_id = str(edge.get("to_node_id") or "")
+        from_node = nodes_by_id.get(from_id)
+        to_node = nodes_by_id.get(to_id)
+        if not from_node or not to_node:
+            continue
+        if _ibis_column(str(from_node.get("node_type", "issue"))) != "position":
+            continue
+        if _ibis_column(str(to_node.get("node_type", "issue"))) != "issue":
+            continue
+        result.setdefault(from_id, set()).add(to_id)
+    return result
+
+
 def _arguments_linked_to_positions(
     nodes_by_id: dict[str, dict[str, Any]], edges: list[dict[str, Any]]
 ) -> set[str]:
@@ -169,6 +213,28 @@ def _arguments_linked_to_positions(
             validate_ibis_edge(from_node, to_node, str(relation))
         linked.add(from_id)
     return linked
+
+
+def _position_supporting_arguments(
+    nodes_by_id: dict[str, dict[str, Any]], edges: list[dict[str, Any]]
+) -> dict[str, set[str]]:
+    """Map each position id to supporting/opposing argument ids."""
+    result: dict[str, set[str]] = {}
+    for edge in edges:
+        if edge.get("relation_type") not in {"supports", "opposes"}:
+            continue
+        from_id = str(edge.get("from_node_id") or "")
+        to_id = str(edge.get("to_node_id") or "")
+        from_node = nodes_by_id.get(from_id)
+        to_node = nodes_by_id.get(to_id)
+        if not from_node or not to_node:
+            continue
+        if _ibis_column(str(from_node.get("node_type", "issue"))) != "argument":
+            continue
+        if _ibis_column(str(to_node.get("node_type", "issue"))) != "position":
+            continue
+        result.setdefault(to_id, set()).add(from_id)
+    return result
 
 
 def _layout_y(node: dict[str, Any]) -> float:
@@ -193,9 +259,9 @@ def auto_link_ibis_orphans(
 ) -> list[dict[str, Any]]:
     """Infer missing argument → position edges for agent batches.
 
-    In the bottom-up model Positions are primitives and may stand alone, so they
-    are never auto-linked. Issues are conflict nodes that agents must wire up
-    explicitly (≥2 ``responds_to`` positions). Only Arguments, which are
+    Positions must be carried by Issues, so they are never auto-linked here.
+    Issues are decision-question containers that agents
+    must wire up explicitly with ``responds_to`` positions. Only Arguments, which are
     meaningless without a Position, are auto-attached to the nearest one by
     ``layout.y`` when the LLM omits the edge.
     """
@@ -247,6 +313,118 @@ def auto_link_ibis_orphans(
     return new_edges
 
 
+def drop_agent_issues_without_positions(
+    nodes: list[dict[str, Any]],
+    edges: list[dict[str, Any]],
+    issue_ids: set[str],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], set[str]]:
+    """Remove agent Issues that no longer have any responding Positions.
+
+    User-created Issues are kept even when empty. Resolved Issues are kept for history.
+    """
+    if not issue_ids:
+        return nodes, edges, set()
+
+    nodes_by_id = {str(n["node_id"]): n for n in nodes if n.get("node_id")}
+    issue_positions = _issue_responding_positions(nodes_by_id, edges)
+    to_drop: set[str] = set()
+    for issue_id in issue_ids:
+        issue = nodes_by_id.get(issue_id)
+        if not issue or _ibis_column(str(issue.get("node_type", "issue"))) != "issue":
+            continue
+        if issue.get("lifecycle") == "resolved":
+            continue
+        if issue.get("created_by") == "user":
+            continue
+        if len(issue_positions.get(issue_id, set())) < MIN_ISSUE_POSITIONS:
+            to_drop.add(issue_id)
+
+    if not to_drop:
+        return nodes, edges, set()
+
+    next_nodes = [n for n in nodes if n.get("node_id") not in to_drop]
+    next_edges = [
+        e
+        for e in edges
+        if e.get("from_node_id") not in to_drop and e.get("to_node_id") not in to_drop
+    ]
+    return next_nodes, next_edges, to_drop
+
+
+def prune_orphan_agent_issues(
+    nodes: list[dict[str, Any]],
+    edges: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], set[str]]:
+    """Drop agent Issues with no responding Positions; keep user/resolved Issues."""
+    issue_ids = {
+        str(n["node_id"])
+        for n in nodes
+        if n.get("node_id") and _ibis_column(str(n.get("node_type", "issue"))) == "issue"
+    }
+    return drop_agent_issues_without_positions(nodes, edges, issue_ids)
+
+
+def collect_issue_delete_cascade(
+    nodes_by_id: dict[str, dict[str, Any]],
+    edges: list[dict[str, Any]],
+    issue_id: str,
+) -> set[str]:
+    """Issue plus Positions that respond to it and Arguments linked to those Positions."""
+    ids: set[str] = {issue_id}
+    position_ids: set[str] = set()
+    for edge in edges:
+        if edge.get("relation_type") != "responds_to":
+            continue
+        if str(edge.get("to_node_id") or "") != issue_id:
+            continue
+        pos_id = str(edge.get("from_node_id") or "")
+        pos = nodes_by_id.get(pos_id)
+        if pos and str(pos.get("node_type")) == "position":
+            position_ids.add(pos_id)
+            ids.add(pos_id)
+    for edge in edges:
+        if edge.get("relation_type") not in {"supports", "opposes"}:
+            continue
+        if str(edge.get("to_node_id") or "") not in position_ids:
+            continue
+        arg_id = str(edge.get("from_node_id") or "")
+        arg = nodes_by_id.get(arg_id)
+        if arg and str(arg.get("node_type")) == "argument":
+            ids.add(arg_id)
+    return ids
+
+
+def collect_position_delete_cascade(
+    nodes_by_id: dict[str, dict[str, Any]],
+    edges: list[dict[str, Any]],
+    position_id: str,
+) -> set[str]:
+    """Position plus Arguments that support or oppose it."""
+    ids: set[str] = {position_id}
+    for edge in edges:
+        if edge.get("relation_type") not in {"supports", "opposes"}:
+            continue
+        if str(edge.get("to_node_id") or "") != position_id:
+            continue
+        arg_id = str(edge.get("from_node_id") or "")
+        arg = nodes_by_id.get(arg_id)
+        if arg and str(arg.get("node_type")) == "argument":
+            ids.add(arg_id)
+    return ids
+
+
+def collect_argument_delete_cascade(
+    nodes_by_id: dict[str, dict[str, Any]],
+    edges: list[dict[str, Any]],
+    argument_id: str,
+) -> set[str]:
+    """Argument deletion is local; it does not cascade to its Position."""
+    argument = nodes_by_id.get(argument_id)
+    if argument and str(argument.get("node_type")) == "argument":
+        return {argument_id}
+    return set()
+
+
 def validate_ibis_graph_integrity(
     nodes: list[dict[str, Any]],
     edges: list[dict[str, Any]],
@@ -256,7 +434,7 @@ def validate_ibis_graph_integrity(
 ) -> None:
     """Enforce IBIS structural rules.
 
-    - Position: a primitive; may stand alone with no edges.
+    - Position: must respond to an Issue and have at least one Argument.
     - Issue: represents a question/topic; agent-created issues must have at least
       ``MIN_ISSUE_POSITIONS`` position(s) via ``responds_to``. User-created issues
       may start empty while the user adds positions.
@@ -272,6 +450,8 @@ def validate_ibis_graph_integrity(
     check_ids = node_ids if node_ids is not None else set(nodes_by_id.keys())
     arguments_linked = _arguments_linked_to_positions(nodes_by_id, edges)
     issue_positions = _issue_responding_positions(nodes_by_id, edges)
+    position_issues = _position_responding_issues(nodes_by_id, edges)
+    position_arguments = _position_supporting_arguments(nodes_by_id, edges)
 
     for node_id in check_ids:
         node = nodes_by_id.get(node_id)
@@ -279,10 +459,17 @@ def validate_ibis_graph_integrity(
             continue
         column = _ibis_column(str(node.get("node_type", "issue")))
         title = str(node.get("title") or node_id)
-        # Resolved Issues are intentionally retained as history; their conflict is
-        # already gone, so the ≥2-position invariant no longer applies to them.
+        if not str(node.get("title") or "").strip():
+            raise ValueError(f"Rationale node title is required: {node_id}")
+        # Resolved Issues are intentionally retained as history; their decision
+        # question no longer needs discussion, so linked-position requirements no
+        # longer apply to them.
         if column == "issue" and node.get("lifecycle") == "resolved":
             continue
+        if column == "position" and not position_issues.get(node_id):
+            raise ValueError(f"Position must respond to an Issue: {title}")
+        if column == "position" and not position_arguments.get(node_id):
+            raise ValueError(f"Position must have at least one Argument: {title}")
         if column == "issue" and len(issue_positions.get(node_id, set())) < MIN_ISSUE_POSITIONS:
             raise ValueError(
                 f"Issue must have at least {MIN_ISSUE_POSITIONS} Position(s) responding to it "
@@ -379,6 +566,7 @@ def merge_proposed_graph(
         edges.append(edge)
 
     merged_nodes = list(nodes_by_id.values())
+    merged_nodes, edges, _ = prune_orphan_agent_issues(merged_nodes, edges)
     validate_ibis_graph_integrity(merged_nodes, edges)
     return merged_nodes, edges
 
@@ -448,7 +636,7 @@ def supersede_node(
 
 
 def resolve_issue(nodes: list[dict[str, Any]], issue_id: str) -> bool:
-    """Mark an Issue as resolved (conflict gone). Keeps its id and its edges."""
+    """Mark an Issue as resolved. Keeps its id and its edges."""
     issue = _index_by_id(nodes, "node_id").get(issue_id)
     if issue is None or _ibis_column(str(issue.get("node_type", "issue"))) != "issue":
         return False

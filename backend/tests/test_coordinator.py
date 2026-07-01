@@ -1,6 +1,9 @@
 import unittest
+from unittest.mock import AsyncMock, patch
 
 from app.repositories.coordinator_messages import build_coordinator_message
+from app.services.agents.coordinator_agent import run_conflict_tagging
+from app.services.coordinator_service import stream_graph_sync
 from app.services.sse import encode_sse
 
 
@@ -26,6 +29,70 @@ class SseEncodingTest(unittest.TestCase):
         frame = encode_sse("token", {"content": "hi"})
         self.assertIn("event: token", frame)
         self.assertIn('"content": "hi"', frame)
+
+
+class CoordinatorConflictTaggingTest(unittest.IsolatedAsyncioTestCase):
+    async def test_conflict_tagging_returns_decision_issues(self) -> None:
+        position_a = {
+            "node_id": "node_pos_a",
+            "node_type": "position",
+            "source_type": "brand_brief",
+            "title": "品牌前三秒露出产品",
+            "content": "品牌希望尽早传达卖点",
+        }
+        position_b = {
+            "node_id": "node_pos_b",
+            "node_type": "position",
+            "source_type": "audience_simulation",
+            "title": "观众需要自然开场",
+            "content": "过早卖点会提高广告感",
+        }
+        payload = {
+            "conflict_groups": [
+                {"tag": "A", "reason": "露出时机取舍", "position_ids": ["node_pos_a", "node_pos_b"]}
+            ],
+            "decision_issues": [
+                {
+                    "title": "品牌露出时机如何兼顾信息传达与自然感？",
+                    "content": "多个立场都在回应同一露出时机决策。",
+                    "position_ids": ["node_pos_a", "node_pos_b"],
+                }
+            ],
+        }
+
+        with patch(
+            "app.services.agents.coordinator_agent.invoke_agent_json",
+            new=AsyncMock(return_value=payload),
+        ):
+            result = await run_conflict_tagging(
+                {"_id": "p1", "rationale_nodes": []},
+                {"proposed_nodes": [position_a]},
+                {"proposed_nodes": [position_b]},
+                [position_a, position_b],
+            )
+
+        self.assertEqual(result["decision_issues"], payload["decision_issues"])
+
+
+class GraphSyncStreamTest(unittest.IsolatedAsyncioTestCase):
+    async def test_stream_graph_sync_emits_status_heartbeat_and_done(self) -> None:
+        async def slow_sync(*_args, **_kwargs):
+            import asyncio
+
+            await asyncio.sleep(0.02)
+            return {"project": {"_id": "p1"}, "nodes_added": 0}
+
+        with (
+            patch("app.services.coordinator_service.sync_graph_from_script", new=slow_sync),
+            patch("app.services.coordinator_service.GRAPH_SYNC_HEARTBEAT_SECONDS", 0.001),
+        ):
+            frames = []
+            async for frame in stream_graph_sync(object(), "p1", "u1", changed_row_ids=[]):
+                frames.append(frame)
+
+        self.assertTrue(any("event: status" in frame for frame in frames))
+        self.assertTrue(any("event: heartbeat" in frame for frame in frames))
+        self.assertTrue(any("event: done" in frame for frame in frames))
 
 
 if __name__ == "__main__":
