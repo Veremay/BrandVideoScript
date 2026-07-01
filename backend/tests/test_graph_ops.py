@@ -627,17 +627,94 @@ class MapUpdateDecisionIssueTest(unittest.IsolatedAsyncioTestCase):
 
         issues = [node for node in pipeline.proposed_nodes if node["node_type"] == "issue"]
         self.assertEqual(len(issues), 1)
-        self.assertEqual(issues[0]["title"], "关于「品牌露出优先」的议题")
+        self.assertEqual(
+            issues[0]["title"],
+            "How should brand visibility be balanced against audience acceptance?",
+        )
         responds = [edge for edge in pipeline.proposed_edges if edge["relation_type"] == "responds_to"]
         self.assertEqual(len(responds), 1)
         self.assertEqual(responds[0]["from_node_id"], brand_position["node_id"])
         self.assertEqual(responds[0]["to_node_id"], issues[0]["node_id"])
         arguments = [node for node in pipeline.proposed_nodes if node["node_type"] == "argument"]
-        self.assertEqual(len(arguments), 1)
+        self.assertEqual(arguments, [])
         supports = [edge for edge in pipeline.proposed_edges if edge["relation_type"] == "supports"]
-        self.assertEqual(len(supports), 1)
-        self.assertEqual(supports[0]["from_node_id"], arguments[0]["node_id"])
-        self.assertEqual(supports[0]["to_node_id"], brand_position["node_id"])
+        self.assertEqual(supports, [])
+
+    async def test_expert_only_issue_also_links_brand_and_audience_positions(self) -> None:
+        from app.services.agent_orchestrator import run_map_update_pipeline
+
+        brand_position = _node("position", source_type="brand_brief")
+        brand_argument = _node("argument", source_type="brand_brief")
+        audience_position = _node("position", source_type="audience_simulation")
+        audience_argument = _node("argument", source_type="audience_simulation")
+        expert_position = _node("position", source_type="expert_strategy")
+        expert_position["content"] = "Use the brand visibility requirement while reducing audience ad fatigue."
+        expert_argument = _node("argument", source_type="expert_strategy")
+        project = {
+            "_id": "p1",
+            "active_persona_id": "persona_1",
+            "rationale_nodes": [],
+            "rationale_edges": [],
+        }
+
+        with (
+            patch(
+                "app.services.agent_orchestrator.run_brand_agent",
+                new=AsyncMock(
+                    return_value={
+                        "proposed_nodes": [brand_position, brand_argument],
+                        "proposed_edges": [_edge(brand_argument, brand_position, "supports")],
+                    }
+                ),
+            ),
+            patch(
+                "app.services.agent_orchestrator.run_audience_agent",
+                new=AsyncMock(
+                    return_value={
+                        "proposed_nodes": [audience_position, audience_argument],
+                        "proposed_edges": [_edge(audience_argument, audience_position, "supports")],
+                    }
+                ),
+            ),
+            patch(
+                "app.services.agent_orchestrator.run_expert_for_map_update",
+                new=AsyncMock(
+                    return_value={
+                        "proposed_nodes": [expert_position, expert_argument],
+                        "proposed_edges": [_edge(expert_argument, expert_position, "supports")],
+                    }
+                ),
+            ),
+            patch(
+                "app.services.agent_orchestrator.run_conflict_tagging",
+                new=AsyncMock(
+                    return_value={
+                        "position_tag_map": {},
+                        "existing_node_updates": [],
+                        "decision_issues": [
+                            {
+                                "title": "How should brand visibility be balanced against audience acceptance?",
+                                "content": "Expert summarized the brand and audience trade-off.",
+                                "position_ids": [expert_position["node_id"]],
+                            }
+                        ],
+                    }
+                ),
+            ),
+        ):
+            pipeline = await run_map_update_pipeline(project)
+
+        issues = [node for node in pipeline.proposed_nodes if node["node_type"] == "issue"]
+        self.assertEqual(len(issues), 1)
+        responds = [
+            edge
+            for edge in pipeline.proposed_edges
+            if edge["relation_type"] == "responds_to" and edge["to_node_id"] == issues[0]["node_id"]
+        ]
+        self.assertEqual(
+            {edge["from_node_id"] for edge in responds},
+            {brand_position["node_id"], audience_position["node_id"], expert_position["node_id"]},
+        )
 
 
 if __name__ == "__main__":

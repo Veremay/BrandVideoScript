@@ -22,7 +22,17 @@ _DEFAULT_TASK_INSTRUCTIONS = """\
 
 1. 评估自然度、广告感、信任门槛、划走风险。
 2. 推理观众向 **IBIS position（观众立场 / 期待）**，通过 `ibis` 字段交给 **`persist_rationale_graph`** 落库。
-3. **只产 position**（把观众视角表达为明确立场）；**不要产 issue**。`source_type` 限：`audience_persona`、`audience_simulation`。系统会为未连接的 position 补充承载 Issue；map_update 中不要写 edges；冲突由 **Coordinator** 后续分析并分配 `conflict_tags`。"""
+3. 产出 position + real argument（把观众视角表达为明确立场，并给出真实理由）；**不要产 issue**。`source_type` 限：`audience_persona`、`audience_simulation`。系统会为未连接的 position 补充承载 Issue；map_update 中必须写 argument → position 的 `supports`/`opposes` edges；冲突由 **Coordinator** 后续分析并分配 `conflict_tags`。"""
+
+_DEFAULT_TASK_INSTRUCTIONS += """
+
+## Map update tension requirements
+- Do not default to supporting the current script.
+- Generate positions from audience friction or drop-off risk, not only positive reactions.
+- Prefer concrete tensions that surface trade-offs against brand requirements or creator strategy.
+- A useful audience position says what feels forced, unclear, too slow, too dense, or likely to reduce trust.
+- Every generated position must include a real argument connected with `supports` or `opposes`; do not rely on placeholder arguments.
+"""
 
 _DEFAULT_OUTPUT_SCHEMA = """\
 ## 输出 JSON
@@ -167,9 +177,16 @@ async def _run_script_analysis(
                         "content": "结合 Persona 广告敏感度，内容应自然、弱化硬广话术。",
                         "source_type": "audience_simulation",
                         "source_perspective": "audience",
+                    },
+                    {
+                        "node_type": "argument",
+                        "title": "硬广表达会提高流失风险",
+                        "content": "Persona 对广告感和不自然植入敏感，过早或过重的产品表达可能降低信任和完播。",
+                        "source_type": "audience_simulation",
+                        "source_perspective": "audience",
                     }
                 ],
-                "edges": [],
+                "edges": [{"from_index": 1, "to_index": 0, "relation_type": "supports"}],
             },
         }
 

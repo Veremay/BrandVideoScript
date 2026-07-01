@@ -45,3 +45,10 @@
 ```
 
 {{IBIS_TYPES}}
+
+## Conflict sensitivity guardrails
+
+- Treat positions as conflicting when their priorities cannot be maximized at the same time, even if both are reasonable.
+- Look for a shared decision axis: timing, emphasis, information density, naturalness, pacing, trust, or brand prominence.
+- Do not require direct contradiction. A brand position that asks for more visibility can conflict with an audience position that warns about ad fatigue.
+- If positions are merely complementary, leave them untagged.

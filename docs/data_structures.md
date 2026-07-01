@@ -200,7 +200,7 @@ MVP 文件类型：`.md`、`.txt`、纯文本粘贴。PDF/DOC/PPT 等见 `develo
 
 ### 6. RationaleNode（IBIS）
 
-> **生成原则（Issue 承载 Position）：** 论证网络以 **Issue → Position → Argument** 为基本骨架。Position 表达各方立场，但**必须**通过 `responds_to` 依托某个 Issue 才能存在，且自动生成 / 合并时必须至少连接 1 个 Argument；冲突由 Position 上的 `conflict_tags` 表达。**Issue 是决策议题 / 问题框架，不是冲突本身**：当 Coordinator 发现多个 Position 反复围绕同一清晰决策轴时，可生成 Issue 并用 `responds_to` 连接相关 Position。即使是暂时独立的 Position，系统也会自动补充一个承载 Issue 和默认 Argument。Argument 必须 `supports`/`opposes` 某 Position。用户手动删除 Argument 不会反向级联删除 Position；服务端在合并时会移除没有 responding Position 的 agent Issue，用户手建 Issue 可暂时为空。
+> **生成原则（Issue 承载 Position）：** 论证网络以 **Issue → Position → Argument** 为基本骨架。Position 表达各方立场，但**必须**通过 `responds_to` 依托某个 Issue 才能存在，且自动生成 / 合并时必须至少连接 1 个真实 Argument；冲突由 Position 上的 `conflict_tags` 表达。**Issue 是决策议题 / 问题框架，不是冲突本身**：当 Coordinator 发现多个 Position 反复围绕同一清晰决策轴时，可生成 Issue 并用 `responds_to` 连接相关 Position。即使是暂时独立的 Position，系统也只会自动补充一个承载 Issue，不会生成占位 Argument。Argument 必须 `supports`/`opposes` 某 Position。用户手动删除 Argument 不会反向级联删除 Position；服务端在合并时会移除没有 responding Position 的 agent Issue，用户手建 Issue 可暂时为空。
 >
 > **Agent 分工：** Brand / Audience **只产 Position**；Expert 产创作策略 Position/Argument；Coordinator 负责识别冲突并填写 `conflict_tags`，必要时通过 `decision_issues` 生成稳定决策轴 Issue。
 >

@@ -8,7 +8,7 @@
 **conflict_tags 字段**：`["A"]`、`["B"]`、`["A", "C"]` 等。由 Coordinator 在冲突分析步骤中填写。
 相同 tag 的两个 position 之间存在冲突，tag 可跨越不同的 issue。
 
-**约束**：position 必须通过 `responds_to` 指向某个 issue，并且至少有 1 个 argument 通过 `supports` / `opposes` 指向它。Brand / Audience / Expert 在 map_update 中可只输出 position，系统会补充承载 Issue 与默认 Argument；如果 Agent 自己输出 issue / argument，则必须同时输出相应边。
+**约束**：position 必须通过 `responds_to` 指向某个 issue，并且至少有 1 个真实 argument 通过 `supports` / `opposes` 指向它。Brand / Audience / Expert 在 map_update 中必须为每个 position 输出真实 argument；系统只补充承载 Issue，不会生成占位 Argument。如果 Agent 自己输出 issue / argument，则必须同时输出相应边。
 
 ### issue — 议题 / 问题（待讨论的话题）
 表示**一个需要各方表态的议题或问题**。示例：「品牌露出时机如何平衡观众接受度？」。

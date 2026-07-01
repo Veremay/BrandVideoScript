@@ -368,6 +368,15 @@ _MAP_UPDATE_TASK_INSTRUCTIONS = """\
 4. map_update 中可只输出 position；系统会为未连接的 position 补充承载 Issue。
 5. Expert 立场通常偏平衡、可执行；仅当与品牌/观众立场存在实质对立时才可能被 Coordinator 标记冲突。"""
 
+_MAP_UPDATE_TASK_INSTRUCTIONS += """
+
+## Argument requirements
+- Every generated position must include a real argument connected with `supports` or `opposes`; do not rely on placeholder arguments.
+- The argument must explain the creative trade-off, evidence, or risk behind the position.
+- Do not output a position if you cannot provide a concrete argument for it.
+- Do not bury Brand or Audience viewpoints inside an Expert position. Keep those viewpoints as separate Brand/Audience positions; Expert should state only the creator-strategy synthesis and reference the visible trade-off.
+"""
+
 _MAP_UPDATE_OUTPUT_SCHEMA = """\
 ## 输出 JSON
 
@@ -433,14 +442,23 @@ async def run_expert_for_map_update(
             "strategy_notes": ["从创作策略角度补充可执行折中方向"],
             "recommended_directions": ["balanced"],
             "ibis": {
-                "nodes": [{
-                    "node_type": "position",
-                    "title": "平衡品牌露出与内容自然性",
-                    "content": "在前段用场景化叙事引入产品，避免硬广式开场，同时保证核心信息在前 1/3 出现。",
-                    "source_type": "expert_strategy",
-                    "source_perspective": "expert",
-                }],
-                "edges": [],
+                "nodes": [
+                    {
+                        "node_type": "position",
+                        "title": "平衡品牌露出与内容自然性",
+                        "content": "在前段用场景化叙事引入产品，避免硬广式开场，同时保证核心信息在前 1/3 出现。",
+                        "source_type": "expert_strategy",
+                        "source_perspective": "expert",
+                    },
+                    {
+                        "node_type": "argument",
+                        "title": "前置信息与自然开场需要折中",
+                        "content": "过早硬露出会削弱观众接受度；完全后置又会降低品牌信息达成，因此需要用情境化表达承接两边目标。",
+                        "source_type": "expert_strategy",
+                        "source_perspective": "expert",
+                    },
+                ],
+                "edges": [{"from_index": 1, "to_index": 0, "relation_type": "supports"}],
                 "external_edges": [],
                 "node_updates": [],
             },

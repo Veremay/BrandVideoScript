@@ -55,24 +55,38 @@ _PHASE2_TASK_INSTRUCTIONS = """\
 ## 任务：品牌立场节点生成
 
 基于已提取的品牌需求，推理品牌方立场，生成 IBIS position 节点。
-- Brand 侧**只产 position**，不要产 issue；系统会为未连接的 position 补充承载 Issue，冲突由 **Coordinator** 后续分析并分配 `conflict_tags`
+- Brand 侧产 position + real argument，不要产 issue；系统会为未连接的 position 补充承载 Issue，冲突由 **Coordinator** 后续分析并分配 `conflict_tags`
 - `source_type` 限：`brand_brief`、`brand_inferred`
-- map_update 中不要写 edges；如果任务明确给定目标 Issue，才用 `responds_to` 连接"""
+- map_update 中必须写 argument → position 的 `supports`/`opposes` edges；如果任务明确给定目标 Issue，才用 `responds_to` 连接"""
+
+_PHASE2_TASK_INSTRUCTIONS += """
+
+## Map update tension requirements
+- Do not default to supporting the current script.
+- Generate positions from brand requirements, risks, and non-negotiables.
+- Prefer concrete tensions that Coordinator can compare with audience or creator positions.
+- A useful brand position says what must be strengthened, protected, moved earlier, made clearer, or treated as unacceptable.
+- Every generated position must include a real argument connected with `supports` or `opposes`; do not rely on placeholder arguments.
+- Position content should be a concise stance, not pasted Brief text. Put evidence or Brief wording in the argument.
+"""
 
 _PHASE2_OUTPUT_SCHEMA = """\
 ## 输出 JSON（仅 ibis 节点，不要需求字段）
 
 字段枚举约束：
-- `nodes[].node_type`：`"position"`（Brand 侧只产 position）
+- `nodes[].node_type`：`"position"` 或 `"argument"`（Brand 侧不产 issue）
 - `nodes[].source_type`：`"brand_brief"` | `"brand_inferred"`
 
 ```json
 {
   "ibis": {
     "nodes": [
-      { "node_type": "position", "title": "…", "content": "…", "source_type": "brand_brief", "source_perspective": "brand" }
+      { "node_type": "position", "title": "…", "content": "…", "source_type": "brand_brief", "source_perspective": "brand" },
+      { "node_type": "argument", "title": "…", "content": "…", "source_type": "brand_brief", "source_perspective": "brand" }
     ],
-    "edges": [],
+    "edges": [
+      { "from_index": 1, "to_index": 0, "relation_type": "supports" }
+    ],
     "external_edges": [],
     "node_updates": []
   }
@@ -325,14 +339,23 @@ async def _run_nodes_generation(
     def mock() -> dict[str, Any]:
         return {
             "ibis": {
-                "nodes": [{
-                    "node_type": "position",
-                    "title": "品牌露出优先",
-                    "content": brief_text[:300] or "产品核心信息需清晰、前置地呈现。",
-                    "source_type": "brand_brief",
-                    "source_perspective": "brand",
-                }],
-                "edges": [],
+                "nodes": [
+                    {
+                        "node_type": "position",
+                        "title": "品牌露出优先",
+                        "content": "品牌核心信息需要更清晰、前置地呈现，但露出方式仍需避免破坏内容自然度。",
+                        "source_type": "brand_brief",
+                        "source_perspective": "brand",
+                    },
+                    {
+                        "node_type": "argument",
+                        "title": "Brief 明确要求核心信息可见",
+                        "content": (brief_text[:180] if brief_text else "Brief 要求产品核心信息被观众清楚接收。"),
+                        "source_type": "brand_brief",
+                        "source_perspective": "brand",
+                    },
+                ],
+                "edges": [{"from_index": 1, "to_index": 0, "relation_type": "supports"}],
                 "external_edges": [],
                 "node_updates": [],
             }

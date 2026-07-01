@@ -51,7 +51,17 @@ class BriefParseAgentsTest(unittest.IsolatedAsyncioTestCase):
         # Bottom-up model: Brand emits Positions (stances), never standalone Issues.
         brand_node_types = {node.get("node_type") for node in brand.get("proposed_nodes", [])}
         self.assertIn("position", brand_node_types)
+        self.assertIn("argument", brand_node_types)
         self.assertNotIn("issue", brand_node_types)
+        brand_positions = [
+            node
+            for node in brand.get("proposed_nodes", [])
+            if node.get("node_type") == "position"
+        ]
+        self.assertTrue(brand_positions)
+        self.assertNotEqual(brand_positions[0].get("content"), project["brief"]["text"][:300])
+        brand_supports = [edge for edge in brand.get("proposed_edges", []) if edge.get("relation_type") == "supports"]
+        self.assertGreaterEqual(len(brand_supports), 1)
         brand_position_sources = {
             node.get("source_type")
             for node in brand.get("proposed_nodes", [])

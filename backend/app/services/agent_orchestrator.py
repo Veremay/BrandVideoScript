@@ -93,6 +93,65 @@ def _existing_issue_position_sets(project: dict[str, Any]) -> dict[frozenset[str
     return result
 
 
+BRAND_SOURCE_TYPES = {"brand_brief", "brand_inferred"}
+AUDIENCE_SOURCE_TYPES = {"audience_persona", "audience_simulation"}
+
+
+def _position_source_family(node: dict[str, Any]) -> str:
+    source_type = str(node.get("source_type") or "")
+    perspective = str(node.get("source_perspective") or "")
+    if source_type in BRAND_SOURCE_TYPES:
+        return "brand"
+    if source_type in AUDIENCE_SOURCE_TYPES:
+        return "audience"
+    if source_type == "expert_strategy":
+        return "expert"
+    if perspective in {"brand", "audience", "expert"}:
+        return perspective
+    return "other"
+
+
+def _text_mentions_brand_and_audience(text: str) -> bool:
+    lowered = text.lower()
+    brand_terms = ("brand", "品牌")
+    audience_terms = ("audience", "viewer", "观众", "用户")
+    return any(term in lowered for term in brand_terms) and any(term in lowered for term in audience_terms)
+
+
+def _expand_expert_only_position_ids(
+    pipeline: AgentPipelineResult,
+    position_ids: list[str],
+    *,
+    title: str,
+    content: str,
+) -> list[str]:
+    """If an Expert issue summarizes Brand/Audience trade-offs, show those positions too."""
+    if not position_ids or not _text_mentions_brand_and_audience(f"{title}\n{content}"):
+        return position_ids
+
+    positions_by_id = {
+        str(n.get("node_id")): n
+        for n in pipeline.proposed_nodes
+        if n.get("node_type") == "position" and n.get("node_id")
+    }
+    families = {_position_source_family(positions_by_id[pos_id]) for pos_id in position_ids if pos_id in positions_by_id}
+    if "expert" not in families:
+        return position_ids
+
+    expanded = list(position_ids)
+    missing_families = {"brand", "audience"} - families
+    for node in pipeline.proposed_nodes:
+        node_id = str(node.get("node_id") or "")
+        if node.get("node_type") != "position" or not node_id or node_id in expanded:
+            continue
+        if _position_source_family(node) in missing_families:
+            expanded.append(node_id)
+            missing_families.discard(_position_source_family(node))
+        if not missing_families:
+            break
+    return expanded
+
+
 def _append_decision_issues(
     project: dict[str, Any],
     pipeline: AgentPipelineResult,
@@ -136,6 +195,12 @@ def _append_decision_issues(
             position_id = str(raw_id)
             if position_id in valid_position_ids and position_id not in position_ids:
                 position_ids.append(position_id)
+        position_ids = _expand_expert_only_position_ids(
+            pipeline,
+            position_ids,
+            title=title,
+            content=content,
+        )
         if not position_ids:
             continue
         position_set = frozenset(position_ids)
@@ -194,7 +259,7 @@ def _append_carrier_issues_for_orphan_positions(project: dict[str, Any], pipelin
         title = str(position.get("title") or "").strip()
         if not title:
             continue
-        issue_title = f"关于「{title[:40]}」的议题"
+        issue_title = _carrier_issue_title_for_position(position)
         issue = build_rationale_node(
             project_id=project_id,
             node_type="issue",
@@ -217,48 +282,20 @@ def _append_carrier_issues_for_orphan_positions(project: dict[str, Any], pipelin
         proposed_position_ids_with_issue.add(position_id)
 
 
-def _append_carrier_arguments_for_orphan_positions(project: dict[str, Any], pipeline: AgentPipelineResult) -> None:
-    """Ensure every proposed Position has at least one Argument in generated graphs."""
-    project_id = str(project.get("_id") or "")
-    existing_position_ids_with_argument = {
-        str(edge.get("to_node_id"))
-        for edge in project.get("rationale_edges", [])
-        if edge.get("relation_type") in {"supports", "opposes"} and edge.get("to_node_id")
-    }
-    proposed_position_ids_with_argument = {
-        str(edge.get("to_node_id"))
-        for edge in pipeline.proposed_edges
-        if edge.get("relation_type") in {"supports", "opposes"} and edge.get("to_node_id")
-    }
-    for position in list(pipeline.proposed_nodes):
-        if position.get("node_type") != "position" or not position.get("node_id"):
-            continue
-        position_id = str(position["node_id"])
-        if position_id in existing_position_ids_with_argument or position_id in proposed_position_ids_with_argument:
-            continue
-        title = str(position.get("title") or "").strip()
-        if not title:
-            continue
-        argument = build_rationale_node(
-            project_id=project_id,
-            node_type="argument",
-            title=f"Rationale for: {title[:40]}",
-            content=f"Auto carrier argument for generated position: {title}",
-            source_type=str(position.get("source_type") or "expert_strategy"),
-            source_perspective=str(position.get("source_perspective") or "expert"),
-            created_by=str(position.get("created_by") or "agent"),
-        )
-        pipeline.proposed_nodes.append(argument)
-        pipeline.proposed_edges.append(
-            build_rationale_edge(
-                project_id=project_id,
-                from_node_id=str(argument["node_id"]),
-                to_node_id=position_id,
-                relation_type="supports",
-                created_by=str(position.get("created_by") or "agent"),
-            )
-        )
-        proposed_position_ids_with_argument.add(position_id)
+def _carrier_issue_title_for_position(position: dict[str, Any]) -> str:
+    """Create a decision-axis title instead of echoing a single Position."""
+    source_type = str(position.get("source_type") or "")
+    perspective = str(position.get("source_perspective") or "")
+    if source_type.startswith("brand_") or perspective == "brand":
+        return "How should brand visibility be balanced against audience acceptance?"
+    if source_type.startswith("audience_") or perspective == "audience":
+        return "How should audience attention be protected while meeting project goals?"
+    if source_type == "expert_strategy" or perspective == "expert":
+        return "Which creative trade-off should guide this script revision?"
+    title = str(position.get("title") or "").strip()
+    if title:
+        return f"What decision does this position require: {title[:60]}?"
+    return "What decision should this position inform?"
 
 
 async def run_brief_initial_pipeline(project: dict[str, Any]) -> AgentPipelineResult:
@@ -367,7 +404,6 @@ async def run_map_update_pipeline(
             decision_issues=len(tag_result.get("decision_issues") or []),
         )
     _append_carrier_issues_for_orphan_positions(project, pipeline)
-    _append_carrier_arguments_for_orphan_positions(project, pipeline)
 
     log_step(
         "pipeline.map_update",
@@ -564,7 +600,6 @@ async def run_reconcile_pipeline(
     pipeline.node_modifications = expert_result.get("node_modifications") or []
     pipeline.assistant_reply = expert_result.get("assistant_reply", "")
     _append_carrier_issues_for_orphan_positions(project, pipeline)
-    _append_carrier_arguments_for_orphan_positions(project, pipeline)
 
     log_step(
         "pipeline.reconcile",
@@ -604,7 +639,6 @@ def merge_pipeline_into_project_graph(
     from app.models.rationale_ops import merge_proposed_graph
 
     _append_carrier_issues_for_orphan_positions(project, pipeline)
-    _append_carrier_arguments_for_orphan_positions(project, pipeline)
     user_node_ids = {n["node_id"] for n in project.get("rationale_nodes", []) if n.get("created_by") == "user"}
     safe_nodes = [n for n in pipeline.proposed_nodes if n.get("node_id") not in user_node_ids]
     updated_existing = apply_node_updates(project.get("rationale_nodes", []), pipeline.node_updates)
