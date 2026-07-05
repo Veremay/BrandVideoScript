@@ -5,6 +5,7 @@ from typing import Any
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.artifact_stale import stale_set_fields
+from app.models.choice_history import record_scheme_position_usage
 from app.models.modification_scheme_ops import (
     apply_hunk_to_script,
     normalize_scheme,
@@ -55,12 +56,25 @@ async def generate_modification_schemes(
         )
         new_schemes = (result.get("modification_schemes") or [])[:1]
         combined = new_schemes
+        nodes_by_id = {
+            str(node.get("node_id")): node
+            for node in (project.get("rationale_nodes") or [])
+            if node.get("node_id")
+        }
+        choice_history = project.get("choice_history")
+        for scheme in new_schemes:
+            choice_history = record_scheme_position_usage(
+                choice_history,
+                scheme,
+                nodes_by_id=nodes_by_id,
+            )
 
         await db.projects.update_one(
             {"_id": project_id, "user_id": user_id},
             {
                 "$set": {
                     "modification_schemes": combined,
+                    "choice_history": choice_history,
                     "stale.modification_schemes": "up_to_date",
                     "updated_at": now_iso(),
                 }

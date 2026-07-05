@@ -272,6 +272,28 @@ export type ModificationScheme = {
   created_at: string;
 };
 
+export type ChoiceHistory = {
+  adopted_positions: Array<{
+    position_id: string;
+    first_considered_at?: string;
+    last_considered_at?: string;
+    last_used_for_scheme_at?: string | null;
+    used_scheme_ids?: string[];
+    status_at_use?: string;
+    title_snapshot?: string;
+    content_snapshot?: string;
+    source_type?: string;
+    source_perspective?: string;
+  }>;
+  scheme_position_links: Array<{
+    scheme_id: string;
+    title?: string;
+    direction?: string;
+    target_position_ids: string[];
+    created_at?: string;
+  }>;
+};
+
 export type HunkDecision = true | false | null;
 
 export type NegotiationDispute = {
@@ -323,6 +345,7 @@ export type Project = {
   negotiation_queue?: string[];
   /** Brand feedback positions the creator is arguing (communication support list). */
   communication_support_queue?: string[];
+  choice_history?: ChoiceHistory;
   negotiation_preparation?: NegotiationPreparation | null;
   modification_schemes?: ModificationScheme[];
   personas: Persona[];

@@ -5,6 +5,7 @@ from typing import Any
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.artifact_stale import stale_set_fields
+from app.models.choice_history import record_considered_position
 from app.models.rationale_ops import (
     build_rationale_edge,
     build_rationale_node,
@@ -312,6 +313,7 @@ async def toggle_consideration_queue(
         nodes=nodes,
         edges=project.get("rationale_edges", []),
         consideration_queue=queue,
+        choice_history=record_considered_position(project.get("choice_history"), node) if in_queue else None,
     )
     return await get_project(db, project_id, user_id)
 
@@ -519,6 +521,7 @@ async def _write_graph(
     nodes: list[dict],
     edges: list[dict],
     consideration_queue: list[str] | None = None,
+    choice_history: dict[str, Any] | None = None,
     mark_stale: bool = True,
     snapshot_before: bool = True,
 ) -> None:
@@ -532,6 +535,8 @@ async def _write_graph(
     }
     if consideration_queue is not None:
         update["consideration_queue"] = consideration_queue
+    if choice_history is not None:
+        update["choice_history"] = choice_history
     if mark_stale:
         update.update(stale_set_fields({"modification_schemes": "stale_graph_changed"}))
     await db.projects.update_one({"_id": project_id, "user_id": user_id}, {"$set": update})

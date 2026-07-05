@@ -5412,6 +5412,23 @@ textarea {
   gap: 12px;
 }
 
+.comm-dialog-backdrop {
+  background: rgba(19, 27, 46, 0.18);
+  backdrop-filter: blur(6px);
+}
+
+.comm-dialog {
+  top: 50%;
+  right: auto;
+  bottom: auto;
+  left: 50%;
+  width: min(1040px, calc(100vw - 48px));
+  height: min(760px, calc(100vh - 64px));
+  max-height: calc(100vh - 64px);
+  border-radius: 14px;
+  transform: translate(-50%, -50%);
+}
+
 .comm-hint,
 .comm-empty {
   margin: 0;
@@ -5425,6 +5442,73 @@ textarea {
   text-align: center;
   border: 1px dashed var(--figma-border);
   border-radius: 12px;
+}
+
+.comm-input-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.9fr) minmax(360px, 1.1fr);
+  gap: 16px;
+  min-height: 0;
+}
+
+.comm-reference-col,
+.comm-draft-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.comm-column-title {
+  margin: 0;
+  color: var(--figma-text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.comm-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  max-height: 482px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.comm-brief-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.comm-brief-field span {
+  color: var(--figma-text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.comm-brief-field textarea {
+  width: 100%;
+  min-height: 482px;
+  padding: 12px;
+  border: 1px solid var(--figma-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--figma-text);
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.comm-brief-field textarea::placeholder {
+  color: var(--figma-text-muted, #6b7280);
+}
+
+.comm-brief-field textarea:focus {
+  border-color: var(--figma-primary);
+  box-shadow: 0 0 0 3px rgba(0, 101, 145, 0.12);
 }
 
 .comm-card {
@@ -5555,4 +5639,24 @@ textarea {
 .comm-generate-btn:disabled {
   cursor: default;
   opacity: 0.5;
+}
+
+@media (max-width: 860px) {
+  .comm-dialog {
+    width: calc(100vw - 24px);
+    height: calc(100vh - 48px);
+    max-height: calc(100vh - 48px);
+  }
+
+  .comm-input-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .comm-card-list {
+    max-height: 220px;
+  }
+
+  .comm-brief-field textarea {
+    min-height: 240px;
+  }
 }

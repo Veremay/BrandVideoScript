@@ -14,6 +14,7 @@ from app.services.agent_llm import (
 )
 from app.services.pipeline_log import log_step
 from app.services.tools.expert_kb import domain_case_retriever, script_structure_kb
+from app.models.choice_history import format_choice_history_for_prompt
 from app.models.modification_scheme_ops import (
     find_editable_text_column,
     get_cell_value,
@@ -1209,6 +1210,7 @@ async def run_expert_generate_negotiation(
             f"## 创作者说明\n{message or '请帮助我准备与品牌方就以下反馈进行协商的方案'}",
             f"## 待协商的品牌反馈（communication support list，每条对应一个 open_dispute）\n{disputes_block}",
             f"## 创作者采纳的立场（TO BE CONSIDERED，用于支撑协商话术）\n{stances_block}",
+            f"## Creator choice trajectory\n{format_choice_history_for_prompt(project.get('choice_history'))}",
             f"## 品牌视角结论\n{perspective_result_json(project.get('brand_perspective_result') or {})}",
             f"## 观众视角结论\n{perspective_result_json(project.get('audience_perspective_result') or {})}",
             f"## 已有节点\n{existing_nodes_summary(project)}",

@@ -106,6 +106,7 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
   const project = useAppStore((state) => state.project);
   const setProject = useAppStore((state) => state.setProject);
   const [tab, setTab] = useState<CommunicationTab>("argue");
+  const [argumentBrief, setArgumentBrief] = useState("");
   const [generating, setGenerating] = useState(false);
   const [busyNodeId, setBusyNodeId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -128,6 +129,7 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
     USE_MOCK && project?.negotiation_preparation == null
       ? MOCK_PLAN
       : (project?.negotiation_preparation ?? null);
+  const hasArgumentBrief = argumentBrief.trim().length > 0;
 
   if (!open) return null;
 
@@ -152,7 +154,11 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
     setGenerating(true);
     setError(null);
     try {
-      const { project: updated } = await generateNegotiationPlan(projectId, userId);
+      const { project: updated } = await generateNegotiationPlan(
+        projectId,
+        userId,
+        hasArgumentBrief ? argumentBrief.trim() : undefined
+      );
       setProject(updated);
       setTab("plan");
     } catch (err) {
@@ -166,8 +172,13 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
 
   return (
     <>
-      <button className="glacier-backdrop" onClick={onClose} type="button" aria-label="Close Communication panel" />
-      <aside className="glacier-assistant" aria-label="Communication & Negotiation">
+      <button
+        className="glacier-backdrop comm-dialog-backdrop"
+        onClick={onClose}
+        type="button"
+        aria-label="Close Communication panel"
+      />
+      <aside className="glacier-assistant comm-dialog" aria-label="Communication & Negotiation">
         <header className="glacier-header">
           <div className="glacier-header-top">
             <div className="glacier-title-row">
@@ -188,7 +199,7 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
               aria-selected={tab === "argue"}
               type="button"
             >
-              Argue List ({argueNodes.length})
+              Argue Input ({argueNodes.length})
             </button>
             <button
               className={`glacier-tab ${tab === "plan" ? "active" : ""}`}
@@ -208,33 +219,54 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
           {tab === "argue" ? (
             <div className="comm-list">
               <p className="comm-hint">
-                Brand feedback you chose to argue. Mark a feedback with “Argue” in the Script Editor to add it here, then
-                generate a negotiation plan grounded in your TO BE CONSIDERED stances ({considerationCount}).
+                Add the point you want to discuss with the brand. You can also mark feedback with "Argue" in the Script
+                Editor, then generate a plan grounded in your TO BE CONSIDERED stances ({considerationCount}).
               </p>
-              {argueNodes.length === 0 ? (
-                <p className="comm-empty">No feedback on the communication support list yet.</p>
-              ) : (
-                argueNodes.map((node) => {
-                  const ref = node.linked_script_refs?.[0];
-                  return (
-                    <article className="comm-card" key={node.node_id}>
-                      <div className="comm-card-body">
-                        <p className="comm-card-text">{node.content || node.title}</p>
-                        {ref?.row_id ? <span className="comm-card-meta">Scene row: {ref.row_id}</span> : null}
-                      </div>
-                      <button
-                        aria-label="Remove from argue list"
-                        className="requirement-delete-btn"
-                        onClick={() => void handleRemove(node)}
-                        disabled={busyNodeId === node.node_id}
-                        type="button"
-                      >
-                        <IconTrash />
-                      </button>
-                    </article>
-                  );
-                })
-              )}
+              <div className="comm-input-grid">
+                <section className="comm-reference-col" aria-label="Referenced brand feedback">
+                  <h3 className="comm-column-title">Referenced brand feedback</h3>
+                  {argueNodes.length === 0 ? (
+                    <p className="comm-empty">
+                      No script feedback marked yet. You can still generate from the text on the right.
+                    </p>
+                  ) : (
+                    <div className="comm-card-list">
+                      {argueNodes.map((node) => {
+                        const ref = node.linked_script_refs?.[0];
+                        return (
+                          <article className="comm-card" key={node.node_id}>
+                            <div className="comm-card-body">
+                              <p className="comm-card-text">{node.content || node.title}</p>
+                              {ref?.row_id ? <span className="comm-card-meta">Scene row: {ref.row_id}</span> : null}
+                            </div>
+                            <button
+                              aria-label="Remove from argue list"
+                              className="requirement-delete-btn"
+                              onClick={() => void handleRemove(node)}
+                              disabled={busyNodeId === node.node_id}
+                              type="button"
+                            >
+                              <IconTrash />
+                            </button>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+                <section className="comm-draft-col" aria-label="Creator argument brief">
+                  <label className="comm-brief-field">
+                    <span>Your argument brief</span>
+                    <textarea
+                      aria-label="Describe what you want to argue with the brand"
+                      onChange={(event) => setArgumentBrief(event.target.value)}
+                      placeholder="Example: I want to keep the slower opening because it makes the product scene feel more natural, but I can accept adding one clearer product close-up."
+                      rows={12}
+                      value={argumentBrief}
+                    />
+                  </label>
+                </section>
+              </div>
             </div>
           ) : (
             <div className="comm-plan">
@@ -318,7 +350,7 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
           <button
             className="comm-generate-btn"
             onClick={() => void handleGenerate()}
-            disabled={generating || argueNodes.length === 0}
+            disabled={generating || (argueNodes.length === 0 && !hasArgumentBrief)}
             type="button"
           >
             {generating ? "Generating…" : plan ? "Regenerate Communication Plan" : "Generate Communication Plan"}

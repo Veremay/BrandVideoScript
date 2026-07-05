@@ -9,6 +9,7 @@ from app.models.artifact_stale import (
     mark_script_changed,
     stale_set_fields,
 )
+from app.models.choice_history import normalize_choice_history
 from app.models.script import default_script, new_id, now_iso
 from app.models.script_ops import (
     add_column,
@@ -62,6 +63,7 @@ def serialize_project(document: dict) -> dict:
     if not document.get("consideration_queue") and document.get("negotiation_queue"):
         document["consideration_queue"] = []
     document.setdefault("communication_support_queue", [])
+    document["choice_history"] = normalize_choice_history(document.get("choice_history"))
     document.setdefault("negotiation_preparation", None)
     document.setdefault("modification_schemes", [])
     return document
@@ -314,6 +316,7 @@ async def create_project(
         "modification_schemes": [],
         "consideration_queue": [],
         "communication_support_queue": [],
+        "choice_history": {"adopted_positions": [], "scheme_position_links": []},
         "negotiation_preparation": None,
         "current_script_version_id": new_id("script_ver"),
         "stale": default_stale(),

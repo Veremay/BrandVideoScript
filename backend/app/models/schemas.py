@@ -213,6 +213,7 @@ class ProjectResponse(BaseModel):
     rationale_edges: list[dict[str, Any]] = Field(default_factory=list)
     consideration_queue: list[str] = Field(default_factory=list)
     communication_support_queue: list[str] = Field(default_factory=list)
+    choice_history: dict[str, Any] = Field(default_factory=dict)
     negotiation_preparation: dict[str, Any] | None = None
     modification_schemes: list[dict[str, Any]] = Field(default_factory=list)
     personas: list[dict[str, Any]]
