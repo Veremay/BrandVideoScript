@@ -12,6 +12,7 @@ import {
   useEdgesState,
   useNodesState,
   useReactFlow,
+  useUpdateNodeInternals,
   SelectionMode,
   type Connection,
   type Edge,
@@ -26,7 +27,6 @@ import {
   computeIbisLayout,
   isValidVisualConnection,
   layoutForNode,
-  NODE_HEIGHT,
   resolveFlowEndpoints,
   visualConnectionToStored
 } from "@/lib/ibisLayout";
@@ -175,7 +175,6 @@ function rationaleToFlowNode(
   const rawType = node.node_type === "reference" ? "argument" : node.node_type;
   const nodeType = (["issue", "position", "argument"].includes(rawType) ? rawType : "issue") as MapNodeType;
   const width = nodeType === "argument" ? 256 : 224;
-  const height = NODE_HEIGHT;
   const position = layoutForNode(node, index, autoLayouts);
   const resolved = node.lifecycle === "resolved";
   return {
@@ -183,8 +182,7 @@ function rationaleToFlowNode(
     type: "ibis",
     position,
     width,
-    height,
-    style: { width, height, opacity: resolved ? 0.5 : 1 },
+    style: { width, opacity: resolved ? 0.5 : 1 },
     data: {
       nodeType,
       title: node.title,
@@ -1078,6 +1076,8 @@ function IbisNode({ data, id }: NodeProps) {
   const [draftContent, setDraftContent] = useState(nodeData.content);
   const menuRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const articleRef = useRef<HTMLElement>(null);
+  const updateNodeInternals = useUpdateNodeInternals();
 
   useEffect(() => {
     if (!isEditing) return;
@@ -1123,6 +1123,20 @@ function IbisNode({ data, id }: NodeProps) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [actions, isEditing]);
 
+  useEffect(() => {
+    const article = articleRef.current;
+    if (!article) return;
+
+    const syncHandlePositions = () => {
+      updateNodeInternals(id);
+    };
+
+    syncHandlePositions();
+    const observer = new ResizeObserver(syncHandlePositions);
+    observer.observe(article);
+    return () => observer.disconnect();
+  }, [id, updateNodeInternals]);
+
   const handleSave = () => {
     actions?.onSaveEdit(id, draftTitle, draftContent);
   };
@@ -1136,6 +1150,7 @@ function IbisNode({ data, id }: NodeProps) {
         <Handle className="map-node-handle map-node-handle-target" position={Position.Left} type="target" />
       ) : null}
       <article
+        ref={articleRef}
         className={`map-node map-node-${nodeData.nodeType}${isEditing ? " map-node-editing" : ""}`}
         style={{ width: nodeData.width }}
       >
