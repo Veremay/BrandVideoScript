@@ -8,8 +8,8 @@
 
 给定本轮生成的 position 节点列表（含 node_id、source_type、title、content），请：
 
-1. 逐对比较各 position（**含品牌、观众、专家**），判断是否存在**实质性冲突**（即双方立场不可同时满足）。
-2. 将冲突的 position 归入同一个 **conflict_group**，用单个大写字母（A、B、C…）作为 tag。
+1. 逐对比较各 position（**含品牌、观众、专家**），先判断它们的关系类型：`conflict`、`aligned`、`complementary`、`refinement`、`unrelated`。
+2. 只有当关系类型是 `conflict` 时，才将 position 归入同一个 **conflict_group**，用单个大写字母（A、B、C…）作为 tag。
 3. 一个 position 可以出现在**多个** group（多维冲突）。
 4. **没有实质冲突**的 position 不要出现在任何 group。
 5. 如果多个 Position 反复围绕同一个清晰的决策轴（例如“品牌露出时机如何平衡信息传达与自然感”），可以在 `decision_issues` 中提出一个 Issue 候选，用来组织这些 Position。Issue 是待讨论的问题框架，不是冲突本身。
@@ -22,6 +22,8 @@
 - 一方立场**无对立项**（例如只有品牌，没有观众立场）→ 不标记
 - 专家立场**通常偏平衡**；仅当与品牌/观众存在实质对立时才标记冲突
 - 立场**只是措辞不同**，本质一致 → 不标记
+- 一方是在**诊断问题**，另一方是在**提出解决、提纯、折中或细化方案** → 标为 `refinement` 或 `complementary`，不标记冲突
+- 例如“旁白过于口语化，需要更克制留白”和“保留生活流结构，但将口语旁白提纯为更内省、更有画面感的描述”可以同时成立，属于诊断与方案的关系，不是冲突
 
 ## 输出 JSON（仅此格式，不要 markdown 代码块）
 
@@ -30,6 +32,7 @@
   "conflict_groups": [
     {
       "tag": "A",
+      "relation_type": "conflict",
       "reason": "冲突焦点简述（≤40字）",
       "position_ids": ["node_pos_brand_xxx", "node_pos_audience_yyy"]
     }
@@ -48,7 +51,8 @@
 
 ## Conflict sensitivity guardrails
 
-- Treat positions as conflicting when their priorities cannot be maximized at the same time, even if both are reasonable.
+- Treat positions as conflicting when they ask the creator to make a real trade-off on the same script decision: choosing one direction would materially weaken, delay, or limit the other.
 - Look for a shared decision axis: timing, emphasis, information density, naturalness, pacing, trust, or brand prominence.
 - Do not require direct contradiction. A brand position that asks for more visibility can conflict with an audience position that warns about ad fatigue.
 - If positions are merely complementary, leave them untagged.
+- Do not mark a balanced expert synthesis as conflicting with the diagnosis it responds to unless the synthesis rejects or reverses that diagnosis.

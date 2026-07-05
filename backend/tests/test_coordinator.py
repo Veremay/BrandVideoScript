@@ -49,7 +49,12 @@ class CoordinatorConflictTaggingTest(unittest.IsolatedAsyncioTestCase):
         }
         payload = {
             "conflict_groups": [
-                {"tag": "A", "reason": "露出时机取舍", "position_ids": ["node_pos_a", "node_pos_b"]}
+                {
+                    "tag": "A",
+                    "relation_type": "conflict",
+                    "reason": "露出时机取舍",
+                    "position_ids": ["node_pos_a", "node_pos_b"],
+                }
             ],
             "decision_issues": [
                 {
@@ -72,6 +77,51 @@ class CoordinatorConflictTaggingTest(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(result["decision_issues"], payload["decision_issues"])
+        self.assertEqual(result["position_tag_map"], {"node_pos_a": ["A"], "node_pos_b": ["A"]})
+
+    async def test_conflict_tagging_ignores_refinement_relation(self) -> None:
+        diagnosis = {
+            "node_id": "node_pos_brand_copy_tone",
+            "node_type": "position",
+            "source_type": "brand_brief",
+            "title": "旁白需要更内敛",
+            "content": "脚本旁白风格过于口语化、生活化，需要向更克制、留白、隽永的方向调整。",
+        }
+        refinement = {
+            "node_id": "node_pos_expert_refine_voiceover",
+            "node_type": "position",
+            "source_type": "expert_strategy",
+            "title": "保留生活流并提纯旁白",
+            "content": "不改变脚本生活流结构和真实细节，但将过于随意的口语转化为更具内省感和画面感的描述。",
+        }
+        payload = {
+            "conflict_groups": [
+                {
+                    "tag": "A",
+                    "relation_type": "refinement",
+                    "reason": "专家方案回应并细化品牌侧诊断，不构成取舍冲突",
+                    "position_ids": [
+                        "node_pos_brand_copy_tone",
+                        "node_pos_expert_refine_voiceover",
+                    ],
+                }
+            ],
+            "decision_issues": [],
+        }
+
+        with patch(
+            "app.services.agents.coordinator_agent.invoke_agent_json",
+            new=AsyncMock(return_value=payload),
+        ):
+            result = await run_conflict_tagging(
+                {"_id": "p1", "rationale_nodes": []},
+                {"proposed_nodes": [diagnosis]},
+                None,
+                [diagnosis, refinement],
+            )
+
+        self.assertEqual(result["position_tag_map"], {})
+        self.assertEqual(result["existing_node_updates"], [])
 
 
 class GraphSyncStreamTest(unittest.IsolatedAsyncioTestCase):

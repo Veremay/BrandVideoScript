@@ -22,8 +22,9 @@ async def run_conflict_tagging(
     """Coordinator conflict analysis: assign conflict_tags to conflicting positions.
 
     Compares positions from Brand and Audience agents (and any existing user
-    positions in the project) to identify genuine incompatibilities. Conflicting
-    positions are grouped under a shared tag letter (A, B, C, …).
+    positions in the project) to identify genuine incompatibilities. Only
+    relation groups explicitly classified as ``conflict`` are converted into
+    shared tag letters (A, B, C, …).
 
     Returns:
     - ``position_tag_map``:       {node_id: [tag, …]} for newly proposed positions
@@ -89,6 +90,7 @@ async def run_conflict_tagging(
         if brand_positions and audience_positions:
             groups.append({
                 "tag": "A",
+                "relation_type": "conflict",
                 "reason": "品牌露出诉求与观众自然性体验存在冲突",
                 "position_ids": [
                     str(brand_positions[0].get("node_id", "")),
@@ -111,6 +113,8 @@ async def run_conflict_tagging(
     existing_position_tag_map: dict[str, list[str]] = {}
 
     for group in conflict_groups:
+        if str(group.get("relation_type") or "").strip().lower() != "conflict":
+            continue
         tag = str(group.get("tag") or "")
         if not tag:
             continue
