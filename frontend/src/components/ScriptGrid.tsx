@@ -75,8 +75,9 @@ function ScriptGridBody({
   const [argueBusyRowId, setArgueBusyRowId] = useState<string | null>(null);
 
   const communicationSupportRowIds = useMemo(() => {
-    const queue = new Set(project?.communication_support_queue ?? []);
-    const ids = new Set<string>();
+    const queueItems = project?.communication_support_queue ?? [];
+    const queue = new Set(queueItems);
+    const ids = new Set<string>(queueItems);
     for (const node of project?.rationale_nodes ?? []) {
       if (node.source_type !== "brand_feedback") continue;
       const inList = Boolean(node.in_communication_support_queue) || queue.has(node.node_id);

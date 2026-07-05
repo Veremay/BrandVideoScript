@@ -21,6 +21,7 @@ from app.models.modification_scheme_ops import (
     normalize_scheme,
 )
 from app.models.negotiation_ops import build_negotiation_preparation
+from app.models.script import BRAND_FEEDBACK_COLUMN_KEY
 from app.services.tools.ibis_graph import persist_rationale_graph
 
 EXPERT_SOURCES = {"expert_strategy"}
@@ -1087,7 +1088,45 @@ def _support_feedback_nodes(project: dict[str, Any]) -> list[dict[str, Any]]:
     nodes = project.get("rationale_nodes") or []
     nodes_by_id = {n.get("node_id"): n for n in nodes if n.get("node_id")}
     queue = project.get("communication_support_queue") or []
-    ordered = [nodes_by_id[node_id] for node_id in queue if node_id in nodes_by_id]
+    script = project.get("current_script") or {}
+    feedback_column_id = next(
+        (
+            column.get("column_id")
+            for column in script.get("columns", [])
+            if column.get("key") == BRAND_FEEDBACK_COLUMN_KEY
+        ),
+        None,
+    )
+    rows_by_id = {row.get("row_id"): row for row in script.get("rows", []) if row.get("row_id")}
+    ordered: list[dict[str, Any]] = []
+    for item_id in queue:
+        if item_id in nodes_by_id:
+            ordered.append(nodes_by_id[item_id])
+            continue
+        row = rows_by_id.get(item_id)
+        if not row or not feedback_column_id:
+            continue
+        cell = next((cell for cell in row.get("cells", []) if cell.get("column_id") == feedback_column_id), None)
+        content = str((cell or {}).get("value", "")).strip()
+        if not content:
+            continue
+        ordered.append(
+            {
+                "node_id": str(item_id),
+                "node_type": "feedback",
+                "title": content[:120],
+                "content": content,
+                "source_type": "brand_feedback",
+                "source_perspective": "brand",
+                "linked_script_refs": [
+                    {
+                        "row_id": item_id,
+                        "column_id": feedback_column_id,
+                        "text_snapshot": content,
+                    }
+                ],
+            }
+        )
     if ordered:
         return ordered
     return [n for n in nodes if n.get("in_communication_support_queue")]

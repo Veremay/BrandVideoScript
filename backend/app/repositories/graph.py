@@ -347,9 +347,7 @@ async def toggle_communication_support(
     column_id: str,
     in_list: bool,
 ) -> dict[str, Any] | None:
-    """Argue a brand-feedback row: turn it into a brand_feedback Position node and
-    add/remove it from the creator's communication support list.
-    """
+    """Add/remove a brand-feedback row from the creator's communication support list."""
     project = await get_project(db, project_id, user_id)
     if project is None:
         return None
@@ -364,51 +362,10 @@ async def toggle_communication_support(
         if not feedback_text:
             raise ValueError("This row has no brand feedback to argue")
 
-        if existing is None:
-            node = build_rationale_node(
-                project_id=project_id,
-                node_type="position",
-                title=feedback_text[:120],
-                content=feedback_text,
-                source_type="brand_feedback",
-                source_perspective="brand",
-                business_tags=["negotiation_point"],
-                status="needs_negotiation",
-                created_by="user",
-                based_on_script_version_id=project.get("current_script_version_id"),
-            )
-            node["in_communication_support_queue"] = True
-            node["linked_script_refs"] = [
-                {
-                    "row_id": row_id,
-                    "column_id": column_id,
-                    "text_snapshot": feedback_text,
-                    "script_version_id": project.get("current_script_version_id"),
-                }
-            ]
-            nodes.append(node)
-            issue, edge = _build_carrier_issue_for_position(project_id, node)
-            nodes.append(issue)
-            project_edges = [*project.get("rationale_edges", []), edge]
-            node_id = node["node_id"]
-        else:
-            node_id = existing["node_id"]
-            project_edges = project.get("rationale_edges", [])
-            nodes = [
-                {
-                    **item,
-                    "in_communication_support_queue": True,
-                    "status": "needs_negotiation",
-                    "updated_by": "user",
-                    "updated_at": now_iso(),
-                }
-                if item.get("node_id") == node_id
-                else item
-                for item in nodes
-            ]
-        if node_id not in queue:
-            queue.append(node_id)
+        if row_id not in queue:
+            queue.append(row_id)
     else:
+        queue = [item for item in queue if item != row_id]
         if existing is not None:
             node_id = existing["node_id"]
             nodes = [
@@ -430,7 +387,7 @@ async def toggle_communication_support(
         {
             "$set": {
                 "rationale_nodes": nodes,
-                "rationale_edges": project_edges if in_list else project.get("rationale_edges", []),
+                "rationale_edges": project.get("rationale_edges", []),
                 "communication_support_queue": queue,
                 "updated_at": now_iso(),
                 **stale_set_fields({"negotiation_preparation": "stale_brand_feedback"}),

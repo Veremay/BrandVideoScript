@@ -483,6 +483,56 @@ class ReconcilePipelineWiringTest(unittest.TestCase):
         self.assertEqual(by_id[issue["node_id"]]["lifecycle"], "resolved")
 
 
+class CommunicationSupportTest(unittest.IsolatedAsyncioTestCase):
+    async def test_adding_feedback_to_argue_list_does_not_create_map_nodes(self) -> None:
+        from app.repositories.graph import toggle_communication_support
+
+        class FakeProjects:
+            def __init__(self) -> None:
+                self.update: dict | None = None
+
+            async def update_one(self, _filter: dict, update: dict) -> None:
+                self.update = update
+
+        class FakeDb:
+            def __init__(self) -> None:
+                self.projects = FakeProjects()
+
+        project = {
+            "_id": "p1",
+            "user_id": "u1",
+            "current_script_version_id": "v1",
+            "current_script": {
+                "rows": [
+                    {
+                        "row_id": "row-1",
+                        "cells": [{"column_id": "col-feedback", "value": "Make product logo bigger."}],
+                    }
+                ]
+            },
+            "rationale_nodes": [],
+            "rationale_edges": [],
+            "communication_support_queue": [],
+        }
+        db = FakeDb()
+
+        with patch("app.repositories.graph.get_project", new=AsyncMock(return_value=project)):
+            await toggle_communication_support(
+                db,
+                "p1",
+                "u1",
+                row_id="row-1",
+                column_id="col-feedback",
+                in_list=True,
+            )
+
+        assert db.projects.update is not None
+        update_set = db.projects.update["$set"]
+        self.assertEqual(update_set["rationale_nodes"], [])
+        self.assertEqual(update_set["rationale_edges"], [])
+        self.assertEqual(update_set["communication_support_queue"], ["row-1"])
+
+
 class MapUpdateDecisionIssueTest(unittest.IsolatedAsyncioTestCase):
     async def test_coordinator_decision_issue_creates_issue_and_responds_edges(self) -> None:
         from app.services.agent_orchestrator import run_map_update_pipeline
