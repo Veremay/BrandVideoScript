@@ -1,15 +1,55 @@
 "use client";
 
-import { MouseEvent, PointerEvent, useEffect, useMemo, useState } from "react";
+import { MouseEvent, PointerEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { CellHunkDiff, useCellHunkMap } from "@/components/ScriptCellModification";
 import { createGraphNode, toggleCommunicationSupport } from "@/lib/api";
-import { analyzeDurations, isBrandFeedbackColumn, isMultilineColumn } from "@/lib/scriptEditor";
+import { analyzeDurations, isBrandFeedbackColumn } from "@/lib/scriptEditor";
 import type { HunkDecision, ModificationSchemeHunk, Script, ScriptColumn } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
 
 const MIN_COLUMN_WIDTH = 88;
 const MIN_ROW_HEIGHT = 38;
+
+function AutoSizeTextarea({
+  className,
+  minHeight = MIN_ROW_HEIGHT,
+  onChange,
+  style,
+  ...props
+}: React.ComponentProps<"textarea"> & { minHeight?: number }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  const syncHeight = useCallback(() => {
+    const node = ref.current;
+    if (!node) return;
+    node.style.height = "0px";
+    node.style.height = `${Math.max(minHeight, node.scrollHeight)}px`;
+  }, [minHeight]);
+
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    syncHeight();
+    const observer = new ResizeObserver(() => syncHeight());
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [props.value, syncHeight, className, minHeight]);
+
+  return (
+    <textarea
+      ref={ref}
+      rows={1}
+      className={className}
+      style={{ ...style, minHeight, overflow: "hidden", resize: "none" }}
+      onChange={(event) => {
+        onChange?.(event);
+        syncHeight();
+      }}
+      {...props}
+    />
+  );
+}
 
 const COLUMN_HEADER_LABELS: Record<string, string> = {
   duration: "Duration",
@@ -565,7 +605,6 @@ function RowBlock({
     <>
       <tr
         className={`editor-row ${index % 2 === 1 ? "row-alt" : ""} ${hasDurationIssue ? "row-has-duration-issue" : ""} ${hasLinkedIssue ? "row-has-linked-issue" : ""} ${selected ? "row-selected" : ""}`}
-        style={{ height: rowHeight }}
       >
         <td className="editor-td-num" title={rowHintTitle}>
           {hasLinkedIssue ? <span aria-hidden="true" className="editor-row-link-mark" title="Linked to Map issue" /> : null}
@@ -590,6 +629,7 @@ function RowBlock({
           const showHunkDiff = Boolean(hunk && hunkDecision === null);
           const cellReadOnly = isShare ? !brandFeedback : brandFeedback;
 
+          const cellMinHeight = rowHeight ? Math.max(MIN_ROW_HEIGHT, rowHeight) : MIN_ROW_HEIGHT;
           const commonProps = {
             value,
             onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -609,8 +649,7 @@ function RowBlock({
                 : "Brand feedback (read-only). Synced from the share page."
               : isShare
                 ? "Read-only"
-                : undefined,
-            style: { minHeight: rowHeight ? Math.max(MIN_ROW_HEIGHT, rowHeight) : undefined }
+                : undefined
           };
 
           return (
@@ -636,14 +675,10 @@ function RowBlock({
                 <div className="editor-duration-wrap">
                   <input className={`editor-table-input editor-duration-input ${hasDurationIssue ? "is-invalid" : ""}`} {...commonProps} />
                 </div>
-              ) : isMultilineColumn(column) ? (
-                <textarea
-                  className={`editor-table-cell cell-${column.key}${cellReadOnly ? " editor-table-cell--readonly" : ""}`}
-                  {...commonProps}
-                />
               ) : (
-                <input
-                  className={`editor-table-input cell-${column.key}${cellReadOnly ? " editor-table-input--readonly" : ""}`}
+                <AutoSizeTextarea
+                  className={`editor-table-cell cell-${column.key}${cellReadOnly ? " editor-table-cell--readonly" : ""}`}
+                  minHeight={cellMinHeight}
                   {...commonProps}
                 />
               )}

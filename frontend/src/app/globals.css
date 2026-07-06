@@ -2495,11 +2495,13 @@ textarea {
 }
 
 .share-page {
-  min-height: 100vh;
+  height: 100vh;
+  min-height: 0;
   background: var(--figma-bg, #f5f5f5);
   color: var(--editor-text, #1a1a1a);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .share-page-header {
@@ -2541,9 +2543,17 @@ textarea {
 }
 
 .share-page-body {
+  display: flex;
   flex: 1;
-  overflow: auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
   padding: 0 32px 32px;
+}
+
+.editor-wrap--share {
+  flex: 1;
+  min-height: 0;
 }
 
 .share-page-loading,
@@ -3292,9 +3302,14 @@ textarea {
 }
 
 .editor-table-cell {
-  min-height: 44px;
+  box-sizing: border-box;
+  min-height: 38px;
   padding: 0;
-  resize: vertical;
+  overflow: hidden;
+  resize: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .editor-table-cell.cell-notes,
@@ -3304,14 +3319,6 @@ textarea {
   font-style: italic;
   font-weight: 500;
   line-height: 16px;
-}
-
-.editor-table-cell.cell-format {
-  height: 100%;
-  min-height: 38px;
-  overflow-wrap: break-word;
-  white-space: pre-wrap;
-  word-break: break-word;
 }
 
 .editor-table-input:focus,
@@ -5444,6 +5451,11 @@ textarea {
 
 .requirements-panel {
   width: min(720px, calc(100vw - 64px));
+}
+
+.requirements-panel .persona-add-btn-secondary,
+.persona-panel:not(.requirements-panel) .persona-add-btn-secondary {
+  display: none;
 }
 
 .requirements-panel-header {

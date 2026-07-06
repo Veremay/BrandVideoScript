@@ -101,21 +101,8 @@ export function RequirementsPanel({ open, onClose }: RequirementsPanelProps) {
         if (event.type === "done") {
           setProject(event.project);
           const parsed = insightsFromProject(event.project);
-
-          const parsedExplicitIds = new Set(parsed.explicit.map((r) => r.insight_id));
-          const parsedImplicitIds = new Set(parsed.implicit.map((r) => r.insight_id));
-          const pendingExplicit = explicit.filter(
-            (r) => r.created_by === "user" && !parsedExplicitIds.has(r.insight_id)
-          );
-          const pendingImplicit = implicit.filter(
-            (r) => r.created_by === "user" && !parsedImplicitIds.has(r.insight_id)
-          );
-
-          const mergedExplicit = [...parsed.explicit, ...pendingExplicit];
-          const mergedImplicit = [...parsed.implicit, ...pendingImplicit];
-
-          setExplicit(mergedExplicit);
-          setImplicit(mergedImplicit);
+          setExplicit(parsed.explicit);
+          setImplicit(parsed.implicit);
           setBaselineExplicit(parsed.explicit);
           setBaselineImplicit(parsed.implicit);
         } else if (event.type === "error") {

@@ -15,3 +15,6 @@ yarn-error.log*
 
 *.local
 *.tsbuildinfo
+
+.cursor/
+backend/scripts/diag_api.py
