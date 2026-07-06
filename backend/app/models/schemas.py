@@ -13,12 +13,14 @@ class UserResponse(BaseModel):
 
 
 VideoCategory = Literal["lifestyle"]
+ProjectMode = Literal["full", "vanilla"]
 
 
 class ProjectCreateRequest(BaseModel):
     user_id: str = Field(min_length=1, max_length=80)
     title: str = Field(default="未命名项目", min_length=1, max_length=120)
     video_category: VideoCategory = "lifestyle"
+    mode: ProjectMode = "full"
 
 
 class ProjectUpdateRequest(BaseModel):
@@ -201,6 +203,7 @@ class ProjectResponse(BaseModel):
     id: str = Field(alias="_id")
     user_id: str
     title: str
+    mode: str = "full"
     video_category: str = "lifestyle"
     platform_context: str = "other"
     brief: dict[str, Any]

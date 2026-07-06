@@ -76,6 +76,7 @@ async def create(payload: ProjectCreateRequest, db: AsyncIOMotorDatabase = Depen
         payload.user_id.strip(),
         payload.title.strip(),
         video_category=payload.video_category,
+        mode=payload.mode,
     )
 
 

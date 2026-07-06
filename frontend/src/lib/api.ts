@@ -1,5 +1,6 @@
 import { normalizeProject } from "@/lib/normalizeProject";
 import type {
+  AppMode,
   BrandInsightCategory,
   BrandInsightConfidence,
   BrandInsightStatus,
@@ -108,11 +109,12 @@ export async function fetchProjects(userId: string): Promise<Project[]> {
 export async function createProject(
   userId: string,
   title: string,
-  videoCategory: VideoCategory = "lifestyle"
+  videoCategory: VideoCategory = "lifestyle",
+  mode: AppMode = "full"
 ): Promise<Project> {
   const project = await request<Project>("/projects", {
     method: "POST",
-    body: JSON.stringify({ user_id: userId, title, video_category: videoCategory })
+    body: JSON.stringify({ user_id: userId, title, video_category: videoCategory, mode })
   });
   return normalizeProject(project)!;
 }

@@ -1,4 +1,5 @@
 export type SaveStatus = "saved" | "editing" | "saving" | "failed";
+export type AppMode = "vanilla" | "full";
 
 export type StaleStatus =
   | "up_to_date"
@@ -102,6 +103,10 @@ export type ScriptRow = {
 };
 
 export type Script = {
+  settings?: {
+    mode?: AppMode;
+    system_support_enabled?: boolean;
+  };
   columns: ScriptColumn[];
   rows: ScriptRow[];
   updated_at?: string;
@@ -330,6 +335,7 @@ export type Project = {
   _id: string;
   user_id: string;
   title: string;
+  mode?: AppMode;
   video_category?: VideoCategory;
   platform_context?: PlatformContext;
   brief: Brief;

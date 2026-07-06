@@ -28,7 +28,6 @@ export function EditorShell() {
     layout,
     project,
     script,
-    setAppMode,
     setCoordinatorChatOpen,
     setProject,
     setSaveStatus,
@@ -195,9 +194,7 @@ export function EditorShell() {
               Back
             </button>
             <span className="figma-brand-logo">BrandVideo</span>
-            {isVanilla ? (
-              <span className="figma-mode-badge">Vanilla LLM</span>
-            ) : (
+            {!isVanilla && (
               <div className="figma-view-toggle" role="tablist" aria-label="Switch view">
                 <button
                   className={`figma-view-tab ${activeView === "editor" ? "active" : ""}`}
@@ -262,28 +259,10 @@ export function EditorShell() {
               {settingsOpen ? (
                 <div className="figma-settings-menu" role="menu">
                   <div className="figma-settings-menu-section">
-                    <span className="figma-settings-menu-label">Mode</span>
-                    <div className="figma-mode-switch" role="radiogroup" aria-label="Workspace mode">
-                      <button
-                        className={`figma-mode-option ${isVanilla ? "active" : ""}`}
-                        onClick={() => setAppMode("vanilla")}
-                        role="radio"
-                        aria-checked={isVanilla}
-                        type="button"
-                      >
-                        <span className="figma-mode-option-title">Vanilla LLM</span>
-                        <span className="figma-mode-option-desc">Chatbot only</span>
-                      </button>
-                      <button
-                        className={`figma-mode-option ${!isVanilla ? "active" : ""}`}
-                        onClick={() => setAppMode("full")}
-                        role="radio"
-                        aria-checked={!isVanilla}
-                        type="button"
-                      >
-                        <span className="figma-mode-option-title">Full Workspace</span>
-                        <span className="figma-mode-option-desc">No chatbot</span>
-                      </button>
+                    <span className="figma-settings-menu-label">Script Setting</span>
+                    <div className="figma-mode-static">
+                      <span className="figma-mode-option-title">{isVanilla ? "Setting 2" : "Setting 1"}</span>
+                      <span className="figma-mode-option-desc">Set when this script was created</span>
                     </div>
                   </div>
                   <div className="figma-settings-menu-divider" />

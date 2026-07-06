@@ -48,6 +48,16 @@ PERSONA_MUTABLE_FIELDS = (
 
 def serialize_project(document: dict) -> dict:
     document["_id"] = str(document["_id"])
+    document.setdefault("mode", "full")
+    script = document.get("current_script")
+    if isinstance(script, dict):
+        script.setdefault(
+            "settings",
+            {
+                "mode": document["mode"],
+                "system_support_enabled": document["mode"] == "full",
+            },
+        )
     if "stale" not in document:
         document["stale"] = default_stale()
     if "current_script_version_id" not in document:
@@ -284,15 +294,19 @@ async def create_project(
     title: str,
     *,
     video_category: str = "lifestyle",
+    mode: str = "full",
 ) -> dict:
     if video_category not in VIDEO_CATEGORIES:
         raise ValueError("Invalid video category")
+    if mode not in {"full", "vanilla"}:
+        raise ValueError("Invalid project mode")
     await enter_user(db, user_id)
     now = now_iso()
     project = {
         "_id": new_id("project"),
         "user_id": user_id,
         "title": title,
+        "mode": mode,
         "video_category": video_category,
         "brief": {
             "filename": None,
@@ -301,7 +315,7 @@ async def create_project(
             "parse_status": "pending",
             "uploaded_at": None,
         },
-        "current_script": default_script(),
+        "current_script": default_script(mode),
         "platform_context": "xiaohongshu",
         "brand_insights": [],
         "brand_perspective_result": None,

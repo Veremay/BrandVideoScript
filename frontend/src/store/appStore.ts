@@ -4,21 +4,7 @@ import { create } from "zustand";
 
 import { mergeProjectPreservingGraph, normalizeProject } from "@/lib/normalizeProject";
 import { insertColumn, insertRow, removeColumn, removeRow, renameColumn, updateCellValue } from "@/lib/scriptEditor";
-import type { Project, SaveStatus, Script } from "@/lib/types";
-
-/**
- * vanilla: only the Coordinator chatbot is exposed (no brief/requirements/persona/map).
- * full: the complete workspace without the chatbot; brief parsing is triggered manually.
- */
-export type AppMode = "vanilla" | "full";
-
-const APP_MODE_STORAGE_KEY = "brandvideo:app_mode";
-
-function readInitialAppMode(): AppMode {
-  if (typeof window === "undefined") return "full";
-  const stored = window.localStorage.getItem(APP_MODE_STORAGE_KEY);
-  return stored === "vanilla" || stored === "full" ? stored : "full";
-}
+import type { AppMode, Project, SaveStatus, Script } from "@/lib/types";
 
 type EditorState = {
   selectedRowId?: string;
@@ -41,7 +27,6 @@ type AppState = {
     workspaceView: "editor" | "map";
   };
   editorSchemeFocusId: string | null;
-  setAppMode: (mode: AppMode) => void;
   setUserId: (userId?: string) => void;
   setProjects: (projects: Project[]) => void;
   setProject: (project: Project | null) => void;
@@ -66,7 +51,7 @@ export const useAppStore = create<AppState>((set) => ({
   projects: [],
   project: null,
   script: null,
-  appMode: readInitialAppMode(),
+  appMode: "full",
   editor: {
     saveStatus: "saved"
   },
@@ -77,32 +62,17 @@ export const useAppStore = create<AppState>((set) => ({
     workspaceView: "editor"
   },
   editorSchemeFocusId: null,
-  setAppMode: (mode) =>
-    set((state) => {
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(APP_MODE_STORAGE_KEY, mode);
-      }
-      return {
-        appMode: mode,
-        layout: {
-          ...state.layout,
-          // Vanilla keeps the chat front and center; full mode has no chat or map.
-          coordinatorChatOpen: mode === "vanilla" ? state.layout.coordinatorChatOpen : false,
-          workspaceView: mode === "vanilla" ? "editor" : state.layout.workspaceView,
-          personaPanelOpen: false,
-          requirementsPanelOpen: false
-        }
-      };
-    }),
   setUserId: (userId) => set({ userId }),
   setProjects: (projects) => set({ projects: projects.map((p) => normalizeProject(p)!).filter(Boolean) }),
   setProject: (project) =>
     set((state) => {
       const normalized = normalizeProject(project);
       const merged = normalized ? mergeProjectPreservingGraph(state.project, normalized) : null;
+      const appMode = merged?.mode ?? merged?.current_script.settings?.mode ?? "full";
       return {
         project: merged,
         script: merged?.current_script ?? null,
+        appMode,
         editor: { saveStatus: "saved" }
       };
     }),

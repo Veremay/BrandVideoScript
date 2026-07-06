@@ -9,6 +9,18 @@ class ScriptValidateTest(unittest.TestCase):
         script = default_script()
         validate_script(normalize_script(script))
 
+    def test_default_script_full_mode_enables_system_support(self):
+        script = default_script("full")
+
+        self.assertEqual(script["settings"]["mode"], "full")
+        self.assertTrue(script["settings"]["system_support_enabled"])
+
+    def test_default_script_vanilla_mode_disables_system_support(self):
+        script = default_script("vanilla")
+
+        self.assertEqual(script["settings"]["mode"], "vanilla")
+        self.assertFalse(script["settings"]["system_support_enabled"])
+
     def test_rejects_script_without_duration_column(self):
         script = default_script()
         script["columns"] = [column for column in script["columns"] if column["type"] != "duration"]

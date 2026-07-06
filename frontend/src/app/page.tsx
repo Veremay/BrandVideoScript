@@ -4,8 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 
 import { EditorShell } from "@/components/EditorShell";
 import { ProjectList } from "@/components/ProjectList";
+import { ProjectSetup } from "@/components/ProjectSetup";
 import { UserGate } from "@/components/UserGate";
 import { enterUser, fetchProject, fetchProjects } from "@/lib/api";
+import { getProjectSetupStatus } from "@/lib/projectSetup";
 import { useAppStore } from "@/store/appStore";
 
 const STORAGE_PROJECT_ID = "brandvideo:project_id";
@@ -14,6 +16,7 @@ export default function Home() {
   const { userId, project, setProject, setProjects, setUserId } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [setupProjectId, setSetupProjectId] = useState<string | null>(null);
 
   useEffect(() => {
     const storedUserId = window.localStorage.getItem("brandvideo:user_id");
@@ -39,6 +42,23 @@ export default function Home() {
       .finally(() => setLoading(false));
   }, [setProject, setProjects, setUserId]);
 
+  useEffect(() => {
+    if (!project) {
+      setSetupProjectId(null);
+      return;
+    }
+
+    if (!getProjectSetupStatus(project).complete) {
+      setSetupProjectId(project._id);
+    }
+  }, [project]);
+
+  function handleSetupBack() {
+    window.localStorage.removeItem(STORAGE_PROJECT_ID);
+    setProject(null);
+    setSetupProjectId(null);
+  }
+
   const content = useMemo(() => {
     if (loading) {
       return (
@@ -56,8 +76,17 @@ export default function Home() {
       return <ProjectList />;
     }
 
+    if (setupProjectId === project._id) {
+      return (
+        <ProjectSetup
+          onBack={handleSetupBack}
+          onEnterEditor={() => setSetupProjectId(null)}
+        />
+      );
+    }
+
     return <EditorShell />;
-  }, [loading, project, userId]);
+  }, [loading, project, setupProjectId, userId]);
 
   return (
     <>

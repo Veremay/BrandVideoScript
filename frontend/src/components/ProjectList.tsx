@@ -20,13 +20,13 @@ export function ProjectList() {
 
   const nextProjectTitle = `Brand Script ${projects.length + 1}`;
 
-  async function handleCreateConfirm({ title, videoCategory }: CreateProjectPayload) {
+  async function handleCreateConfirm({ title, videoCategory, mode }: CreateProjectPayload) {
     if (!userId) return;
 
     setCreating(true);
     setError(null);
     try {
-      const project = await createProject(userId, title, videoCategory);
+      const project = await createProject(userId, title, videoCategory, mode);
       const nextProjects = await fetchProjects(userId);
       setProjects(nextProjects);
       window.localStorage.setItem("brandvideo:project_id", project._id);
@@ -117,7 +117,9 @@ export function ProjectList() {
                   onClick={() => handleOpen(project._id)}
                   type="button"
                 >
-                  <span className="hub-project-card-chip">{categoryLabel(project.video_category)}</span>
+                  <span className="hub-project-card-chip">
+                    {categoryLabel(project.video_category)} · {project.mode === "vanilla" ? "Setting 2" : "Setting 1"}
+                  </span>
                   <strong className="hub-project-card-title">{project.title}</strong>
                   <span className="hub-project-card-meta">
                     Updated {new Date(project.updated_at).toLocaleString()}

@@ -11,6 +11,15 @@ def new_id(prefix: str) -> str:
 
 
 BRAND_FEEDBACK_COLUMN_KEY = "feedback"
+SCRIPT_MODES = {"full", "vanilla"}
+
+
+def script_settings(mode: str = "full") -> dict:
+    normalized_mode = mode if mode in SCRIPT_MODES else "full"
+    return {
+        "mode": normalized_mode,
+        "system_support_enabled": normalized_mode == "full",
+    }
 
 
 def default_columns() -> list[dict]:
@@ -66,8 +75,9 @@ def empty_row(order: int = 0) -> dict:
     }
 
 
-def default_script() -> dict:
+def default_script(mode: str = "full") -> dict:
     return {
+        "settings": script_settings(mode),
         "columns": default_columns(),
         "rows": [empty_row()],
         "updated_at": now_iso(),

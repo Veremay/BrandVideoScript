@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 
 import { VIDEO_CATEGORY_OPTIONS } from "@/lib/videoCategories";
-import type { VideoCategory } from "@/lib/types";
+import type { AppMode, VideoCategory } from "@/lib/types";
 
 export type CreateProjectPayload = {
   title: string;
   videoCategory: VideoCategory;
+  mode: AppMode;
 };
 
 type CreateProjectDialogProps = {
@@ -29,11 +30,13 @@ export function CreateProjectDialog({
 }: CreateProjectDialogProps) {
   const [title, setTitle] = useState(defaultTitle);
   const [videoCategory, setVideoCategory] = useState<VideoCategory>("lifestyle");
+  const [mode, setMode] = useState<AppMode>("full");
 
   useEffect(() => {
     if (!open) return;
     setTitle(defaultTitle);
     setVideoCategory("lifestyle");
+    setMode("full");
   }, [open, defaultTitle]);
 
   useEffect(() => {
@@ -108,6 +111,38 @@ export function CreateProjectDialog({
           </div>
         </div>
 
+        <div className="hub-field">
+          <span className="hub-label">Script Setting</span>
+          <div className="hub-category-list" role="radiogroup" aria-label="Script Setting">
+            <label className={`hub-category-option${mode === "full" ? " is-selected" : ""}`}>
+              <input
+                checked={mode === "full"}
+                name="project-mode"
+                onChange={() => setMode("full")}
+                type="radio"
+                value="full"
+              />
+              <span className="hub-category-copy">
+                <span className="hub-category-label">Setting 1</span>
+                <span className="hub-category-description">Recommended setup for this script.</span>
+              </span>
+            </label>
+            <label className={`hub-category-option${mode === "vanilla" ? " is-selected" : ""}`}>
+              <input
+                checked={mode === "vanilla"}
+                name="project-mode"
+                onChange={() => setMode("vanilla")}
+                type="radio"
+                value="vanilla"
+              />
+              <span className="hub-category-copy">
+                <span className="hub-category-label">Setting 2</span>
+                <span className="hub-category-description">Alternative setup for this script.</span>
+              </span>
+            </label>
+          </div>
+        </div>
+
         {error ? <p className="formError">{error}</p> : null}
 
         <footer className="hub-dialog-actions">
@@ -117,7 +152,7 @@ export function CreateProjectDialog({
           <button
             className="figma-nav-btn figma-nav-primary"
             disabled={!canSubmit}
-            onClick={() => onConfirm({ title: trimmedTitle, videoCategory })}
+            onClick={() => onConfirm({ title: trimmedTitle, videoCategory, mode })}
             type="button"
           >
             {creating ? "Creating…" : "Create Project"}

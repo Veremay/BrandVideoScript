@@ -20,7 +20,8 @@ export function normalizeProject(raw: ProjectPayload | null): Project | null {
     audience_perspective_result: raw.audience_perspective_result ?? null,
     expert_perspective_result: raw.expert_perspective_result ?? null,
     platform_context: raw.platform_context ?? "other",
-    video_category: raw.video_category ?? "lifestyle"
+    video_category: raw.video_category ?? "lifestyle",
+    mode: raw.mode ?? raw.current_script?.settings?.mode ?? "full"
   };
 }
 
