@@ -14,7 +14,8 @@
 4. **没有实质冲突**的 position 不要出现在任何 group。
 5. 如果多个 Position 反复围绕同一个清晰的决策轴（例如“品牌露出时机如何平衡信息传达与自然感”），可以在 `decision_issues` 中提出一个 Issue 候选，用来组织这些 Position。Issue 是待讨论的问题框架，不是冲突本身。
 6. 如果只是一次性、松散、无法归纳为稳定决策问题的冲突，只输出 `conflict_groups`，不要生成 `decision_issues`。
-7. 如果完全没有冲突，输出 `{ "conflict_groups": [], "decision_issues": [] }`。
+7. 每个 `conflict_groups` 条目都必须包含 `relation_type`，且只有 `relation_type: "conflict"` 的条目会被系统标注为冲突；不要输出缺少 `relation_type` 的旧格式。
+8. 如果完全没有冲突，输出 `{ "conflict_groups": [], "decision_issues": [] }`。
 
 ## 什么不算冲突
 
@@ -26,6 +27,8 @@
 - 例如“旁白过于口语化，需要更克制留白”和“保留生活流结构，但将口语旁白提纯为更内省、更有画面感的描述”可以同时成立，属于诊断与方案的关系，不是冲突
 
 ## 输出 JSON（仅此格式，不要 markdown 代码块）
+
+`conflict_groups[*].relation_type` 是必填字段。不要省略，不要使用旧格式。
 
 ```json
 {
