@@ -6,7 +6,6 @@ import type {
   BrandInsightStatus,
   CoordinatorMessage,
   CoordinatorQuote,
-  PersonaAdSensitivity,
   PlatformContext,
   Project,
   VideoCategory,
@@ -486,15 +485,11 @@ export async function createPersona(
   userId: string,
   payload: {
     name: string;
-    icon?: string;
-    gender?: string;
-    age_range?: string;
-    preferences?: string;
-    behavior?: string;
-    platform_context?: string;
-    ad_sensitivity?: PersonaAdSensitivity;
-    trust_trigger?: string[];
-    reject_trigger?: string[];
+    job?: string;
+    explanation?: string;
+    reason?: string;
+    personal_experiences?: string[];
+    characteristic_values?: Record<string, string>;
   }
 ): Promise<Project> {
   return request(`/projects/${projectId}/personas`, {
@@ -509,14 +504,11 @@ export async function updatePersona(
   personaId: string,
   payload: Partial<{
     name: string;
-    gender: string;
-    age_range: string;
-    preferences: string;
-    behavior: string;
-    platform_context: string;
-    ad_sensitivity: PersonaAdSensitivity;
-    trust_trigger: string[];
-    reject_trigger: string[];
+    job: string;
+    explanation: string;
+    reason: string;
+    personal_experiences: string[];
+    characteristic_values: Record<string, string>;
   }>
 ): Promise<Project> {
   return request(`/projects/${projectId}/personas/${personaId}`, {

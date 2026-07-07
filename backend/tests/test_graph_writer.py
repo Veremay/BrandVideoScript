@@ -205,7 +205,7 @@ class IbisGraphToolTest(unittest.TestCase):
             {
                 "_id": "p1",
                 "brief": {"text": "SECRET BRIEF"},
-                "personas": [{"persona_id": "per_1", "name": "A", "trust_trigger": [], "reject_trigger": []}],
+                "personas": [{"persona_id": "per_1", "name": "A"}],
                 "active_persona_id": "per_1",
                 "current_script": {"columns": [], "rows": []},
             },

@@ -112,20 +112,14 @@ export type Script = {
   updated_at?: string;
 };
 
-export type PersonaAdSensitivity = "low" | "medium" | "high";
-
 export type Persona = {
   persona_id: string;
   name: string;
-  icon: string;
-  gender: string;
-  age_range: string;
-  preferences: string;
-  behavior: string;
-  platform_context: string;
-  ad_sensitivity: PersonaAdSensitivity;
-  trust_trigger: string[];
-  reject_trigger: string[];
+  job: string;
+  explanation: string;
+  reason: string;
+  personal_experiences: string[];
+  characteristic_values: Record<string, string>;
   data_source: "manual" | "system_generated" | "imported_data";
   analytics_meta?: Record<string, unknown>;
   created_at: string;

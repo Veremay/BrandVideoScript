@@ -2,9 +2,10 @@
 
 import { useRef, useState } from "react";
 
+import { insightsFromProject } from "@/lib/brandRequirements";
 import { parseBriefStream, provisionPersonasFromAnalytics, saveBrief } from "@/lib/api";
 import { getProjectSetupStatus } from "@/lib/projectSetup";
-import type { PlatformContext } from "@/lib/types";
+import type { BrandInsight, PlatformContext } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
 
 type ProjectSetupProps = {
@@ -24,7 +25,9 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
   if (!project) return null;
 
   const status = getProjectSetupStatus(project);
+  const { explicit: explicitRequirements, implicit: implicitRequirements } = insightsFromProject(project);
   const hasBrief = Boolean(project.brief.text?.trim() || project.brief.filename);
+  const hasRequirements = explicitRequirements.length > 0 || implicitRequirements.length > 0;
   const busy = uploadingBrief || parsingBrief || generatingPersonas;
 
   async function persistBrief(text: string, filename?: string) {
@@ -157,6 +160,35 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
               </div>
             </dl>
 
+            <div className="setup-card-scroll">
+              {hasRequirements ? (
+                <div className="setup-item-groups">
+                  {explicitRequirements.length ? (
+                    <section className="setup-item-group">
+                      <h3 className="setup-item-group-title">Explicit ({explicitRequirements.length})</h3>
+                      <ul className="setup-item-list">
+                        {explicitRequirements.map((item, index) => (
+                          <SetupRequirementItem index={index} item={item} key={item.insight_id} />
+                        ))}
+                      </ul>
+                    </section>
+                  ) : null}
+                  {implicitRequirements.length ? (
+                    <section className="setup-item-group">
+                      <h3 className="setup-item-group-title">Implicit ({implicitRequirements.length})</h3>
+                      <ul className="setup-item-list">
+                        {implicitRequirements.map((item, index) => (
+                          <SetupRequirementItem index={index} item={item} key={item.insight_id} />
+                        ))}
+                      </ul>
+                    </section>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="setup-empty">No requirements parsed yet.</p>
+              )}
+            </div>
+
             <div className="setup-actions">
               <input
                 ref={fileInputRef}
@@ -205,18 +237,23 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
               </div>
             </dl>
 
-            {project.personas.length ? (
-              <ul className="setup-persona-list">
-                {project.personas.slice(0, 3).map((persona) => (
-                  <li key={persona.persona_id}>
-                    <strong>{persona.name}</strong>
-                    <span>{persona.preferences || persona.age_range || "Audience profile"}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="setup-empty">No personas generated yet.</p>
-            )}
+            <div className="setup-card-scroll">
+              {project.personas.length ? (
+                <ul className="setup-persona-list">
+                  {project.personas.map((persona) => (
+                    <li
+                      className={persona.persona_id === project.active_persona_id ? "is-active" : ""}
+                      key={persona.persona_id}
+                    >
+                      <strong>{persona.name}</strong>
+                      <span>{persona.job || persona.explanation || "观众画像"}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="setup-empty">No personas generated yet.</p>
+              )}
+            </div>
 
             <div className="setup-actions">
               <button
@@ -251,6 +288,21 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
         </footer>
       </div>
     </main>
+  );
+}
+
+function SetupRequirementItem({ item, index }: { item: BrandInsight; index: number }) {
+  const label = item.title?.trim() || `Requirement #${index + 1}`;
+
+  return (
+    <li className="setup-item">
+      <div className="setup-item-header">
+        <strong>{label}</strong>
+        <span className={`setup-item-confidence is-${item.confidence}`}>{item.confidence}</span>
+      </div>
+      <p>{item.content}</p>
+      {item.reason?.trim() ? <p className="setup-item-reason">{item.reason}</p> : null}
+    </li>
   );
 }
 

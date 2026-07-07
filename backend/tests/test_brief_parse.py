@@ -35,7 +35,7 @@ class BriefParseAgentsTest(unittest.IsolatedAsyncioTestCase):
                 "constraints": [],
                 "pr_risks": [],
             },
-            "personas": [{"persona_id": "persona_1", "name": "A", "trust_trigger": [], "reject_trigger": []}],
+            "personas": [{"persona_id": "persona_1", "name": "A"}],
             "active_persona_id": "persona_1",
             "current_script_version_id": "script_ver_1",
             "current_script": {"columns": [], "rows": []},
@@ -99,7 +99,7 @@ class BriefParseAgentsTest(unittest.IsolatedAsyncioTestCase):
                 "constraints": [],
                 "pr_risks": [],
             },
-            "personas": [{"persona_id": "persona_1", "name": "A", "trust_trigger": [], "reject_trigger": []}],
+            "personas": [{"persona_id": "persona_1", "name": "A"}],
             "active_persona_id": "persona_1",
             "current_script_version_id": "ver_1",
             "current_script": {"columns": [], "rows": []},
@@ -134,7 +134,7 @@ class BriefParseAgentsTest(unittest.IsolatedAsyncioTestCase):
         project = {
             "_id": "p1",
             "brief": {"text": "secret brief"},
-            "personas": [{"persona_id": "persona_1", "name": "A", "trust_trigger": [], "reject_trigger": []}],
+            "personas": [{"persona_id": "persona_1", "name": "A"}],
             "active_persona_id": "persona_1",
             "current_script": {"columns": [], "rows": []},
         }

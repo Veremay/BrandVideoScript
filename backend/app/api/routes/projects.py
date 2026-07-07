@@ -489,15 +489,15 @@ async def add_persona(
             project_id,
             payload.user_id.strip(),
             name=payload.name,
-            icon=payload.icon,
-            gender=payload.gender,
-            age_range=payload.age_range,
-            preferences=payload.preferences,
-            behavior=payload.behavior,
-            platform_context=payload.platform_context,
-            ad_sensitivity=payload.ad_sensitivity,
-            trust_trigger=payload.trust_trigger if isinstance(payload.trust_trigger, list) else payload.trust_trigger,
-            reject_trigger=payload.reject_trigger if isinstance(payload.reject_trigger, list) else payload.reject_trigger,
+            job=payload.job,
+            explanation=payload.explanation,
+            reason=payload.reason,
+            personal_experiences=(
+                payload.personal_experiences
+                if isinstance(payload.personal_experiences, list)
+                else payload.personal_experiences
+            ),
+            characteristic_values=payload.characteristic_values,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -514,10 +514,10 @@ async def edit_persona(
     db: AsyncIOMotorDatabase = Depends(database_dependency),
 ) -> dict:
     changes = payload.model_dump(exclude={"user_id"}, exclude_none=True)
-    if "trust_trigger" in changes and isinstance(changes["trust_trigger"], str):
-        changes["trust_trigger"] = [chunk.strip() for chunk in changes["trust_trigger"].split(",") if chunk.strip()]
-    if "reject_trigger" in changes and isinstance(changes["reject_trigger"], str):
-        changes["reject_trigger"] = [chunk.strip() for chunk in changes["reject_trigger"].split(",") if chunk.strip()]
+    if "personal_experiences" in changes and isinstance(changes["personal_experiences"], str):
+        changes["personal_experiences"] = [
+            chunk.strip() for chunk in changes["personal_experiences"].replace("\r", "").split("\n") if chunk.strip()
+        ]
     try:
         project = await update_persona(db, project_id, payload.user_id.strip(), persona_id, changes)
     except ValueError as exc:

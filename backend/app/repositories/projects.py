@@ -27,22 +27,15 @@ VIDEO_CATEGORIES = frozenset({"lifestyle"})
 BRAND_INSIGHT_CATEGORIES = {"explicit_requirement", "implicit_requirement", "brand_feedback"}
 BRAND_INSIGHT_CONFIDENCE = {"high", "medium", "low"}
 BRAND_INSIGHT_STATUS = {"new", "confirmed", "pending", "ignored"}
-PERSONA_AD_SENSITIVITY = {"low", "medium", "high"}
 PERSONA_DATA_SOURCES = {"manual", "system_generated", "imported_data"}
-PERSONA_OPTIONAL_TEXT_FIELDS = (
-    "icon",
-    "gender",
-    "age_range",
-    "preferences",
-    "behavior",
-    "platform_context",
-)
-PERSONA_OPTIONAL_LIST_FIELDS = ("trust_trigger", "reject_trigger")
+PERSONA_OPTIONAL_TEXT_FIELDS = ("job", "explanation", "reason")
+PERSONA_OPTIONAL_LIST_FIELDS = ("personal_experiences",)
+PERSONA_OPTIONAL_DICT_FIELDS = ("characteristic_values",)
 PERSONA_MUTABLE_FIELDS = (
     "name",
     *PERSONA_OPTIONAL_TEXT_FIELDS,
-    "ad_sensitivity",
     *PERSONA_OPTIONAL_LIST_FIELDS,
+    *PERSONA_OPTIONAL_DICT_FIELDS,
 )
 
 
@@ -179,7 +172,7 @@ def _next_timestamp_after(previous: str | None) -> str:
     return (datetime.fromisoformat(previous) + timedelta(microseconds=1)).isoformat()
 
 
-def _normalize_persona_list_field(value: object) -> list[str]:
+def _normalize_persona_list_field(value: object, *, max_item_len: int = 120, max_items: int = 10) -> list[str]:
     if value is None:
         return []
     if isinstance(value, list):
@@ -189,32 +182,41 @@ def _normalize_persona_list_field(value: object) -> list[str]:
                 continue
             text = str(entry).strip()
             if text:
-                items.append(text[:120])
-        return items[:10]
+                items.append(text[:max_item_len])
+        return items[:max_items]
     if isinstance(value, str):
-        return [chunk.strip()[:120] for chunk in value.split(",") if chunk.strip()][:10]
+        chunks = [chunk.strip()[:max_item_len] for chunk in value.replace("\r", "").split("\n") if chunk.strip()]
+        if len(chunks) == 1 and "," in chunks[0]:
+            chunks = [chunk.strip()[:max_item_len] for chunk in value.split(",") if chunk.strip()]
+        return chunks[:max_items]
     return []
+
+
+def _normalize_persona_dict_field(value: object) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    normalized: dict[str, str] = {}
+    for key, entry in value.items():
+        label = str(key).strip()
+        text = str(entry).strip()
+        if label and text:
+            normalized[label[:80]] = text[:200]
+    return normalized
 
 
 def build_persona(
     *,
     name: str,
-    icon: str = "",
-    gender: str = "",
-    age_range: str = "",
-    preferences: str = "",
-    behavior: str = "",
-    platform_context: str = "",
-    ad_sensitivity: str = "medium",
-    trust_trigger: list[str] | None = None,
-    reject_trigger: list[str] | None = None,
+    job: str = "",
+    explanation: str = "",
+    reason: str = "",
+    personal_experiences: list[str] | None = None,
+    characteristic_values: dict[str, str] | None = None,
     data_source: str = "manual",
 ) -> dict:
     name = (name or "").strip()
     if not name:
         raise ValueError("Persona name cannot be empty")
-    if ad_sensitivity not in PERSONA_AD_SENSITIVITY:
-        raise ValueError("Invalid persona ad_sensitivity")
     if data_source not in PERSONA_DATA_SOURCES:
         raise ValueError("Invalid persona data_source")
 
@@ -222,15 +224,15 @@ def build_persona(
     return {
         "persona_id": new_id("persona"),
         "name": name[:80],
-        "icon": (icon or "").strip()[:8],
-        "gender": (gender or "").strip()[:40],
-        "age_range": (age_range or "").strip()[:60],
-        "preferences": (preferences or "").strip()[:600],
-        "behavior": (behavior or "").strip()[:600],
-        "platform_context": (platform_context or "").strip()[:200],
-        "ad_sensitivity": ad_sensitivity,
-        "trust_trigger": _normalize_persona_list_field(trust_trigger),
-        "reject_trigger": _normalize_persona_list_field(reject_trigger),
+        "job": (job or "").strip()[:80],
+        "explanation": (explanation or "").strip()[:1000],
+        "reason": (reason or "").strip()[:1000],
+        "personal_experiences": _normalize_persona_list_field(
+            personal_experiences,
+            max_item_len=500,
+            max_items=10,
+        ),
+        "characteristic_values": _normalize_persona_dict_field(characteristic_values or {}),
         "data_source": data_source,
         "created_at": now,
         "updated_at": now,
@@ -252,7 +254,10 @@ def update_persona_in_list(personas: list[dict], persona_id: str, changes: dict)
             if field not in PERSONA_MUTABLE_FIELDS or value is None:
                 continue
             if field in PERSONA_OPTIONAL_LIST_FIELDS:
-                next_persona[field] = _normalize_persona_list_field(value)
+                max_item_len = 500 if field == "personal_experiences" else 120
+                next_persona[field] = _normalize_persona_list_field(value, max_item_len=max_item_len)
+            elif field in PERSONA_OPTIONAL_DICT_FIELDS:
+                next_persona[field] = _normalize_persona_dict_field(value)
             elif isinstance(value, str):
                 next_persona[field] = value.strip()
             else:
@@ -260,8 +265,6 @@ def update_persona_in_list(personas: list[dict], persona_id: str, changes: dict)
 
         if not str(next_persona.get("name") or "").strip():
             raise ValueError("Persona name cannot be empty")
-        if next_persona.get("ad_sensitivity") not in PERSONA_AD_SENSITIVITY:
-            raise ValueError("Invalid persona ad_sensitivity")
         next_persona["updated_at"] = _next_timestamp_after(persona.get("updated_at"))
         updated_personas.append(next_persona)
 
@@ -535,15 +538,11 @@ async def create_persona(
     user_id: str,
     *,
     name: str,
-    icon: str = "",
-    gender: str = "",
-    age_range: str = "",
-    preferences: str = "",
-    behavior: str = "",
-    platform_context: str = "",
-    ad_sensitivity: str = "medium",
-    trust_trigger: list[str] | None = None,
-    reject_trigger: list[str] | None = None,
+    job: str = "",
+    explanation: str = "",
+    reason: str = "",
+    personal_experiences: list[str] | str | None = None,
+    characteristic_values: dict[str, str] | None = None,
 ) -> dict | None:
     project = await get_project(db, project_id, user_id)
     if project is None:
@@ -551,15 +550,11 @@ async def create_persona(
 
     persona = build_persona(
         name=name,
-        icon=icon,
-        gender=gender,
-        age_range=age_range,
-        preferences=preferences,
-        behavior=behavior,
-        platform_context=platform_context,
-        ad_sensitivity=ad_sensitivity,
-        trust_trigger=trust_trigger,
-        reject_trigger=reject_trigger,
+        job=job,
+        explanation=explanation,
+        reason=reason,
+        personal_experiences=personal_experiences if isinstance(personal_experiences, list) else None,
+        characteristic_values=characteristic_values,
     )
     personas = [*project.get("personas", []), persona]
     active_id = project.get("active_persona_id") or persona["persona_id"]

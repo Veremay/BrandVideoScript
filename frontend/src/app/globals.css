@@ -571,7 +571,7 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  min-height: 380px;
+  height: 420px;
   padding: 24px;
   border: 1px solid var(--figma-glass-border);
   border-radius: 12px;
@@ -653,6 +653,34 @@ textarea {
   white-space: nowrap;
 }
 
+.setup-card-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.setup-item-groups {
+  display: grid;
+  gap: 16px;
+}
+
+.setup-item-group {
+  display: grid;
+  gap: 10px;
+}
+
+.setup-item-group-title {
+  margin: 0;
+  color: var(--figma-text-secondary);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 16px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.setup-item-list,
 .setup-persona-list {
   display: grid;
   gap: 10px;
@@ -661,19 +689,73 @@ textarea {
   list-style: none;
 }
 
+.setup-item,
 .setup-persona-list li {
   display: grid;
-  gap: 2px;
+  gap: 6px;
   padding: 12px;
   border: 1px solid var(--figma-border);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.62);
 }
 
+.setup-item-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.setup-item strong,
 .setup-persona-list strong {
   color: var(--figma-text);
   font-size: 14px;
   line-height: 20px;
+}
+
+.setup-item p {
+  margin: 0;
+  color: var(--figma-text);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.setup-item-reason {
+  color: var(--figma-text-secondary) !important;
+  font-size: 12px !important;
+  line-height: 18px !important;
+}
+
+.setup-item-confidence {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(19, 27, 46, 0.06);
+  color: var(--figma-text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  text-transform: capitalize;
+}
+
+.setup-item-confidence.is-high {
+  background: rgba(5, 150, 105, 0.12);
+  color: #059669;
+}
+
+.setup-item-confidence.is-medium {
+  background: rgba(0, 101, 145, 0.1);
+  color: var(--figma-primary);
+}
+
+.setup-item-confidence.is-low {
+  background: rgba(186, 26, 26, 0.1);
+  color: #ba1a1a;
+}
+
+.setup-persona-list li.is-active {
+  border-color: rgba(5, 150, 105, 0.35);
+  background: rgba(62, 207, 142, 0.1);
 }
 
 .setup-persona-list span {
@@ -4251,6 +4333,54 @@ textarea {
   min-height: 91px;
   padding: 9px 13px;
   resize: vertical;
+}
+
+.persona-kv-list {
+  display: grid;
+  gap: 10px;
+}
+
+.persona-kv-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 38%) 12px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--figma-muted-border);
+  background: #fff;
+}
+
+.persona-kv-key {
+  color: var(--figma-text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.persona-kv-sep {
+  color: var(--figma-text-secondary);
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.persona-kv-value {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid rgba(110, 120, 129, 0.18);
+  background: #fff;
+  color: var(--figma-text);
+  font-size: 15px;
+}
+
+.persona-kv-empty {
+  padding: 12px;
+  border: 1px dashed rgba(110, 120, 129, 0.25);
+  color: var(--figma-text-secondary);
+  font-size: 13px;
 }
 
 .persona-demographics {

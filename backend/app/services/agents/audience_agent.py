@@ -165,8 +165,8 @@ async def _run_script_analysis(
         return {
             "naturalness": f"以 {persona.get('name')} 视角评估",
             "ad_sense": "需降低硬广感",
-            "trust": "、".join(persona.get("trust_trigger") or []) or "真实体验",
-            "drop_off_risk": "、".join(persona.get("reject_trigger") or []) or "硬广话术",
+            "trust": persona.get("reason") or persona.get("explanation") or "真实体验",
+            "drop_off_risk": persona.get("explanation") or "硬广话术",
             "suggestions": ["开头点明观众价值"],
             "structured_issues": [{"title": "广告感风险", "content": "Persona 对广告较敏感"}],
             "ibis": {

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any, Literal, Protocol
 
 from app.models.script import now_iso
@@ -7,48 +9,9 @@ from app.repositories.projects import build_persona
 
 PlatformContext = Literal["xiaohongshu", "douyin", "bilibili", "other"]
 
-PLATFORM_TEMPLATES: dict[str, dict[str, Any]] = {
-    "xiaohongshu": {
-        "name": "种草型年轻用户",
-        "age_range": "18-28",
-        "preferences": "真实测评、生活化场景、轻种草",
-        "behavior": "刷到前 3 秒决定是否继续，反感硬广口播",
-        "platform_context": "小红书",
-        "ad_sensitivity": "high",
-        "trust_trigger": ["真实使用体验", "细节展示", "创作者个人风格"],
-        "reject_trigger": ["硬广话术", "过度滤镜", "夸大功效"],
-    },
-    "douyin": {
-        "name": "快节奏娱乐观众",
-        "age_range": "16-35",
-        "preferences": "强节奏、信息密度高、情绪钩子",
-        "behavior": "竖屏短注意力，喜欢反转与梗",
-        "platform_context": "抖音",
-        "ad_sensitivity": "medium",
-        "trust_trigger": ["开头钩子", "真实反应", "剧情化植入"],
-        "reject_trigger": ["拖沓铺垫", "生硬念稿", "虚假剧情"],
-    },
-    "bilibili": {
-        "name": "深度内容爱好者",
-        "age_range": "18-30",
-        "preferences": "信息量、观点、幕后或技术拆解",
-        "behavior": "愿意看完较长段落，对质量敏感",
-        "platform_context": "B站",
-        "ad_sensitivity": "low",
-        "trust_trigger": ["专业讲解", "数据或对比", "创作者信誉"],
-        "reject_trigger": ["低质剪辑", "敷衍植入", "标题党"],
-    },
-    "other": {
-        "name": "泛平台观众",
-        "age_range": "18-34",
-        "preferences": "清晰价值点、真实表达",
-        "behavior": "对广告敏感但接受自然植入",
-        "platform_context": "综合平台",
-        "ad_sensitivity": "medium",
-        "trust_trigger": ["真诚表达", "场景贴合"],
-        "reject_trigger": ["过度推销", "脱离场景"],
-    },
-}
+DEFAULT_PERSONAS_FILE = (
+    Path(__file__).resolve().parents[2] / "data" / "personas" / "14_personas_with_evidence.json"
+)
 
 
 class PersonaAnalyticsContext:
@@ -75,21 +38,59 @@ class PersonaAnalyticsProvider(Protocol):
         ...
 
 
-class StubPersonaAnalyticsProvider:
+def _load_personas_payload(path: Path = DEFAULT_PERSONAS_FILE) -> dict[str, Any]:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _persona_from_analytics_entry(entry: dict[str, Any], *, source_file: str) -> dict[str, Any]:
+    persona = build_persona(
+        name=str(entry.get("name") or "未命名观众")[:80],
+        job=str(entry.get("job") or ""),
+        explanation=str(entry.get("explanation") or ""),
+        reason=str(entry.get("reason") or ""),
+        personal_experiences=entry.get("personal_experiences") if isinstance(entry.get("personal_experiences"), list) else [],
+        characteristic_values=entry.get("characteristic_values") if isinstance(entry.get("characteristic_values"), dict) else {},
+        data_source="imported_data",
+    )
+    persona["analytics_meta"] = {
+        "provider": "proxona_file",
+        "source_file": source_file,
+        "method": entry.get("method"),
+        "cluster_id": entry.get("cluster_id"),
+        "cluster_size": entry.get("cluster_size"),
+        "generated_at": now_iso(),
+    }
+    return persona
+
+
+class FilePersonaAnalyticsProvider:
+    def __init__(self, personas_file: Path = DEFAULT_PERSONAS_FILE) -> None:
+        self.personas_file = personas_file
+
     async def generate_personas(self, ctx: PersonaAnalyticsContext) -> list[dict[str, Any]]:
-        template = PLATFORM_TEMPLATES.get(ctx.platform_context, PLATFORM_TEMPLATES["other"])
-        name = template["name"]
-        if ctx.brand_name:
-            name = f"{ctx.brand_name} · {name}"
+        payload = _load_personas_payload(self.personas_file)
+        source_file = self.personas_file.name
+        personas: list[dict[str, Any]] = []
+        for entry in payload.get("personas", []):
+            if not isinstance(entry, dict):
+                continue
+            personas.append(_persona_from_analytics_entry(entry, source_file=source_file))
+        if not personas:
+            raise ValueError("No personas found in analytics file")
+        return personas
+
+
+class StubPersonaAnalyticsProvider:
+    """Minimal provider for tests and offline fallbacks."""
+
+    async def generate_personas(self, ctx: PersonaAnalyticsContext) -> list[dict[str, Any]]:
         persona = build_persona(
-            name=name[:80],
-            age_range=template["age_range"],
-            preferences=template["preferences"],
-            behavior=template["behavior"],
-            platform_context=template["platform_context"],
-            ad_sensitivity=template["ad_sensitivity"],
-            trust_trigger=template["trust_trigger"],
-            reject_trigger=template["reject_trigger"],
+            name="测试观众",
+            job="测试职业",
+            explanation="用于单元测试的占位人物简介。",
+            reason="测试观看动机。",
+            personal_experiences=["测试经历一", "测试经历二"],
+            characteristic_values={"测试维度": "测试特征"},
             data_source="system_generated",
         )
         persona["analytics_meta"] = {
@@ -103,4 +104,4 @@ class StubPersonaAnalyticsProvider:
 
 
 def get_persona_analytics_provider() -> PersonaAnalyticsProvider:
-    return StubPersonaAnalyticsProvider()
+    return FilePersonaAnalyticsProvider()
