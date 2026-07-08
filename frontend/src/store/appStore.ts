@@ -34,7 +34,6 @@ type AppState = {
   updateCell: (rowId: string, columnId: string, value: string) => void;
   setSaveStatus: (saveStatus: SaveStatus) => void;
   setCoordinatorChatOpen: (open: boolean) => void;
-  openCoordinatorWithQuote: (selection: { rowId: string; columnId: string; text: string }) => void;
   insertRowAfter: (rowId?: string) => void;
   deleteRow: (rowId: string) => void;
   insertColumnAfter: (columnId?: string, label?: string, multiline?: boolean) => void;
@@ -95,16 +94,6 @@ export const useAppStore = create<AppState>((set) => ({
   setCoordinatorChatOpen: (open) =>
     set((state) => ({
       layout: { ...state.layout, coordinatorChatOpen: open }
-    })),
-  openCoordinatorWithQuote: (selection) =>
-    set((state) => ({
-      editor: {
-        ...state.editor,
-        selectedRowId: selection.rowId,
-        selectedColumnId: selection.columnId,
-        selectedText: selection.text
-      },
-      layout: { ...state.layout, coordinatorChatOpen: true }
     })),
   insertRowAfter: (rowId) =>
     set((state) => {

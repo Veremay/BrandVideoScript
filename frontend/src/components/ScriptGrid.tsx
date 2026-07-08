@@ -1,9 +1,9 @@
 "use client";
 
-import { MouseEvent, PointerEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { PointerEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { CellHunkDiff, useCellHunkMap } from "@/components/ScriptCellModification";
-import { createGraphNode, toggleCommunicationSupport } from "@/lib/api";
+import { toggleCommunicationSupport } from "@/lib/api";
 import { analyzeDurations, isBrandFeedbackColumn } from "@/lib/scriptEditor";
 import type { HunkDecision, ModificationSchemeHunk, Script, ScriptColumn } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
@@ -100,14 +100,12 @@ function ScriptGridBody({
     deleteRow,
     insertColumnAfter,
     insertRowAfter,
-    openCoordinatorWithQuote,
     project,
     renameColumn,
     setProject,
     updateCell: storeUpdateCell
   } = useAppStore();
   const updateCell = isShare && onUpdateCell ? onUpdateCell : storeUpdateCell;
-  const [quoteMenu, setQuoteMenu] = useState<{ x: number; y: number; rowId: string; columnId: string; text: string } | null>(null);
   const [selectedColumnId, setSelectedColumnId] = useState<string | null>(null);
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
@@ -230,48 +228,6 @@ function ScriptGridBody({
       deleteRow(rowId);
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "Delete failed");
-    }
-  }
-
-  function handleSelection(event: MouseEvent<HTMLElement>, rowId: string, columnId: string) {
-    const selectedText = window.getSelection()?.toString().trim();
-    if (!selectedText) {
-      setQuoteMenu(null);
-      return;
-    }
-    setQuoteMenu({ x: event.clientX, y: event.clientY, rowId, columnId, text: selectedText });
-  }
-
-  function quoteToCoordinator() {
-    if (!quoteMenu) return;
-    openCoordinatorWithQuote({
-      rowId: quoteMenu.rowId,
-      columnId: quoteMenu.columnId,
-      text: quoteMenu.text
-    });
-    setQuoteMenu(null);
-  }
-
-  async function addSelectionToGraph() {
-    if (!quoteMenu || !project) return;
-    try {
-      const updated = await createGraphNode(project._id, project.user_id, {
-        node_type: "issue",
-        title: quoteMenu.text.slice(0, 80),
-        content: quoteMenu.text,
-        source_type: "creator_manual",
-        linked_script_refs: [
-          {
-            row_id: quoteMenu.rowId,
-            column_id: quoteMenu.columnId,
-            text_snapshot: quoteMenu.text
-          }
-        ]
-      });
-      setProject(updated);
-      setQuoteMenu(null);
-    } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Failed to add Issue to graph");
     }
   }
 
@@ -488,7 +444,6 @@ function ScriptGridBody({
                   onHunkAccept={(hunkId) => void acceptAndApplyHunk(hunkId)}
                   onHunkReject={(hunkId) => void rejectAndPersistHunk(hunkId)}
                   onResizeRow={(event) => startRowResize(event, row.row_id)}
-                  onSelection={handleSelection}
                   onSelectRow={() => {
                     setSelectedRowId(row.row_id);
                     setSelectedColumnId(null);
@@ -522,17 +477,6 @@ function ScriptGridBody({
           </div>
         ) : null}
       </div>
-
-      {!isShare && quoteMenu ? (
-        <div className="sel-popup show" style={{ left: quoteMenu.x, top: quoteMenu.y }}>
-          <button className="sel-btn sel-btn-coordinator" onClick={quoteToCoordinator} type="button">
-            Ask Coordinator
-          </button>
-          <button className="sel-btn sel-btn-graph" onClick={() => void addSelectionToGraph()} type="button">
-            Add as Issue
-          </button>
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -564,7 +508,6 @@ function RowBlock({
   onHunkAccept,
   onHunkReject,
   onResizeRow,
-  onSelection,
   onSelectRow,
   onToggleArgue,
   row,
@@ -587,7 +530,6 @@ function RowBlock({
   onHunkAccept: (hunkId: string) => void;
   onHunkReject: (hunkId: string) => void;
   onResizeRow: (event: PointerEvent<HTMLElement>) => void;
-  onSelection: (event: MouseEvent<HTMLElement>, rowId: string, columnId: string) => void;
   onSelectRow: () => void;
   onToggleArgue?: (rowId: string, columnId: string) => void;
   row: Script["rows"][number];
@@ -634,7 +576,6 @@ function RowBlock({
             value,
             onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
               updateCell(row.row_id, column.column_id, event.target.value),
-            onMouseUp: isShare ? undefined : (event: MouseEvent<HTMLElement>) => onSelection(event, row.row_id, column.column_id),
             placeholder: brandFeedback
               ? isShare
                 ? "Enter your feedback for this scene"

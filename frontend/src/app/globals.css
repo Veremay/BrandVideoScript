@@ -4194,21 +4194,23 @@ textarea {
 .persona-card {
   display: flex;
   align-items: center;
-  gap: 4px;
-  border: 1px solid transparent;
+  gap: 8px;
+  box-sizing: border-box;
+  border: 2px solid transparent;
   border-radius: 16px;
   background: rgba(234, 237, 255, 0.4);
   backdrop-filter: blur(6px);
 }
 
 .persona-card.active {
-  border: 2px solid var(--figma-primary);
+  border-color: var(--figma-primary);
   background: rgba(255, 255, 255, 0.8);
   box-shadow: 0 0 20px rgba(0, 101, 145, 0.1);
 }
 
 .persona-card.selected:not(.active) {
-  border-left: 4px solid rgba(0, 101, 145, 0.35);
+  border-color: rgba(0, 101, 145, 0.28);
+  background: rgba(255, 255, 255, 0.55);
 }
 
 .persona-card-main {
@@ -4217,10 +4219,19 @@ textarea {
   align-items: center;
   gap: 12px;
   min-width: 0;
-  padding: 17px 12px 17px 18px;
+  padding: 16px 8px 16px 16px;
   border: 0;
   background: transparent;
   text-align: left;
+  cursor: pointer;
+}
+
+.persona-card-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  padding-right: 12px;
 }
 
 .persona-card-avatar {
@@ -4261,17 +4272,55 @@ textarea {
   white-space: nowrap;
 }
 
+.persona-card-toggle {
+  position: relative;
+  flex-shrink: 0;
+  width: 36px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(19, 27, 46, 0.14);
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+
+.persona-card-toggle.is-on {
+  background: var(--figma-primary);
+}
+
+.persona-card-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(19, 27, 46, 0.22);
+  transition: transform 160ms ease;
+}
+
+.persona-card-toggle.is-on .persona-card-toggle-thumb {
+  transform: translateX(16px);
+}
+
+.persona-card-toggle:focus-visible {
+  outline: 2px solid var(--figma-primary);
+  outline-offset: 2px;
+}
+
 .persona-card-delete {
   display: grid;
   place-items: center;
   flex-shrink: 0;
   width: 32px;
   height: 32px;
-  margin-right: 8px;
   border: 0;
   border-radius: 8px;
   background: transparent;
   color: var(--figma-text-secondary);
+  cursor: pointer;
 }
 
 .persona-card-delete svg {

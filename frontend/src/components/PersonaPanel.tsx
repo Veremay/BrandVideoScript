@@ -56,7 +56,7 @@ function personaToDraft(persona: Persona): PersonaDraft {
 function personaSubtitle(persona: Persona): string {
   if (persona.job?.trim()) return persona.job.trim();
   if (persona.explanation?.trim()) return persona.explanation.trim();
-  return "新观众画像";
+  return "New audience persona";
 }
 
 export function PersonaPanel({ open, onClose }: PersonaPanelProps) {
@@ -125,7 +125,7 @@ export function PersonaPanel({ open, onClose }: PersonaPanelProps) {
 
   async function handleSavePersona(): Promise<boolean> {
     if (!selectedPersona || !draft.name.trim()) {
-      window.alert("请填写观众名称。");
+      window.alert("Please enter a persona name.");
       return false;
     }
 
@@ -185,7 +185,7 @@ export function PersonaPanel({ open, onClose }: PersonaPanelProps) {
     setCreating(true);
     try {
       const savedProject = await createPersona(currentProject._id, currentProject.user_id, {
-        name: "新观众画像"
+        name: "New Audience Persona"
       });
       setProject(savedProject);
       const created = savedProject.personas[savedProject.personas.length - 1];
@@ -259,9 +259,7 @@ export function PersonaPanel({ open, onClose }: PersonaPanelProps) {
             <h1 className="persona-panel-title" id="persona-panel-title">
               Persona Management
             </h1>
-            <p className="persona-panel-subtitle">
-              定义并细化目标观众画像，优化 BrandVideo 的反馈闭环。点击 From Analytics 可载入默认分析结果。
-            </p>
+          
           </div>
           <div className="persona-panel-actions">
             <button
@@ -270,7 +268,7 @@ export function PersonaPanel({ open, onClose }: PersonaPanelProps) {
               onClick={handleProvisionFromAnalytics}
               type="button"
             >
-              {provisioning ? "载入中…" : "From Analytics"}
+              {provisioning ? "Loading…" : "From Analytics"}
             </button>
             <button className="persona-add-btn" disabled={creating} onClick={handleAddPersona} type="button">
               <IconPlus />
@@ -294,10 +292,7 @@ export function PersonaPanel({ open, onClose }: PersonaPanelProps) {
                     >
                       <button
                         className="persona-card-main"
-                        onClick={() => {
-                          selectPersona(persona);
-                          setPendingActiveId(persona.persona_id);
-                        }}
+                        onClick={() => selectPersona(persona)}
                         type="button"
                       >
                         <span className="persona-card-avatar">{getPersonaEmoji(persona)}</span>
@@ -306,19 +301,31 @@ export function PersonaPanel({ open, onClose }: PersonaPanelProps) {
                           <span className="persona-card-meta">{personaSubtitle(persona)}</span>
                         </span>
                       </button>
-                      <button
-                        aria-label={`Delete ${persona.name}`}
-                        className="persona-card-delete"
-                        onClick={() => handleDeletePersona(persona.persona_id)}
-                        type="button"
-                      >
-                        <IconTrash />
-                      </button>
+                      <div className="persona-card-actions">
+                        <button
+                          aria-checked={isActive}
+                          aria-label={`${isActive ? "Disable" : "Enable"} ${persona.name}`}
+                          className={`persona-card-toggle${isActive ? " is-on" : ""}`}
+                          onClick={() => setPendingActiveId(persona.persona_id)}
+                          role="switch"
+                          type="button"
+                        >
+                          <span className="persona-card-toggle-thumb" />
+                        </button>
+                        <button
+                          aria-label={`Delete ${persona.name}`}
+                          className="persona-card-delete"
+                          onClick={() => handleDeletePersona(persona.persona_id)}
+                          type="button"
+                        >
+                          <IconTrash />
+                        </button>
+                      </div>
                     </div>
                   );
                 })
               ) : (
-                <div className="persona-empty">暂无观众画像。点击 Add New Persona 创建，或 From Analytics 载入默认数据。</div>
+                <div className="persona-empty">No personas yet. Click Add New Persona, or load defaults with From Analytics.</div>
               )}
             </div>
           </aside>
@@ -333,17 +340,17 @@ export function PersonaPanel({ open, onClose }: PersonaPanelProps) {
               <>
                 <div className="persona-form-grid">
                   <label className="persona-field">
-                    <span>名称（Name）</span>
+                    <span>Name</span>
                     <input onChange={(event) => updateDraft("name", event.target.value)} value={draft.name} />
                   </label>
 
                   <label className="persona-field">
-                    <span>职业（Job）</span>
+                    <span>Job</span>
                     <input onChange={(event) => updateDraft("job", event.target.value)} value={draft.job} />
                   </label>
 
                   <label className="persona-field persona-field-full">
-                    <span>人物简介（Explanation）</span>
+                    <span>Explanation</span>
                     <textarea
                       onChange={(event) => updateDraft("explanation", event.target.value)}
                       rows={3}
@@ -352,7 +359,7 @@ export function PersonaPanel({ open, onClose }: PersonaPanelProps) {
                   </label>
 
                   <div className="persona-field persona-field-full">
-                    <span>特征（Characteristic Values）</span>
+                    <span>Characteristic Values</span>
                     <div className="persona-kv-list">
                       {characteristicEntries.length ? (
                         characteristicEntries.map(([key, value]) => (
@@ -369,23 +376,23 @@ export function PersonaPanel({ open, onClose }: PersonaPanelProps) {
                           </div>
                         ))
                       ) : (
-                        <div className="persona-kv-empty">暂无特征数据</div>
+                        <div className="persona-kv-empty">No characteristic data</div>
                       )}
                     </div>
                   </div>
 
                   <label className="persona-field persona-field-full">
-                    <span>可能的经历（Personal Experiences）</span>
+                    <span>Personal Experiences</span>
                     <textarea
                       onChange={(event) => updateDraft("personal_experiences", event.target.value)}
-                      placeholder="每行一条经历"
+                      placeholder="One experience per line"
                       rows={5}
                       value={draft.personal_experiences}
                     />
                   </label>
 
                   <label className="persona-field persona-field-full">
-                    <span>观看动机（Reason）</span>
+                    <span>Reason</span>
                     <textarea onChange={(event) => updateDraft("reason", event.target.value)} rows={3} value={draft.reason} />
                   </label>
                 </div>
@@ -400,7 +407,7 @@ export function PersonaPanel({ open, onClose }: PersonaPanelProps) {
                 </div>
               </>
             ) : (
-              <div className="persona-editor-empty">选择或创建一个观众画像进行配置。</div>
+              <div className="persona-editor-empty">Select or create a persona to configure.</div>
             )}
           </div>
         </div>

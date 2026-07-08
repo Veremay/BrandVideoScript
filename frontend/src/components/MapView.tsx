@@ -503,8 +503,8 @@ function MapViewContent() {
         .filter((title): title is string => typeof title === "string" && !!title);
 
       if (!options?.skipConfirm) {
-        const preview = labels.slice(0, 3).join("、");
-        const more = uniqueIds.length > 3 ? ` 等 ${uniqueIds.length} 个` : "";
+        const preview = labels.slice(0, 3).join(", ");
+        const more = uniqueIds.length > 3 ? ` and ${uniqueIds.length} total` : "";
         const message =
           uniqueIds.length === 1
             ? `Delete "${labels[0] ?? "this node"}"?`
@@ -556,8 +556,8 @@ function MapViewContent() {
     const labels = nodesToDelete
       .map((node) => (typeof node.data?.title === "string" ? node.data.title : ""))
       .filter(Boolean);
-    const preview = labels.slice(0, 3).join("、");
-    const more = nodesToDelete.length > 3 ? ` 等 ${nodesToDelete.length} 个` : "";
+    const preview = labels.slice(0, 3).join(", ");
+    const more = nodesToDelete.length > 3 ? ` and ${nodesToDelete.length} total` : "";
     return window.confirm(`Delete ${nodesToDelete.length} selected nodes?${preview ? `\n${preview}${more}` : ""}`);
   }, []);
 
@@ -1038,7 +1038,7 @@ function MapViewContent() {
               {staleConsiderationIds.map((id) => (
                 <li className="map-consideration-item map-consideration-item-stale" key={id}>
                   <span className="map-consideration-item-title">
-                    <span className="map-node-status-tag map-node-status-resolved">立场已更新/已失效</span>
+                    <span className="map-node-status-tag map-node-status-resolved">Stance updated / stale</span>
                   </span>
                   <button
                     aria-label="Remove stale consideration entry"
@@ -1164,20 +1164,20 @@ function IbisNode({ data, id }: NodeProps) {
               <span className="map-node-status-tag map-node-status-user-created">User</span>
             ) : null}
             {nodeData.lifecycle === "resolved" ? (
-              <span className="map-node-status-tag map-node-status-resolved">已解决</span>
+              <span className="map-node-status-tag map-node-status-resolved">Resolved</span>
             ) : null}
             {nodeData.changeMark === "modified" ? (
-              <span className="map-node-status-tag map-node-status-modified">已修改</span>
+              <span className="map-node-status-tag map-node-status-modified">Modified</span>
             ) : null}
             {nodeData.changeMark === "new" ? (
-              <span className="map-node-status-tag map-node-status-new">新增</span>
+              <span className="map-node-status-tag map-node-status-new">New</span>
             ) : null}
             {nodeData.suggestion ? (
               <span
                 className="map-node-status-tag map-node-status-suggestion"
-                title="Agent 建议（不会自动修改用户节点）"
+                title="Agent suggestion (does not auto-edit user nodes)"
               >
-                {nodeData.suggestion === "resolved?" ? "建议解决?" : "建议修改?"}
+                {nodeData.suggestion === "resolved?" ? "Suggest resolve?" : "Suggest modify?"}
               </span>
             ) : null}
             {nodeData.conflictTags && nodeData.conflictTags.length > 0
@@ -1186,7 +1186,7 @@ function IbisNode({ data, id }: NodeProps) {
                     key={tag}
                     className="map-conflict-tag"
                     data-tag={tag}
-                    title={`冲突组 ${tag} — 与其他标记 [${tag}] 的立场存在冲突`}
+                    title={`Conflict group ${tag} — conflicts with other positions tagged [${tag}]`}
                   >
                     [{tag}]
                   </span>

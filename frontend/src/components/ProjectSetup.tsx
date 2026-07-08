@@ -228,7 +228,7 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
                       key={persona.persona_id}
                     >
                       <strong>{persona.name}</strong>
-                      <span>{persona.job || persona.explanation || "观众画像"}</span>
+                      <span>{persona.job || persona.explanation || "Audience persona"}</span>
                     </li>
                   ))}
                 </ul>

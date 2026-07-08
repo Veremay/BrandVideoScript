@@ -26,12 +26,13 @@ const WELCOME_BASE = {
 const WELCOME_FULL: CoordinatorMessage = {
   ...WELCOME_BASE,
   content:
-    "Hi, I'm the Coordinator. Quote script to analyze nodes, or ask me to「生成多方向修改方案」— Expert will add script revision options (not nodes) to Revision Proposals for preview and partial apply."
+    "Hi, I'm the Coordinator. Quote script to analyze nodes, or ask me to generate multi-direction revision proposals — Expert will add script revision options (not nodes) to Revision Proposals for preview and partial apply."
 };
 
 const WELCOME_VANILLA: CoordinatorMessage = {
   ...WELCOME_BASE,
-  content: "你好，我是 AI 写作助手。直接告诉我你的视频脚本想法或问题，我会帮你构思、撰写和打磨。"
+  content:
+    "Hi, I'm your AI writing assistant. Tell me your video script ideas or questions, and I'll help you outline, draft, and polish them."
 };
 
 type CoordinatorChatProps = {
