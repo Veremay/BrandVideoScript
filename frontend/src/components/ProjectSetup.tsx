@@ -19,7 +19,6 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
   const [uploadingBrief, setUploadingBrief] = useState(false);
   const [parsingBrief, setParsingBrief] = useState(false);
   const [generatingPersonas, setGeneratingPersonas] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   if (!project) return null;
@@ -34,11 +33,9 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
     if (!project) return;
     setUploadingBrief(true);
     setError(null);
-    setMessage(null);
     try {
       const savedProject = await saveBrief(project._id, project.user_id, text, filename);
       setProject(savedProject);
-      setMessage("Brief uploaded. You can parse requirements now.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Brief upload failed");
     } finally {
@@ -64,14 +61,10 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
     if (!project) return;
     setParsingBrief(true);
     setError(null);
-    setMessage("Parsing requirements from brief...");
     try {
       await parseBriefStream(project._id, project.user_id, (event) => {
-        if (event.type === "status") {
-          setMessage(event.message);
-        } else if (event.type === "done") {
+        if (event.type === "done") {
           setProject(event.project);
-          setMessage("Requirements parsed. Review details later from the editor toolbar.");
         } else if (event.type === "error") {
           setError(event.message);
         }
@@ -87,7 +80,6 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
     if (!project) return;
     setGeneratingPersonas(true);
     setError(null);
-    setMessage("Generating personas from analytics...");
     try {
       const platform = (project.platform_context ?? "xiaohongshu") as PlatformContext;
       const result = await provisionPersonasFromAnalytics(project._id, project.user_id, {
@@ -95,7 +87,6 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
         run_audience_parse: false
       });
       setProject(result.project);
-      setMessage("Personas generated. You can refine them later from the editor toolbar.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Persona generation failed");
     } finally {
@@ -121,7 +112,6 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
         </header>
 
         {error ? <p className="setup-alert setup-alert-error">{error}</p> : null}
-        {message ? <p className="setup-alert">{message}</p> : null}
 
         <section className="setup-progress" aria-label="Setup progress">
           <SetupStepBadge complete={status.requirementsComplete} label="Requirements" />
@@ -137,7 +127,7 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
               <span className="setup-card-index">1</span>
               <div>
                 <h2>Requirements Parsing</h2>
-                <p>Upload a brief and let the Brand Agent extract explicit and implicit requirements.</p>
+                <p>Upload a brief and the system will extract requirements. You can edit them later.</p>
               </div>
             </div>
 
@@ -149,14 +139,6 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
               <div>
                 <dt>Status</dt>
                 <dd>{project.brief.parse_status}</dd>
-              </div>
-              <div>
-                <dt>Explicit</dt>
-                <dd>{status.explicitCount}</dd>
-              </div>
-              <div>
-                <dt>Implicit</dt>
-                <dd>{status.implicitCount}</dd>
               </div>
             </dl>
 
@@ -222,7 +204,7 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
               <span className="setup-card-index">2</span>
               <div>
                 <h2>Persona Provisioning</h2>
-                <p>Generate at least one persona and set an active audience profile for the project.</p>
+                <p>Generate at least one persona. You can edit them later.</p>
               </div>
             </div>
 

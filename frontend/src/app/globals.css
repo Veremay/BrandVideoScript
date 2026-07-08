@@ -468,15 +468,19 @@ textarea {
 }
 
 .setup-page {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .setup-shell {
-  display: grid;
-  gap: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   width: min(1180px, calc(100vw - 96px));
+  height: 100%;
   margin: 0 auto;
-  padding: 48px 0 64px;
+  padding: 32px 0 24px;
+  box-sizing: border-box;
 }
 
 .setup-header,
@@ -565,14 +569,17 @@ textarea {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 24px;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .setup-card {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  height: 420px;
-  padding: 24px;
+  gap: 14px;
+  min-height: 0;
+  height: 100%;
+  padding: 20px;
   border: 1px solid var(--figma-glass-border);
   border-radius: 12px;
   background: var(--figma-glass);
@@ -588,6 +595,12 @@ textarea {
   grid-template-columns: auto 1fr;
   gap: 14px;
   align-items: flex-start;
+  flex-shrink: 0;
+}
+
+.setup-progress,
+.setup-header {
+  flex-shrink: 0;
 }
 
 .setup-card-header h2 {
@@ -621,15 +634,16 @@ textarea {
 .setup-stats {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 8px;
   margin: 0;
+  flex-shrink: 0;
 }
 
 .setup-stats div {
   display: grid;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
-  padding: 12px;
+  padding: 8px 10px;
   border: 1px solid var(--figma-border);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.62);
@@ -654,10 +668,12 @@ textarea {
 }
 
 .setup-card-scroll {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
   padding-right: 4px;
+  overscroll-behavior: contain;
 }
 
 .setup-item-groups {
@@ -718,6 +734,8 @@ textarea {
   color: var(--figma-text);
   font-size: 13px;
   line-height: 20px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .setup-item-reason {
@@ -759,24 +777,25 @@ textarea {
 }
 
 .setup-persona-list span {
-  overflow: hidden;
   color: var(--figma-text-secondary);
   font-size: 12px;
   line-height: 18px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .setup-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  flex-shrink: 0;
   margin-top: auto;
 }
 
 .setup-footer {
   align-items: center;
-  padding: 20px 24px;
+  flex-shrink: 0;
+  padding: 16px 20px;
   border: 1px solid var(--figma-glass-border);
   border-radius: 12px;
   background: var(--figma-glass);
@@ -827,9 +846,28 @@ textarea {
     display: none;
   }
 
+  .setup-page {
+    height: auto;
+    min-height: 100vh;
+    overflow: auto;
+  }
+
+  .setup-shell {
+    height: auto;
+    padding-bottom: 32px;
+  }
+
   .setup-grid,
   .setup-stats {
     grid-template-columns: 1fr;
+  }
+
+  .setup-grid {
+    flex: none;
+  }
+
+  .setup-card {
+    height: min(420px, 70vh);
   }
 }
 
