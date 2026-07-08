@@ -14,7 +14,7 @@ from app.services.agent_llm import (
     invoke_agent_json,
     script_excerpt_for_rows,
 )
-from app.services.tools.brand_wiki import brand_wiki_lookup
+from app.services.tools.brand_wiki import brand_wiki_context_for_task
 from app.services.tools.ibis_graph import persist_rationale_graph
 from app.services.pipeline_log import log_step
 from app.services.tavily_client import TavilyClient
@@ -214,7 +214,15 @@ async def _run_requirements_extraction(project: dict[str, Any]) -> dict[str, Any
     text = str(brief.get("text") or brief.get("summary") or "").strip()
     project_id = str(context.get("project_id") or project.get("_id") or "")
 
-    wiki = await brand_wiki_lookup(brief.get("filename"), brief_text=text)
+    wiki_context = await brand_wiki_context_for_task(
+        brand_identifier=brief.get("filename"),
+        brief_text=text,
+        task="extract_requirements",
+    )
+    wiki = {
+        "source": wiki_context.get("source"),
+        "full_text": wiki_context.get("context"),
+    }
     tavily_snippets: list[str] = []
     if text:
         tavily = TavilyClient()
@@ -272,7 +280,7 @@ async def _run_requirements_extraction(project: dict[str, Any]) -> dict[str, Any
         "proposed_edges": [],
         "node_updates": [],
         "brand_insights": brand_insights,
-        "tool_calls_used": ["brand_wiki_lookup", "tavily_search"],
+        "tool_calls_used": ["brand_wiki_search", "brand_wiki_read", "tavily_search"],
     }
     log_step(
         "brand_agent.extract_requirements",

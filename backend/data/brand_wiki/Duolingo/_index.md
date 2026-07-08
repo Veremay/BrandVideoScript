@@ -1,0 +1,146 @@
+# Duolingo Brand Wiki
+
+- format: section-faithful brand wiki
+- compilation: source Markdown headings are preserved as Wiki pages
+
+## Sources
+- original_brand_guidelines.md
+- The_Duolingo_Handbook.md
+
+## Pages
+
+- [[_agent-guide]] - inferred navigation for agents
+
+### guidelines
+- [[guidelines/writing-brand-narrative]] - Writing — Brand narrative
+- [[guidelines/principles/index]] - Principles
+- [[guidelines/principles/inspiring]] - Inspiring
+- [[guidelines/principles/inclusive]] - Inclusive
+- [[guidelines/principles/can-do]] - Can-do
+- [[guidelines/principles/curious]] - Curious
+- [[guidelines/principles/quirky]] - Quirky
+- [[guidelines/brand-personality-if-duolingo-were-a/index]] - Brand personality — If Duolingo were a…
+- [[guidelines/brand-personality-if-duolingo-were-a/celebrity]] - Celebrity
+- [[guidelines/brand-personality-if-duolingo-were-a/vehicle]] - Vehicle
+- [[guidelines/brand-personality-if-duolingo-were-a/song]] - Song
+- [[guidelines/sample-messaging/index]] - Sample messaging
+- [[guidelines/sample-messaging/tagline]] - Tagline
+- [[guidelines/sample-messaging/short-short-ctas]] - Short short CTAs
+- [[guidelines/sample-messaging/1-sentence-description]] - 1-sentence description
+- [[guidelines/sample-messaging/1-sentence-cta]] - 1-sentence CTA
+- [[guidelines/sample-messaging/longer-descriptions]] - Longer descriptions
+- [[guidelines/sample-messaging/even-longer-description]] - Even longer description
+- [[guidelines/sample-messaging/press]] - Press
+- [[guidelines/messages-by-audience/index]] - Messages by audience
+- [[guidelines/messages-by-audience/consumers-developed-world]] - Consumers: developed world
+- [[guidelines/messages-by-audience/consumers-developing-world]] - Consumers: developing world
+- [[guidelines/messages-by-audience/institutions-universities-schools-businesses-government]] - Institutions, universities, schools, businesses, government
+- [[guidelines/messages-by-audience/prospective-employees]] - Prospective employees
+- [[guidelines/messages-by-audience/community-volunteer-content-creators]] - Community / volunteer content creators
+
+### handbook
+- [[handbook/overview]] - Overview
+- [[handbook/letter-from-luis]] - Letter from Luis
+- [[handbook/tl-dr]] - TL;DR
+- [[handbook/take-the-long-view]] - Take the Long View
+- [[handbook/raise-the-bar]] - Raise the Bar
+- [[handbook/ship-it]] - Ship It
+- [[handbook/show-don-t-tell]] - Show Don't Tell
+- [[handbook/make-it-fun]] - Make It Fun
+- [[handbook/a-note-before-reading]] - **A Note Before Reading**
+- [[handbook/table-of-contents]] - Table of Contents
+- [[handbook/take-the-long-view-2]] - TAKE THE LONG VIEW
+- [[handbook/a-note-before-reading/duolingo-was-never-going-to-be-a-sprint]] - Duolingo was never going to be a sprint.
+- [[handbook/a-note-before-reading/in-the-beginning]] - In the Beginning
+- [[handbook/a-note-before-reading/don-t-do-dumb-s-t]] - Don't Do Dumb S\*\*t
+- [[handbook/a-note-before-reading/betting-on-technology]] - Betting on Technology
+- [[handbook/a-note-before-reading/long-view-hiring]] - Long View Hiring
+- [[handbook/a-note-before-reading/building-a-forever-product]] - Building a Forever Product
+- [[handbook/a-note-before-reading/notifications]] - Notifications
+- [[handbook/a-note-before-reading/juicy]] - Juicy
+- [[handbook/a-note-before-reading/setting-the-proficiency-standard]] - Setting the Proficiency Standard
+- [[handbook/a-note-before-reading/engineering-the-future]] - Engineering the Future
+- [[handbook/a-note-before-reading/becoming-a-business]] - Becoming a Business
+- [[handbook/a-note-before-reading/building-a-monetization-engine]] - Building a Monetization Engine
+- [[handbook/a-note-before-reading/a-100-year-brand]] - A 100-Year Brand
+- [[handbook/a-note-before-reading/long-term-value]] - ! Long-Term Value
+- [[handbook/a-note-before-reading/characters-count]] - Characters Count
+- [[handbook/a-note-before-reading/investing-in-marketing]] - Investing in Marketing
+- [[handbook/a-note-before-reading/the-path]] - The Path
+- [[handbook/principle-2]] - PRINCIPLE #2
+- [[handbook/raise-the-bar/index]] - RAISE THE BAR
+- [[handbook/raise-the-bar/excellence-isn-t-some-lofty-goal-it-s-our-baseline]] - Excellence isn't some lofty goal—it's our baseline.
+- [[handbook/raise-the-bar/culture-of-excellence]] - Culture of Excellence
+- [[handbook/raise-the-bar/taking-ownership]] - Taking Ownership
+- [[handbook/raise-the-bar/hard-on-the-work-easy-on-the-people]] - Hard on the Work, Easy on the People
+- [[handbook/raise-the-bar/dogfooding]] - Dogfooding
+- [[handbook/raise-the-bar/setting-the-bar]] - Setting the Bar
+- [[handbook/raise-the-bar/the-bar-for-product-and-design]] - The Bar for Product and Design
+- [[handbook/raise-the-bar/the-bar-for-hiring]] - The Bar for Hiring
+- [[handbook/principle-3]] - PRINCIPLE #3
+- [[handbook/ship-it/index]] - SHIP IT!
+- [[handbook/ship-it/when-duolingo-was-starting-out-we-were-all-sitting-in-one-room]] - When Duolingo was starting out, we were all sitting in one room.
+- [[handbook/ship-it/go-go-go]] - Go, Go, Go!
+- [[handbook/ship-it/clock-speed]] - Clock Speed
+- [[handbook/ship-it/ruthless-prioritization]] - Ruthless Prioritization
+- [[handbook/ship-it/culture-of-experimentation]] - Culture of Experimentation
+- [[handbook/ship-it/warning-icon-navigating-trade-offs]] - --- Warning icon Navigating Trade-offs
+- [[handbook/ship-it/the-right-amount-of-process]] - The Right Amount of Process
+- [[handbook/show-don-t-tell/index]] - SHOW DON'T TELL
+- [[handbook/show-don-t-tell/show-don-t-tell-means-we-lead-with-the-results-of-our-work-not-the-story-of-its-effort]] - “Show Don’t Tell” means we lead with the results of our work, not the story of its effort.
+- [[handbook/show-don-t-tell/numbers-are-the-story]] - Numbers Are the Story
+- [[handbook/tl-dr/index]] - TL;DR
+- [[handbook/tl-dr/warning-icon-the-tyranny-of-metrics]] - Warning icon The Tyranny of Metrics
+- [[handbook/tl-dr/say-less]] - Say Less
+- [[handbook/tl-dr/prototypes-not-pitch-decks]] - Prototypes, Not Pitch Decks
+- [[handbook/tl-dr/great-products-don-t-have-to-explain-themselves]] - Great Products Don't Have to Explain Themselves
+- [[handbook/tl-dr/ideas-before-egos]] - Ideas Before Egos
+- [[handbook/tl-dr/celebrating-innovators]] - Celebrating Innovators
+- [[handbook/tl-dr/disagree-and-commit]] - Disagree and Commit
+- [[handbook/tl-dr/the-trust-battery]] - The Trust Battery
+- [[handbook/principle-5]] - PRINCIPLE #5
+- [[handbook/make-it-fun/index]] - MAKE IT FUN!
+- [[handbook/make-it-fun/learning-doesn-t-have-to-be-boring-and-neither-does-work]] - Learning doesn't have to be boring, and neither does work.
+- [[handbook/make-it-fun/a-product-built-on-play]] - A Product Built on Play
+- [[handbook/make-it-fun/you-can-be-more-than-one-thing]] - You Can Be More Than One Thing
+- [[handbook/make-it-fun/quirky-culture]] - Quirky Culture
+- [[handbook/make-it-fun/open-doors]] - Open Doors
+- [[handbook/make-it-fun/joy-by-design]] - Joy by Design
+- [[handbook/make-it-fun/warning-icon-respect-boundaries]] - Warning icon Respect Boundaries
+- [[handbook/make-it-fun/wholesome-and-unhinged]] - Wholesome and Unhinged
+- [[handbook/make-it-fun/committing-to-the-bit]] - Committing to the Bit
+- [[handbook/make-it-fun/duality-of-duo]] - Duality of Duo
+- [[handbook/make-it-fun/april-fools]] - April Fools
+- [[handbook/make-it-fun/five-seconds-with-duo]] - Five Seconds with Duo
+- [[handbook/the-green-machine]] - THE GREEN MACHINE
+- [[handbook/our-process]] - Our Process
+- [[handbook/the-green-machine-six-steps/index]] - The Green Machine: Six Steps
+- [[handbook/the-green-machine-six-steps/1-staff-it-with-great-people]] - 1. Staff It with Great People
+- [[handbook/the-green-machine-six-steps/2-define-success]] - 2. Define Success
+- [[handbook/the-green-machine-six-steps/3-set-guardrails-and-think-long-term]] - 3. Set Guardrails and Think Long-Term
+- [[handbook/the-green-machine-six-steps/4-build-the-thing-and-set-up-feedback-loops]] - 4. Build the Thing and Set Up Feedback Loops
+- [[handbook/the-green-machine-six-steps/5-execute-with-urgency-and-excellence]] - 5. Execute with Urgency and Excellence
+- [[handbook/the-green-machine-six-steps/6-double-down-on-what-works-stop-what-doesn-t]] - 6. Double Down on What Works, Stop What Doesn't
+- [[handbook/part-of-the-plan]] - Part of the Plan
+- [[handbook/glossary]] - Glossary
+- [[handbook/part-of-the-plan/bookings]] - Bookings
+- [[handbook/part-of-the-plan/daus]] - DAUs
+- [[handbook/part-of-the-plan/det]] - DET
+- [[handbook/part-of-the-plan/dogfooding]] - Dogfooding
+- [[handbook/part-of-the-plan/duo]] - Duo
+- [[handbook/part-of-the-plan/duoversary]] - Duoversary
+- [[handbook/part-of-the-plan/experiments]] - Experiments
+- [[handbook/part-of-the-plan/go-go-go]] - Go, Go, Go!
+- [[handbook/part-of-the-plan/juicy]] - Juicy
+- [[handbook/part-of-the-plan/maus]] - MAUs
+- [[handbook/part-of-the-plan/nuo]] - Nuo
+- [[handbook/part-of-the-plan/okrs]] - OKRs
+- [[handbook/part-of-the-plan/parliament]] - Parliament
+- [[handbook/part-of-the-plan/pittsburgh]] - Pittsburgh
+- [[handbook/part-of-the-plan/pr]] - PR
+- [[handbook/part-of-the-plan/slt]] - SLT
+- [[handbook/part-of-the-plan/subscribers]] - Subscribers
+
+## Traversal Notes
+- Search and read the original section pages that match the current question.
+- Do not infer missing brand rules from section titles alone.

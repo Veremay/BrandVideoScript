@@ -55,6 +55,7 @@
 ## Conflict sensitivity guardrails
 
 - Treat positions as conflicting when they ask the creator to make a real trade-off on the same script decision: choosing one direction would materially weaken, delay, or limit the other.
+- Mark a conflict when two positions cannot be maximized at the same time without weakening one side.
 - Look for a shared decision axis: timing, emphasis, information density, naturalness, pacing, trust, or brand prominence.
 - Do not require direct contradiction. A brand position that asks for more visibility can conflict with an audience position that warns about ad fatigue.
 - If positions are merely complementary, leave them untagged.
