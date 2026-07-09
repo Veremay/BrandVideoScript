@@ -114,46 +114,36 @@ textarea {
   --scrollbar-track: transparent;
 }
 
+.persona-overlay,
+.hub-overlay {
+  --scrollbar-thumb: var(--figma-border, #bec8d2);
+  --scrollbar-track: transparent;
+}
+
 .app-figma,
 .app-hub,
 .share-page {
   scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
-}
-
-.app-figma *,
-.app-hub *,
-.share-page * {
-  scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-color: var(--scrollbar-thumb, #bec8d2) var(--scrollbar-track, transparent);
 }
 
 .app-figma::-webkit-scrollbar,
 .app-hub::-webkit-scrollbar,
-.share-page::-webkit-scrollbar,
-.app-figma *::-webkit-scrollbar,
-.app-hub *::-webkit-scrollbar,
-.share-page *::-webkit-scrollbar {
+.share-page::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 .app-figma::-webkit-scrollbar-track,
 .app-hub::-webkit-scrollbar-track,
-.share-page::-webkit-scrollbar-track,
-.app-figma *::-webkit-scrollbar-track,
-.app-hub *::-webkit-scrollbar-track,
-.share-page *::-webkit-scrollbar-track {
+.share-page::-webkit-scrollbar-track {
   background: transparent;
 }
 
 .app-figma::-webkit-scrollbar-thumb,
 .app-hub::-webkit-scrollbar-thumb,
-.share-page::-webkit-scrollbar-thumb,
-.app-figma *::-webkit-scrollbar-thumb,
-.app-hub *::-webkit-scrollbar-thumb,
-.share-page *::-webkit-scrollbar-thumb {
-  background-color: var(--scrollbar-thumb);
+.share-page::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb, #bec8d2);
   border: 2px solid transparent;
   border-radius: 999px;
   background-clip: padding-box;
@@ -161,11 +151,58 @@ textarea {
 
 .app-figma::-webkit-scrollbar-thumb:hover,
 .app-hub::-webkit-scrollbar-thumb:hover,
-.share-page::-webkit-scrollbar-thumb:hover,
-.app-figma *::-webkit-scrollbar-thumb:hover,
-.app-hub *::-webkit-scrollbar-thumb:hover,
-.share-page *::-webkit-scrollbar-thumb:hover {
-  background-color: var(--figma-muted-border);
+.share-page::-webkit-scrollbar-thumb:hover {
+  background-color: var(--figma-muted-border, #6e7881);
+}
+
+.app-scrollbar,
+.app-figma textarea,
+.app-hub textarea,
+.share-page textarea,
+.persona-overlay textarea,
+.hub-overlay textarea {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb, #bec8d2) var(--scrollbar-track, transparent);
+}
+
+.app-scrollbar::-webkit-scrollbar,
+.app-figma textarea::-webkit-scrollbar,
+.app-hub textarea::-webkit-scrollbar,
+.share-page textarea::-webkit-scrollbar,
+.persona-overlay textarea::-webkit-scrollbar,
+.hub-overlay textarea::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.app-scrollbar::-webkit-scrollbar-track,
+.app-figma textarea::-webkit-scrollbar-track,
+.app-hub textarea::-webkit-scrollbar-track,
+.share-page textarea::-webkit-scrollbar-track,
+.persona-overlay textarea::-webkit-scrollbar-track,
+.hub-overlay textarea::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.app-scrollbar::-webkit-scrollbar-thumb,
+.app-figma textarea::-webkit-scrollbar-thumb,
+.app-hub textarea::-webkit-scrollbar-thumb,
+.share-page textarea::-webkit-scrollbar-thumb,
+.persona-overlay textarea::-webkit-scrollbar-thumb,
+.hub-overlay textarea::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb, #bec8d2);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+.app-scrollbar::-webkit-scrollbar-thumb:hover,
+.app-figma textarea::-webkit-scrollbar-thumb:hover,
+.app-hub textarea::-webkit-scrollbar-thumb:hover,
+.share-page textarea::-webkit-scrollbar-thumb:hover,
+.persona-overlay textarea::-webkit-scrollbar-thumb:hover,
+.hub-overlay textarea::-webkit-scrollbar-thumb:hover {
+  background-color: var(--figma-muted-border, #6e7881);
 }
 
 .app-figma {
@@ -4255,15 +4292,10 @@ textarea {
   backdrop-filter: blur(6px);
 }
 
-.persona-card.active {
+.persona-card.selected {
   border-color: var(--figma-primary);
   background: rgba(255, 255, 255, 0.8);
   box-shadow: 0 0 20px rgba(0, 101, 145, 0.1);
-}
-
-.persona-card.selected:not(.active) {
-  border-color: rgba(0, 101, 145, 0.28);
-  background: rgba(255, 255, 255, 0.55);
 }
 
 .persona-card-main {
@@ -4299,7 +4331,7 @@ textarea {
   line-height: 1;
 }
 
-.persona-card:not(.active) .persona-card-avatar {
+.persona-card:not(:has(.persona-card-toggle.is-on)) .persona-card-avatar {
   background: rgba(19, 27, 46, 0.05);
 }
 
@@ -4971,6 +5003,28 @@ textarea {
 @media (max-width: 720px) {
   body {
     overflow: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #bec8d2 transparent;
+  }
+
+  body::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  body::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  body::-webkit-scrollbar-thumb {
+    background-color: #bec8d2;
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background-clip: padding-box;
+  }
+
+  body::-webkit-scrollbar-thumb:hover {
+    background-color: #6e7881;
   }
 
   .app {
@@ -5772,8 +5826,10 @@ textarea {
 
 .requirements-panel-body {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 16px;
+  min-height: 0;
   padding: 24px 40px 40px;
   overflow: auto;
 }

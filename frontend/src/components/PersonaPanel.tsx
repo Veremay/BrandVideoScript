@@ -277,7 +277,7 @@ export function PersonaPanel({ open, onClose }: PersonaPanelProps) {
           </div>
         </header>
 
-        <div className="persona-panel-body">
+        <div className="persona-panel-body app-scrollbar">
           <aside className="persona-sidebar">
             <div className="persona-sidebar-label">Profile Directory</div>
             <div className="persona-card-list">
@@ -286,10 +286,7 @@ export function PersonaPanel({ open, onClose }: PersonaPanelProps) {
                   const isActive = pendingActiveId === persona.persona_id;
                   const isSelected = selectedId === persona.persona_id;
                   return (
-                    <div
-                      className={`persona-card ${isActive ? "active" : ""} ${isSelected ? "selected" : ""}`}
-                      key={persona.persona_id}
-                    >
+                    <div className={`persona-card${isSelected ? " selected" : ""}`} key={persona.persona_id}>
                       <button
                         className="persona-card-main"
                         onClick={() => selectPersona(persona)}
@@ -306,7 +303,10 @@ export function PersonaPanel({ open, onClose }: PersonaPanelProps) {
                           aria-checked={isActive}
                           aria-label={`${isActive ? "Disable" : "Enable"} ${persona.name}`}
                           className={`persona-card-toggle${isActive ? " is-on" : ""}`}
-                          onClick={() => setPendingActiveId(persona.persona_id)}
+                          onClick={() => {
+                            setPendingActiveId(persona.persona_id);
+                            if (!isSelected) selectPersona(persona);
+                          }}
                           role="switch"
                           type="button"
                         >

@@ -1021,7 +1021,7 @@ function MapViewContent() {
           {considerationPositions.length === 0 && staleConsiderationIds.length === 0 ? (
             <p className="map-consideration-empty">Mark Position nodes from the node menu.</p>
           ) : (
-            <ul className="map-consideration-list">
+            <ul className="map-consideration-list app-scrollbar">
               {considerationPositions.map((position) => (
                 <li className="map-consideration-item" key={position.node_id}>
                   <strong className="map-consideration-item-title">{position.title}</strong>

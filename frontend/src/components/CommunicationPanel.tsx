@@ -159,7 +159,7 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
           </div>
         </header>
 
-        <div className="glacier-body">
+        <div className="glacier-body app-scrollbar">
           {error ? <p className="glacier-stream-error">{error}</p> : null}
 
           {tab === "argue" ? (
@@ -176,7 +176,7 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
                       No script feedback marked yet. You can still generate from the text on the right.
                     </p>
                   ) : (
-                    <div className="comm-card-list">
+                    <div className="comm-card-list app-scrollbar">
                       {argueItems.map((item) => {
                         return (
                           <article className="comm-card" key={item.id}>

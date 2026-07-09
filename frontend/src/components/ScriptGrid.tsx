@@ -325,7 +325,7 @@ function ScriptGridBody({
       {!isShare && applyError ? <p className="editor-hunk-apply-error">{applyError}</p> : null}
 
       <div className="script-table-container">
-        <div className="script-table-panel">
+        <div className="script-table-panel app-scrollbar">
           <table className="editor-data-table">
             <thead>
               <tr>

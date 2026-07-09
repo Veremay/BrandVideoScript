@@ -64,7 +64,7 @@ export function CreateProjectDialog({
         onClick={onClose}
         type="button"
       />
-      <section className="hub-dialog">
+      <section className="hub-dialog app-scrollbar">
         <header className="hub-dialog-header">
           <p className="hub-eyebrow">New Project</p>
           <h2 className="hub-headline hub-headline-sm" id="create-project-title">

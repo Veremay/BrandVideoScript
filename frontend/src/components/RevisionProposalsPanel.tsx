@@ -504,7 +504,7 @@ function ScriptSchemePreview({
       <p className="glacier-script-preview-note">
         Affected script rows only. Green highlights will be written; strikethrough is the current text.
       </p>
-      <div className="glacier-script-preview-table-wrap">
+      <div className="glacier-script-preview-table-wrap app-scrollbar">
         <table className="glacier-script-preview-table">
           <thead>
             <tr>
@@ -572,7 +572,7 @@ export function EditorModificationPlan() {
   if (!schemes.length) return null;
 
   return (
-    <aside className="editor-modification-panel" aria-label="Modification plan">
+    <aside className="editor-modification-panel app-scrollbar" aria-label="Modification plan">
       <header className="editor-modification-head">
         <h2 className="editor-modification-title">Modification plan</h2>
         {schemesStale ? (

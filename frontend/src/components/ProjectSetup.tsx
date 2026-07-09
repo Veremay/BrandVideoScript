@@ -142,7 +142,7 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
               </div>
             </dl>
 
-            <div className="setup-card-scroll">
+            <div className="setup-card-scroll app-scrollbar">
               {hasRequirements ? (
                 <div className="setup-item-groups">
                   {explicitRequirements.length ? (
@@ -219,7 +219,7 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
               </div>
             </dl>
 
-            <div className="setup-card-scroll">
+            <div className="setup-card-scroll app-scrollbar">
               {project.personas.length ? (
                 <ul className="setup-persona-list">
                   {project.personas.map((persona) => (

@@ -106,7 +106,7 @@ export function ScriptSnapshotsPanel({ open, onClose }: ScriptSnapshotsPanelProp
           </div>
         </header>
 
-        <div className="persona-panel-body script-snapshots-body">
+        <div className="persona-panel-body script-snapshots-body app-scrollbar">
           {error ? <p className="script-snapshots-error">{error}</p> : null}
           {loading ? <p className="script-snapshots-empty">Loading…</p> : null}
           {!loading && !snapshots.length ? (

@@ -287,13 +287,13 @@ export function CoordinatorChat({
 
         {tab === "plans" ? (
           <>
-            <div className="glacier-body">
+            <div className="glacier-body app-scrollbar">
               <RevisionProposalsList />
             </div>
             <RevisionProposalsActions />
           </>
         ) : (
-          <div className="glacier-body">
+          <div className="glacier-body app-scrollbar">
             {tab === "chat" ? (
               <div className="glacier-chat-thread" ref={threadRef} role="log" aria-live="polite">
                 {messages.map((message) =>

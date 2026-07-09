@@ -182,7 +182,7 @@ export function RequirementsPanel({ open, onClose }: RequirementsPanelProps) {
           </button>
         </div>
 
-        <div className="requirements-panel-body">
+        <div className="requirements-panel-body app-scrollbar">
           {activeList.length === 0 ? (
             <p className="requirements-empty">
               {!hasParsedBrief
