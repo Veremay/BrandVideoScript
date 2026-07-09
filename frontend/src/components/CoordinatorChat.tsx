@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { RevisionProposalsActions, RevisionProposalsList } from "@/components/RevisionProposalsPanel";
 import { fetchCoordinatorMessages, streamCoordinatorMessage } from "@/lib/api";
 import { resolveCoordinatorTaskType } from "@/lib/coordinatorIntent";
+import { normalizeProject } from "@/lib/normalizeProject";
 import type { CoordinatorMessage } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
 
@@ -229,7 +230,11 @@ export function CoordinatorChat({
             );
           }
           if (event.type === "error") {
-            setStreamError(event.message);
+            const retryHint = event.retryable ? " 请稍后重试。" : "";
+            setStreamError(`${event.message}${retryHint}`);
+            if (event.project) {
+              setProject(normalizeProject(event.project));
+            }
           }
         }
       );

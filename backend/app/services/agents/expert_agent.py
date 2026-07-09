@@ -12,6 +12,7 @@ from app.services.agent_llm import (
     format_script_for_prompt,
     script_excerpt_for_rows,
 )
+from app.services.llm_errors import LLMInvocationError
 from app.services.pipeline_log import log_step
 from app.services.tools.expert_kb import domain_case_retriever, script_structure_kb
 from app.models.choice_history import format_choice_history_for_prompt
@@ -1062,11 +1063,9 @@ async def run_expert_generate_modification_schemes(
         if isinstance(item, dict)
     ]
     if not schemes:
-        schemes = _mock_modification_schemes(
-            project,
-            target_issues=target_issues,
-            target_positions=target_positions,
-            user_message=user_message,
+        raise LLMInvocationError(
+            task_type="expert_generate_hunks",
+            message="AI 未返回有效的修改方案，请重新生成。",
         )
     schemes = schemes[:1]
 

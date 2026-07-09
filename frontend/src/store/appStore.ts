@@ -26,6 +26,7 @@ type AppState = {
     requirementsPanelOpen: boolean;
     workspaceView: "editor" | "map";
   };
+  mapFocusNodeId: string | null;
   editorSchemeFocusId: string | null;
   setUserId: (userId?: string) => void;
   setProjects: (projects: Project[]) => void;
@@ -43,6 +44,7 @@ type AppState = {
   setPersonaPanelOpen: (open: boolean) => void;
   setRequirementsPanelOpen: (open: boolean) => void;
   setWorkspaceView: (view: "editor" | "map") => void;
+  setMapFocusNodeId: (nodeId: string | null) => void;
   setEditorSchemeFocusId: (schemeId: string | null) => void;
 };
 
@@ -60,6 +62,7 @@ export const useAppStore = create<AppState>((set) => ({
     requirementsPanelOpen: false,
     workspaceView: "editor"
   },
+  mapFocusNodeId: null,
   editorSchemeFocusId: null,
   setUserId: (userId) => set({ userId }),
   setProjects: (projects) => set({ projects: projects.map((p) => normalizeProject(p)!).filter(Boolean) }),
@@ -156,5 +159,6 @@ export const useAppStore = create<AppState>((set) => ({
     set((state) => ({
       layout: { ...state.layout, workspaceView: view }
     })),
+  setMapFocusNodeId: (nodeId) => set({ mapFocusNodeId: nodeId }),
   setEditorSchemeFocusId: (schemeId) => set({ editorSchemeFocusId: schemeId })
 }));

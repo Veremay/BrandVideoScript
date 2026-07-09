@@ -39,6 +39,7 @@ import {
   deleteGraphNode,
   populateIssuePositions,
   syncMapFromScript,
+  fetchProject,
   generateModificationSchemes,
   toggleGraphConsiderationQueue,
   updateGraphNode
@@ -298,6 +299,8 @@ export function MapView() {
 function MapViewContent() {
   const project = useAppStore((state) => state.project);
   const setProject = useAppStore((state) => state.setProject);
+  const mapFocusNodeId = useAppStore((state) => state.mapFocusNodeId);
+  const setMapFocusNodeId = useAppStore((state) => state.setMapFocusNodeId);
   // Superseded nodes survive only in snapshots; never render them on the canvas.
   const rationaleNodes = useMemo(
     () => (project?.rationale_nodes ?? []).filter((node) => node.lifecycle !== "superseded"),
@@ -346,7 +349,7 @@ function MapViewContent() {
   const [syncingMap, setSyncingMap] = useState(false);
   const [populatingIssueId, setPopulatingIssueId] = useState<string | null>(null);
   const [applyingLayout, setApplyingLayout] = useState(false);
-  const { zoomIn, zoomOut, fitView, getViewport, setViewport } = useReactFlow();
+  const { zoomIn, zoomOut, fitView, getViewport, setViewport, setCenter } = useReactFlow();
   const workspaceRef = useRef<HTMLElement>(null);
   const controlsRef = useRef<HTMLDivElement>(null);
   const edgeMenuRef = useRef<HTMLDivElement>(null);
@@ -404,6 +407,21 @@ function MapViewContent() {
       setFocusNodeId(null);
     }
   }, [focusNodeId, flowNodeIds]);
+
+  useEffect(() => {
+    if (!mapFocusNodeId || !flowNodeIds.has(mapFocusNodeId)) return;
+    setFocusNodeId(mapFocusNodeId);
+    setMapFocusNodeId(null);
+    const targetNode = nodes.find((node) => node.id === mapFocusNodeId);
+    if (!targetNode) return;
+    requestAnimationFrame(() => {
+      setCenter(
+        targetNode.position.x + (targetNode.width ?? targetNode.data.width) / 2,
+        targetNode.position.y + 120,
+        { duration: 220, zoom: Math.max(getViewport().zoom, 0.85) }
+      );
+    });
+  }, [flowNodeIds, getViewport, mapFocusNodeId, nodes, setCenter, setMapFocusNodeId]);
 
   useEffect(() => {
     const count = rationaleNodes.length;
@@ -639,7 +657,14 @@ function MapViewContent() {
       }
       setWorkspaceView("editor");
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Failed to generate modification plan");
+      const message = error instanceof Error ? error.message : "Failed to generate modification plan";
+      window.alert(`${message} 请稍后重试。`);
+      try {
+        const refreshed = await fetchProject(project._id, project.user_id);
+        setProject(refreshed);
+      } catch {
+        // ignore refresh failure
+      }
     } finally {
       setGeneratingSchemes(false);
     }

@@ -103,6 +103,8 @@ function ScriptGridBody({
     project,
     renameColumn,
     setProject,
+    setMapFocusNodeId,
+    setWorkspaceView,
     updateCell: storeUpdateCell
   } = useAppStore();
   const updateCell = isShare && onUpdateCell ? onUpdateCell : storeUpdateCell;
@@ -144,9 +146,9 @@ function ScriptGridBody({
   const columns = [...script.columns].sort((a, b) => a.order - b.order);
   const rows = [...script.rows].sort((a, b) => a.order - b.order);
   const durationAnalysis = useMemo(() => analyzeDurations(script), [script]);
-  const { durationIssueByRowId, linkedIssueByRowId } = useMemo(() => {
+  const { durationIssueByRowId, linkedNodeByRowId } = useMemo(() => {
     const durationIssueByRowId = new Map<string, string[]>();
-    const linkedIssueByRowId = new Map<string, string[]>();
+    const linkedNodeByRowId = new Map<string, Array<{ nodeId: string; title: string }>>();
 
     for (const issue of durationAnalysis.issues) {
       for (const rowId of issue.rowIds) {
@@ -160,11 +162,14 @@ function ScriptGridBody({
     for (const node of project?.rationale_nodes ?? []) {
       for (const ref of node.linked_script_refs ?? []) {
         if (!ref.row_id) continue;
-        linkedIssueByRowId.set(ref.row_id, [...(linkedIssueByRowId.get(ref.row_id) ?? []), node.title]);
+        linkedNodeByRowId.set(ref.row_id, [
+          ...(linkedNodeByRowId.get(ref.row_id) ?? []),
+          { nodeId: node.node_id, title: node.title }
+        ]);
       }
     }
 
-    return { durationIssueByRowId, linkedIssueByRowId };
+    return { durationIssueByRowId, linkedNodeByRowId };
   }, [durationAnalysis.issues, project?.rationale_nodes]);
   const totalSeconds = Math.max(0, ...durationAnalysis.timeline.map((segment) => segment.end));
   const {
@@ -436,13 +441,17 @@ function ScriptGridBody({
                   hunkDecisions={hunkDecisions}
                   index={rowIndex}
                   key={row.row_id}
-                  linkedIssueMessages={isShare ? undefined : linkedIssueByRowId.get(row.row_id)}
+                  linkedNodes={isShare ? undefined : linkedNodeByRowId.get(row.row_id)}
                   mode={mode}
                   onToggleArgue={isShare ? undefined : handleToggleArgue}
                   onAddRow={() => insertRowAfter(row.row_id)}
                   onDeleteRow={() => handleDeleteRow(row.row_id)}
                   onHunkAccept={(hunkId) => void acceptAndApplyHunk(hunkId)}
                   onHunkReject={(hunkId) => void rejectAndPersistHunk(hunkId)}
+                  onJumpToNode={(nodeId) => {
+                    setMapFocusNodeId(nodeId);
+                    setWorkspaceView("map");
+                  }}
                   onResizeRow={(event) => startRowResize(event, row.row_id)}
                   onSelectRow={() => {
                     setSelectedRowId(row.row_id);
@@ -481,13 +490,13 @@ function ScriptGridBody({
   );
 }
 
-function formatRowHint(durationIssueMessages?: string[], linkedIssueMessages?: string[]) {
+function formatRowHint(durationIssueMessages?: string[], linkedNodeTitles?: string[]) {
   const parts: string[] = [];
   if (durationIssueMessages?.length) {
     parts.push(`Duration: ${durationIssueMessages.join(" / ")}`);
   }
-  if (linkedIssueMessages?.length) {
-    parts.push(`Map: ${linkedIssueMessages.join(" / ")}`);
+  if (linkedNodeTitles?.length) {
+    parts.push(`Map: ${linkedNodeTitles.join(" / ")}`);
   }
   return parts.length ? parts.join("\n") : undefined;
 }
@@ -501,12 +510,13 @@ function RowBlock({
   hunkByCell,
   hunkDecisions,
   index,
-  linkedIssueMessages,
+  linkedNodes,
   mode = "creator",
   onAddRow,
   onDeleteRow,
   onHunkAccept,
   onHunkReject,
+  onJumpToNode,
   onResizeRow,
   onSelectRow,
   onToggleArgue,
@@ -523,12 +533,13 @@ function RowBlock({
   hunkByCell: Map<string, ModificationSchemeHunk>;
   hunkDecisions: Record<string, HunkDecision>;
   index: number;
-  linkedIssueMessages?: string[];
+  linkedNodes?: Array<{ nodeId: string; title: string }>;
   mode?: "creator" | "share";
   onAddRow: () => void;
   onDeleteRow: () => void;
   onHunkAccept: (hunkId: string) => void;
   onHunkReject: (hunkId: string) => void;
+  onJumpToNode?: (nodeId: string) => void;
   onResizeRow: (event: PointerEvent<HTMLElement>) => void;
   onSelectRow: () => void;
   onToggleArgue?: (rowId: string, columnId: string) => void;
@@ -540,8 +551,10 @@ function RowBlock({
   const isShare = mode === "share";
   const rowMark = String(index + 1).padStart(2, "0");
   const hasDurationIssue = Boolean(durationIssueMessages?.length);
-  const hasLinkedIssue = Boolean(linkedIssueMessages?.length);
-  const rowHintTitle = formatRowHint(durationIssueMessages, linkedIssueMessages);
+  const linkedNodeTitles = linkedNodes?.map((node) => node.title) ?? [];
+  const firstLinkedNodeId = linkedNodes?.[0]?.nodeId;
+  const hasLinkedIssue = Boolean(linkedNodes?.length);
+  const rowHintTitle = formatRowHint(durationIssueMessages, linkedNodeTitles);
 
   return (
     <>
@@ -549,7 +562,20 @@ function RowBlock({
         className={`editor-row ${index % 2 === 1 ? "row-alt" : ""} ${hasDurationIssue ? "row-has-duration-issue" : ""} ${hasLinkedIssue ? "row-has-linked-issue" : ""} ${selected ? "row-selected" : ""}`}
       >
         <td className="editor-td-num" title={rowHintTitle}>
-          {hasLinkedIssue ? <span aria-hidden="true" className="editor-row-link-mark" title="Linked to Map issue" /> : null}
+          {firstLinkedNodeId && onJumpToNode ? (
+            <button
+              aria-label={`Open related Map node for row ${rowMark}`}
+              className="editor-row-link-mark"
+              onClick={(event) => {
+                event.stopPropagation();
+                onJumpToNode(firstLinkedNodeId);
+              }}
+              title={rowHintTitle ?? "Open related Map node"}
+              type="button"
+            />
+          ) : hasLinkedIssue ? (
+            <span aria-hidden="true" className="editor-row-link-mark" title="Linked to Map issue" />
+          ) : null}
           {isShare ? (
             <span className="editor-row-num-btn editor-row-num-btn--static">{rowMark}</span>
           ) : (

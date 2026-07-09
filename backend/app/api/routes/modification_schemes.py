@@ -16,6 +16,7 @@ from app.repositories.modification_schemes import (
     generate_modification_schemes,
     list_modification_schemes,
 )
+from app.services.llm_errors import LLMInvocationError
 
 router = APIRouter(prefix="/projects/{project_id}/modification-schemes", tags=["modification-schemes"])
 
@@ -45,6 +46,8 @@ async def post_generate_modification_schemes(
             target_position_ids=payload.target_position_ids or None,
             user_message=payload.message,
         )
+    except LLMInvocationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=404 if "not found" in str(exc).lower() else 400, detail=str(exc)) from exc
     return result

@@ -223,10 +223,7 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
               {project.personas.length ? (
                 <ul className="setup-persona-list">
                   {project.personas.map((persona) => (
-                    <li
-                      className={persona.persona_id === project.active_persona_id ? "is-active" : ""}
-                      key={persona.persona_id}
-                    >
+                    <li key={persona.persona_id}>
                       <strong>{persona.name}</strong>
                       <span>{persona.job || persona.explanation || "Audience persona"}</span>
                     </li>

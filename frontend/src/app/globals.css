@@ -865,11 +865,6 @@ textarea {
   color: #ba1a1a;
 }
 
-.setup-persona-list li.is-active {
-  border-color: rgba(5, 150, 105, 0.35);
-  background: rgba(62, 207, 142, 0.1);
-}
-
 .setup-persona-list span {
   color: var(--figma-text-secondary);
   font-size: 12px;
@@ -3432,10 +3427,18 @@ textarea {
   right: 10px;
   width: 7px;
   height: 7px;
+  padding: 0;
   border: 1px solid rgba(255, 255, 255, 0.9);
   border-radius: 999px;
   background: var(--figma-primary);
   box-shadow: 0 0 0 1px rgba(0, 101, 145, 0.18);
+  cursor: pointer;
+}
+
+button.editor-row-link-mark:hover,
+button.editor-row-link-mark:focus-visible {
+  transform: scale(1.45);
+  box-shadow: 0 0 0 3px rgba(0, 101, 145, 0.18);
 }
 
 .editor-row-del {

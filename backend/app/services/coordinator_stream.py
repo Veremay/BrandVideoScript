@@ -16,6 +16,7 @@ from app.repositories.projects import get_project
 from app.repositories.script_snapshots import snapshot_before_map_update
 from app.services.agent_orchestrator import merge_pipeline_into_project_graph, run_coordinator_pipeline
 from app.services.coordinator_intent import wants_generate_modification_schemes
+from app.services.llm_errors import LLMInvocationError
 from app.services.llm_client import LLMClient
 from app.services.pipeline_log import log_step
 from app.services.sse import encode_sse
@@ -308,6 +309,17 @@ async def _stream_generate_modification_schemes(
             target_position_ids=position_targets or None,
             user_message=message,
         )
+    except LLMInvocationError as exc:
+        updated = await get_project(db, project_id, user_id)
+        yield encode_sse(
+            "error",
+            {
+                "message": str(exc),
+                "retryable": True,
+                "project": updated,
+            },
+        )
+        return
     except ValueError as exc:
         yield encode_sse("error", {"message": str(exc)})
         return

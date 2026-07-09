@@ -558,7 +558,7 @@ export type CoordinatorStreamEvent =
       open_revision_proposals?: boolean;
       scheme_count?: number;
     }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string; retryable?: boolean; project?: Project };
 
 function parseSseBlock(block: string): CoordinatorStreamEvent | null {
   let event = "message";
@@ -589,7 +589,14 @@ function parseSseBlock(block: string): CoordinatorStreamEvent | null {
       scheme_count: typeof payload.scheme_count === "number" ? payload.scheme_count : undefined
     };
   }
-  if (event === "error") return { type: "error", message: String(payload.message ?? "Stream failed") };
+  if (event === "error") {
+    return {
+      type: "error",
+      message: String(payload.message ?? "Stream failed"),
+      retryable: Boolean(payload.retryable),
+      project: payload.project ? normalizeProject(payload.project as Project) ?? undefined : undefined
+    };
+  }
   return null;
 }
 

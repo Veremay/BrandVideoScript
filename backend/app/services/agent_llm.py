@@ -4,6 +4,7 @@ import json
 from typing import Any, Callable
 
 from app.services.llm_client import LLMClient
+from app.services.llm_errors import LLMInvocationError
 from app.services.pipeline_log import log_llm_mock, log_step
 from app.services.prompt_loader import load_prompt, render_prompt
 
@@ -56,17 +57,9 @@ async def invoke_agent_json(
         except Exception as exc:
             log_llm_mock(
                 task_type,
-                reason=f"LLM failed, using mock: {type(exc).__name__}: {exc!r}",
+                reason=f"LLM failed, raising error: {type(exc).__name__}: {exc!r}",
             )
-            result = mock_payload()
-            log_step(
-                f"agent_llm.{agent_prompt_file}",
-                phase="OUT",
-                task_type=task_type,
-                source="mock_fallback",
-                payload=result,
-            )
-            return result
+            raise LLMInvocationError(task_type=task_type, cause=exc) from exc
 
     log_llm_mock(task_type, reason="no API key")
     result = mock_payload()
