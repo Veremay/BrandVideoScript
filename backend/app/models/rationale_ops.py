@@ -42,6 +42,17 @@ STATUS_VALUES = {
 # Positions to be considered structurally complete by agent-generated nodes.
 # User-created Issues are exempt from this check and may start empty.
 MIN_ISSUE_POSITIONS = 1
+MAX_CONSIDERATION_QUEUE_SIZE = 3
+
+
+def count_consideration_positions(project: dict[str, Any]) -> int:
+    queue = set(project.get("consideration_queue") or [])
+    return sum(
+        1
+        for node in project.get("rationale_nodes", [])
+        if node.get("node_type") == "position"
+        and (node.get("in_consideration_queue") or node.get("node_id") in queue)
+    )
 
 
 def build_rationale_node(

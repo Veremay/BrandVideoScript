@@ -7,10 +7,12 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.models.artifact_stale import stale_set_fields
 from app.models.choice_history import record_considered_position
 from app.models.rationale_ops import (
+    MAX_CONSIDERATION_QUEUE_SIZE,
     build_rationale_edge,
     build_rationale_node,
     collect_issue_delete_cascade,
     collect_position_delete_cascade,
+    count_consideration_positions,
     drop_agent_issues_without_positions,
     validate_ibis_edge,
     validate_ibis_graph_integrity,
@@ -283,6 +285,10 @@ async def toggle_consideration_queue(
 
     queue = list(project.get("consideration_queue", []))
     if in_queue and node_id not in queue:
+        if count_consideration_positions(project) >= MAX_CONSIDERATION_QUEUE_SIZE:
+            raise ValueError(
+                f"TO BE CONSIDERED list can hold at most {MAX_CONSIDERATION_QUEUE_SIZE} positions"
+            )
         queue.append(node_id)
     if not in_queue and node_id in queue:
         queue.remove(node_id)

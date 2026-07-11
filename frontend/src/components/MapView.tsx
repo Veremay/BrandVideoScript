@@ -236,6 +236,8 @@ const NODE_DEFAULTS: Record<MapNodeType, Pick<IbisNodeData, "title" | "content" 
   }
 };
 
+const MAX_CONSIDERATION_QUEUE_SIZE = 3;
+
 const MapGraphActionsContext = createContext<{
   editingNodeId: string | null;
   onStartEdit: (nodeId: string) => void;
@@ -245,6 +247,7 @@ const MapGraphActionsContext = createContext<{
   onToggleConsideration: (nodeId: string, inQueue: boolean) => void;
   onPopulateIssue: (nodeId: string) => void;
   populatingIssueId: string | null;
+  considerationQueueFull: boolean;
 } | null>(null);
 
 const nodeTypes: NodeTypes = {
@@ -611,6 +614,17 @@ function MapViewContent() {
   const handleToggleConsideration = useCallback(
     async (nodeId: string, inQueue: boolean) => {
       if (!project) return;
+      const alreadyInQueue = considerationPositions.some((node) => node.node_id === nodeId);
+      if (
+        inQueue &&
+        !alreadyInQueue &&
+        considerationPositions.length >= MAX_CONSIDERATION_QUEUE_SIZE
+      ) {
+        window.alert(
+          `TO BE CONSIDERED can hold at most ${MAX_CONSIDERATION_QUEUE_SIZE} positions. Remove one before adding another.`
+        );
+        return;
+      }
       try {
         const updated = await toggleGraphConsiderationQueue(project._id, project.user_id, nodeId, inQueue);
         setProject(updated);
@@ -618,7 +632,7 @@ function MapViewContent() {
         window.alert(error instanceof Error ? error.message : "Failed to update consideration queue");
       }
     },
-    [project, setProject]
+    [considerationPositions, project, setProject]
   );
 
   const handlePopulateIssue = useCallback(
@@ -817,9 +831,11 @@ function MapViewContent() {
       onDelete: handleDeleteNode,
       onToggleConsideration: handleToggleConsideration,
       onPopulateIssue: handlePopulateIssue,
-      populatingIssueId
+      populatingIssueId,
+      considerationQueueFull: considerationPositions.length >= MAX_CONSIDERATION_QUEUE_SIZE
     }),
     [
+      considerationPositions.length,
       editingNodeId,
       handleCancelEdit,
       handleDeleteNode,
@@ -1042,7 +1058,9 @@ function MapViewContent() {
       <aside className="map-overlay-right" aria-label="To be considered">
         <div className="map-consideration-panel">
           <h2 className="map-legend-title">TO BE CONSIDERED</h2>
-          <p className="map-consideration-hint">Positions you adopt for the next script revision.</p>
+          <p className="map-consideration-hint">
+            Positions you adopt for the next script revision (up to {MAX_CONSIDERATION_QUEUE_SIZE}).
+          </p>
           {considerationPositions.length === 0 && staleConsiderationIds.length === 0 ? (
             <p className="map-consideration-empty">Mark Position nodes from the node menu.</p>
           ) : (
@@ -1267,14 +1285,24 @@ function IbisNode({ data, id }: NodeProps) {
                 {nodeData.nodeType === "position" ? (
                   <button
                     className="map-node-dropdown-item"
+                    disabled={!nodeData.inConsiderationQueue && actions?.considerationQueueFull}
                     onClick={() => {
                       setMenuOpen(false);
                       actions?.onToggleConsideration(id, !nodeData.inConsiderationQueue);
                     }}
                     role="menuitem"
+                    title={
+                      !nodeData.inConsiderationQueue && actions?.considerationQueueFull
+                        ? `TO BE CONSIDERED is full (max ${MAX_CONSIDERATION_QUEUE_SIZE})`
+                        : undefined
+                    }
                     type="button"
                   >
-                    {nodeData.inConsiderationQueue ? "Remove from consideration" : "Add to consideration"}
+                    {nodeData.inConsiderationQueue
+                      ? "Remove from consideration"
+                      : actions?.considerationQueueFull
+                        ? "Add to consideration (list full)"
+                        : "Add to consideration"}
                   </button>
                 ) : null}
                 <button

@@ -4,10 +4,12 @@ from unittest.mock import AsyncMock, patch
 from pydantic import ValidationError
 
 from app.models.rationale_ops import (
+    MAX_CONSIDERATION_QUEUE_SIZE,
     apply_reconcile,
     build_rationale_edge,
     build_rationale_node,
     collect_issue_delete_cascade,
+    count_consideration_positions,
     drop_agent_issues_without_positions,
     merge_proposed_graph,
     resolve_issue,
@@ -765,6 +767,22 @@ class MapUpdateDecisionIssueTest(unittest.IsolatedAsyncioTestCase):
             {edge["from_node_id"] for edge in responds},
             {brand_position["node_id"], audience_position["node_id"], expert_position["node_id"]},
         )
+
+
+class ConsiderationQueueLimitTest(unittest.TestCase):
+    def test_count_consideration_positions(self) -> None:
+        in_queue = _node("position")
+        in_queue["in_consideration_queue"] = True
+        queued = _node("position")
+        ignored = _node("position")
+        project = {
+            "consideration_queue": [queued["node_id"]],
+            "rationale_nodes": [in_queue, queued, ignored],
+        }
+        self.assertEqual(count_consideration_positions(project), 2)
+
+    def test_max_consideration_queue_size_is_three(self) -> None:
+        self.assertEqual(MAX_CONSIDERATION_QUEUE_SIZE, 3)
 
 
 if __name__ == "__main__":
