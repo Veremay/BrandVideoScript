@@ -156,6 +156,15 @@ def remove_brand_insight_from_list(insights: list[dict], insight_id: str) -> lis
     return updated
 
 
+def filter_insights_preserve_user_and_feedback(insights: list[dict]) -> list[dict]:
+    """On Brief re-upload, drop agent-generated requirements; keep user items and brand_feedback."""
+    return [
+        insight
+        for insight in insights
+        if insight.get("created_by") == "user" or insight.get("category") == "brand_feedback"
+    ]
+
+
 def _validate_brand_insight_values(*, category: str, confidence: str, status: str) -> None:
     if category not in BRAND_INSIGHT_CATEGORIES:
         raise ValueError("Invalid brand insight category")
@@ -465,10 +474,22 @@ async def update_brief(
     filename: str | None,
     text: str,
 ) -> dict | None:
+    project = await get_project(db, project_id, user_id)
+    if project is None:
+        return None
+
     brief = build_brief(filename=filename, text=text)
+    kept_insights = filter_insights_preserve_user_and_feedback(project.get("brand_insights", []))
     await db.projects.update_one(
         {"_id": project_id, "user_id": user_id},
-        {"$set": {"brief": brief, "updated_at": now_iso(), **stale_set_fields(mark_brief_changed())}},
+        {
+            "$set": {
+                "brief": brief,
+                "brand_insights": kept_insights,
+                "updated_at": now_iso(),
+                **stale_set_fields(mark_brief_changed()),
+            }
+        },
     )
     return await get_project(db, project_id, user_id)
 

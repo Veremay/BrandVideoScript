@@ -98,6 +98,7 @@ class BrandOpsTest(unittest.TestCase):
         self.assertEqual(len(kept), 2)
         self.assertEqual({i["title"] for i in kept}, {"User", "PR"})
 
+    def test_remove_brand_insight_from_list_deletes_matching_item(self):
         first = build_brand_insight(
             category="brand_feedback",
             title="PR feedback",
