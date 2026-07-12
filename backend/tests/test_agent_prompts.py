@@ -3,6 +3,22 @@ from pathlib import Path
 from app.services.agents import audience_agent, brand_agent
 
 
+def test_brand_prompts_use_5w1h_without_forcing_questionnaire_output() -> None:
+    phase1_text = brand_agent._PHASE1_TASK_INSTRUCTIONS
+    phase2_text = brand_agent._PHASE2_TASK_INSTRUCTIONS
+
+    for dimension in ("Who", "What", "Why", "When", "Where", "How"):
+        assert f"**{dimension}**" in phase1_text
+
+    assert "不要为了填满 5W1H 补造信息" in phase1_text
+    assert "explicit_requirement" in phase1_text
+    assert "implicit_requirement" in phase1_text
+    assert "不要输出 5W1H 问答过程" in phase1_text
+    assert "5W1H 立场完整性检查" in phase2_text
+    assert "不要求每个立场机械覆盖全部六项" in phase2_text
+    assert "5W1H 仅用于内部检查" in phase2_text
+
+
 def test_map_update_prompts_require_perspective_tension() -> None:
     brand_text = brand_agent._PHASE2_TASK_INSTRUCTIONS
     audience_text = audience_agent._DEFAULT_TASK_INSTRUCTIONS
