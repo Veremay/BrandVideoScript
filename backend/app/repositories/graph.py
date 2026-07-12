@@ -20,6 +20,7 @@ from app.models.rationale_ops import (
 from app.models.script import now_iso
 from app.repositories.projects import get_project
 from app.repositories.script_snapshots import snapshot_before_map_update
+from app.services.audit_log import edge_slice, node_slice, nodes_slice, record_mutation, script_slice
 
 
 def _build_carrier_issue_for_position(project_id: str, position: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -83,6 +84,18 @@ async def create_graph_node(
         nodes.append(issue)
         edges.append(edge)
     await _write_graph(db, project_id, user_id, nodes=nodes, edges=edges)
+    created_nodes = [node]
+    if node_type == "position":
+        created_nodes.append(issue)
+    await record_mutation(
+        db,
+        action="graph.node.create",
+        user_id=user_id,
+        project_id=project_id,
+        before={"nodes": []},
+        after={"nodes": nodes_slice(created_nodes)},
+        meta={"node_type": node_type},
+    )
     return node
 
 
@@ -99,11 +112,13 @@ async def update_graph_node(
 
     nodes = project.get("rationale_nodes", [])
     updated: dict[str, Any] | None = None
+    before_node: dict[str, Any] | None = None
     next_nodes: list[dict] = []
     for node in nodes:
         if node.get("node_id") != node_id:
             next_nodes.append(node)
             continue
+        before_node = node
         updated = {**node, **changes, "updated_by": "user", "updated_at": now_iso()}
         next_nodes.append(updated)
 
@@ -111,6 +126,15 @@ async def update_graph_node(
         raise ValueError("Node not found")
 
     await _write_graph(db, project_id, user_id, nodes=next_nodes, edges=project.get("rationale_edges", []))
+    await record_mutation(
+        db,
+        action="graph.node.update",
+        user_id=user_id,
+        project_id=project_id,
+        before={"node": node_slice(before_node)},
+        after={"node": node_slice(updated)},
+        meta={"node_id": node_id},
+    )
     return updated
 
 
@@ -167,6 +191,7 @@ async def delete_graph_node(
                 require_linked_for=lambda _node: True,
             )
     queue = [item for item in project.get("consideration_queue", []) if item not in cascade_ids]
+    deleted_nodes = [nodes_by_id[node_id] for node_id in cascade_ids if node_id in nodes_by_id]
     await _write_graph(
         db,
         project_id,
@@ -174,6 +199,15 @@ async def delete_graph_node(
         nodes=nodes,
         edges=edges,
         consideration_queue=queue,
+    )
+    await record_mutation(
+        db,
+        action="graph.node.delete",
+        user_id=user_id,
+        project_id=project_id,
+        before={"nodes": nodes_slice(deleted_nodes)},
+        after={"nodes": []},
+        meta={"deleted_node_ids": sorted(cascade_ids)},
     )
     return await get_project(db, project_id, user_id)
 
@@ -207,6 +241,14 @@ async def create_graph_edge(
     )
     edges = [*project.get("rationale_edges", []), edge]
     await _write_graph(db, project_id, user_id, nodes=project.get("rationale_nodes", []), edges=edges)
+    await record_mutation(
+        db,
+        action="graph.edge.create",
+        user_id=user_id,
+        project_id=project_id,
+        before={"edge": None},
+        after={"edge": edge_slice(edge)},
+    )
     return edge
 
 
@@ -249,6 +291,15 @@ async def delete_graph_edge(
             # arguments. Agent-generated graph merges still enforce completeness.
             pass
     await _write_graph(db, project_id, user_id, nodes=nodes, edges=edges)
+    await record_mutation(
+        db,
+        action="graph.edge.delete",
+        user_id=user_id,
+        project_id=project_id,
+        before={"edge": edge_slice(removed)},
+        after={"edge": None},
+        meta={"edge_id": edge_id},
+    )
     return await get_project(db, project_id, user_id)
 
 
@@ -321,6 +372,16 @@ async def toggle_consideration_queue(
         consideration_queue=queue,
         choice_history=record_considered_position(project.get("choice_history"), node) if in_queue else None,
     )
+    updated_node = next((item for item in nodes if item.get("node_id") == node_id), None)
+    await record_mutation(
+        db,
+        action="graph.consideration_queue.update",
+        user_id=user_id,
+        project_id=project_id,
+        before={"node": node_slice(node), "in_queue": node_id in project.get("consideration_queue", [])},
+        after={"node": node_slice(updated_node), "in_queue": in_queue},
+        meta={"node_id": node_id},
+    )
     return await get_project(db, project_id, user_id)
 
 
@@ -362,6 +423,8 @@ async def toggle_communication_support(
     nodes = list(project.get("rationale_nodes") or [])
     queue = list(project.get("communication_support_queue") or [])
     existing = _find_feedback_node(nodes, row_id)
+    before_script = script_slice(script)
+    before_node = node_slice(existing)
 
     if in_list:
         feedback_text = _feedback_cell_value(script, row_id, column_id)
@@ -400,6 +463,26 @@ async def toggle_communication_support(
             }
         },
     )
+    after_node = node_slice(_find_feedback_node(nodes, row_id))
+    feedback_value = _feedback_cell_value(script, row_id, column_id)
+    await record_mutation(
+        db,
+        action="communication_support.update",
+        user_id=user_id,
+        project_id=project_id,
+        before={
+            "script": before_script,
+            "node": before_node,
+            "in_list": row_id in list(project.get("communication_support_queue") or []),
+        },
+        after={
+            "script": script_slice(script),
+            "node": after_node,
+            "in_list": in_list,
+            "feedback_value": feedback_value,
+        },
+        meta={"row_id": row_id, "column_id": column_id},
+    )
     return await get_project(db, project_id, user_id)
 
 
@@ -421,6 +504,11 @@ async def batch_update_graph_layouts(
         await snapshot_before_map_update(db, project_id, user_id)
 
     layout_by_id = {node_id: layout for node_id, layout in layouts.items() if node_id}
+    before_nodes = [
+        node_slice(node)
+        for node in project.get("rationale_nodes", [])
+        if node.get("node_id") in layout_by_id
+    ]
     next_nodes: list[dict] = []
     for node in project.get("rationale_nodes", []):
         node_id = node.get("node_id")
@@ -444,6 +532,20 @@ async def batch_update_graph_layouts(
         nodes=next_nodes,
         edges=project.get("rationale_edges", []),
         snapshot_before=False,
+    )
+    after_nodes = [
+        node_slice(node)
+        for node in next_nodes
+        if node.get("node_id") in layout_by_id
+    ]
+    await record_mutation(
+        db,
+        action="graph.layout.batch_update",
+        user_id=user_id,
+        project_id=project_id,
+        before={"nodes": before_nodes},
+        after={"nodes": after_nodes},
+        meta={"node_ids": sorted(layout_by_id.keys())},
     )
     return await get_project(db, project_id, user_id)
 

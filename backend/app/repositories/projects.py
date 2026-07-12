@@ -21,6 +21,14 @@ from app.models.script_ops import (
     update_cell,
 )
 from app.models.script_validate import normalize_script, validate_script
+from app.services.audit_log import (
+    brand_insight_slice,
+    brief_slice,
+    persona_slice,
+    project_summary_slice,
+    record_mutation,
+    script_slice,
+)
 
 VIDEO_CATEGORIES = frozenset({"lifestyle"})
 
@@ -370,15 +378,39 @@ async def update_project(
     *,
     title: str | None = None,
 ) -> dict | None:
+    project = await get_project(db, project_id, user_id)
+    if project is None:
+        return None
     update: dict = {"updated_at": now_iso()}
     if title is not None:
         update["title"] = title
     await db.projects.update_one({"_id": project_id, "user_id": user_id}, {"$set": update})
+    if title is not None:
+        await record_mutation(
+            db,
+            action="project.update",
+            user_id=user_id,
+            project_id=project_id,
+            before={"title": project.get("title")},
+            after={"title": title},
+        )
     return await get_project(db, project_id, user_id)
 
 
 async def delete_project(db: AsyncIOMotorDatabase, project_id: str, user_id: str) -> bool:
+    project = await get_project(db, project_id, user_id)
+    if project is None:
+        return False
     result = await db.projects.delete_one({"_id": project_id, "user_id": user_id})
+    if result.deleted_count == 1:
+        await record_mutation(
+            db,
+            action="project.delete",
+            user_id=user_id,
+            project_id=project_id,
+            before={"project": project_summary_slice(project)},
+            after={"project": None},
+        )
     return result.deleted_count == 1
 
 
@@ -388,7 +420,7 @@ async def patch_script(
     user_id: str,
     script: dict,
 ) -> dict | None:
-    return await _write_script(db, project_id, user_id, script)
+    return await _write_script(db, project_id, user_id, script, audit_action="script.save")
 
 
 async def patch_script_cell(
@@ -402,7 +434,14 @@ async def patch_script_cell(
     project = await get_project(db, project_id, user_id)
     if project is None:
         return None
-    return await _write_script(db, project_id, user_id, update_cell(project["current_script"], row_id, column_id, value))
+    return await _write_script(
+        db,
+        project_id,
+        user_id,
+        update_cell(project["current_script"], row_id, column_id, value),
+        audit_action="script.cell.update",
+        audit_meta={"row_id": row_id, "column_id": column_id},
+    )
 
 
 async def create_script_row(
@@ -414,14 +453,28 @@ async def create_script_row(
     project = await get_project(db, project_id, user_id)
     if project is None:
         return None
-    return await _write_script(db, project_id, user_id, add_row(project["current_script"], after_row_id))
+    return await _write_script(
+        db,
+        project_id,
+        user_id,
+        add_row(project["current_script"], after_row_id),
+        audit_action="script.row.create",
+        audit_meta={"after_row_id": after_row_id},
+    )
 
 
 async def remove_script_row(db: AsyncIOMotorDatabase, project_id: str, user_id: str, row_id: str) -> dict | None:
     project = await get_project(db, project_id, user_id)
     if project is None:
         return None
-    return await _write_script(db, project_id, user_id, delete_row(project["current_script"], row_id))
+    return await _write_script(
+        db,
+        project_id,
+        user_id,
+        delete_row(project["current_script"], row_id),
+        audit_action="script.row.delete",
+        audit_meta={"row_id": row_id},
+    )
 
 
 async def create_script_column(
@@ -443,7 +496,14 @@ async def create_script_column(
         column_type=column_type,
         multiline=multiline,
     )
-    return await _write_script(db, project_id, user_id, script)
+    return await _write_script(
+        db,
+        project_id,
+        user_id,
+        script,
+        audit_action="script.column.create",
+        audit_meta={"label": label, "column_type": column_type},
+    )
 
 
 async def update_script_column(
@@ -456,14 +516,28 @@ async def update_script_column(
     project = await get_project(db, project_id, user_id)
     if project is None:
         return None
-    return await _write_script(db, project_id, user_id, rename_column(project["current_script"], column_id, label))
+    return await _write_script(
+        db,
+        project_id,
+        user_id,
+        rename_column(project["current_script"], column_id, label),
+        audit_action="script.column.rename",
+        audit_meta={"column_id": column_id, "label": label},
+    )
 
 
 async def remove_script_column(db: AsyncIOMotorDatabase, project_id: str, user_id: str, column_id: str) -> dict | None:
     project = await get_project(db, project_id, user_id)
     if project is None:
         return None
-    return await _write_script(db, project_id, user_id, delete_column(project["current_script"], column_id))
+    return await _write_script(
+        db,
+        project_id,
+        user_id,
+        delete_column(project["current_script"], column_id),
+        audit_action="script.column.delete",
+        audit_meta={"column_id": column_id},
+    )
 
 
 async def update_brief(
@@ -480,6 +554,7 @@ async def update_brief(
 
     brief = build_brief(filename=filename, text=text)
     kept_insights = filter_insights_preserve_user_and_feedback(project.get("brand_insights", []))
+    before_brief = brief_slice(project.get("brief"))
     await db.projects.update_one(
         {"_id": project_id, "user_id": user_id},
         {
@@ -490,6 +565,14 @@ async def update_brief(
                 **stale_set_fields(mark_brief_changed()),
             }
         },
+    )
+    await record_mutation(
+        db,
+        action="brief.update",
+        user_id=user_id,
+        project_id=project_id,
+        before={"brief": before_brief},
+        after={"brief": brief_slice(brief)},
     )
     return await get_project(db, project_id, user_id)
 
@@ -523,7 +606,15 @@ async def create_brand_insight(
         created_by=created_by,
     )
     insights = [*project.get("brand_insights", []), insight]
-    return await _write_brand_insights(db, project_id, user_id, insights)
+    return await _write_brand_insights(
+        db,
+        project_id,
+        user_id,
+        insights,
+        audit_action="brand_insight.create",
+        audit_before={"insight": None},
+        audit_after={"insight": brand_insight_slice(insight)},
+    )
 
 
 async def update_brand_insight(
@@ -536,8 +627,22 @@ async def update_brand_insight(
     project = await get_project(db, project_id, user_id)
     if project is None:
         return None
+    existing = next(
+        (item for item in project.get("brand_insights", []) if item.get("insight_id") == insight_id),
+        None,
+    )
     insights = update_brand_insight_in_list(project.get("brand_insights", []), insight_id, changes)
-    return await _write_brand_insights(db, project_id, user_id, insights)
+    updated = next((item for item in insights if item.get("insight_id") == insight_id), None)
+    return await _write_brand_insights(
+        db,
+        project_id,
+        user_id,
+        insights,
+        audit_action="brand_insight.update",
+        audit_before={"insight": brand_insight_slice(existing)},
+        audit_after={"insight": brand_insight_slice(updated)},
+        audit_meta={"insight_id": insight_id},
+    )
 
 
 async def delete_brand_insight(
@@ -549,8 +654,21 @@ async def delete_brand_insight(
     project = await get_project(db, project_id, user_id)
     if project is None:
         return None
+    existing = next(
+        (item for item in project.get("brand_insights", []) if item.get("insight_id") == insight_id),
+        None,
+    )
     insights = remove_brand_insight_from_list(project.get("brand_insights", []), insight_id)
-    return await _write_brand_insights(db, project_id, user_id, insights)
+    return await _write_brand_insights(
+        db,
+        project_id,
+        user_id,
+        insights,
+        audit_action="brand_insight.delete",
+        audit_before={"insight": brand_insight_slice(existing)},
+        audit_after={"insight": None},
+        audit_meta={"insight_id": insight_id},
+    )
 
 
 async def create_persona(
@@ -579,7 +697,16 @@ async def create_persona(
     )
     personas = [*project.get("personas", []), persona]
     active_id = project.get("active_persona_id") or persona["persona_id"]
-    return await _write_personas(db, project_id, user_id, personas=personas, active_persona_id=active_id)
+    return await _write_personas(
+        db,
+        project_id,
+        user_id,
+        personas=personas,
+        active_persona_id=active_id,
+        audit_action="persona.create",
+        audit_before={"persona": None},
+        audit_after={"persona": persona_slice(persona)},
+    )
 
 
 async def update_persona(
@@ -592,8 +719,20 @@ async def update_persona(
     project = await get_project(db, project_id, user_id)
     if project is None:
         return None
+    existing = next((item for item in project.get("personas", []) if item.get("persona_id") == persona_id), None)
     personas = update_persona_in_list(project.get("personas", []), persona_id, changes)
-    return await _write_personas(db, project_id, user_id, personas=personas, active_persona_id=project.get("active_persona_id"))
+    updated = next((item for item in personas if item.get("persona_id") == persona_id), None)
+    return await _write_personas(
+        db,
+        project_id,
+        user_id,
+        personas=personas,
+        active_persona_id=project.get("active_persona_id"),
+        audit_action="persona.update",
+        audit_before={"persona": persona_slice(existing)},
+        audit_after={"persona": persona_slice(updated)},
+        audit_meta={"persona_id": persona_id},
+    )
 
 
 async def delete_persona(
@@ -605,13 +744,24 @@ async def delete_persona(
     project = await get_project(db, project_id, user_id)
     if project is None:
         return None
+    existing = next((item for item in project.get("personas", []) if item.get("persona_id") == persona_id), None)
     personas = remove_persona_from_list(project.get("personas", []), persona_id)
 
     active_id = project.get("active_persona_id")
     if active_id == persona_id:
         active_id = personas[0]["persona_id"] if personas else None
 
-    return await _write_personas(db, project_id, user_id, personas=personas, active_persona_id=active_id)
+    return await _write_personas(
+        db,
+        project_id,
+        user_id,
+        personas=personas,
+        active_persona_id=active_id,
+        audit_action="persona.delete",
+        audit_before={"persona": persona_slice(existing)},
+        audit_after={"persona": None},
+        audit_meta={"persona_id": persona_id},
+    )
 
 
 async def set_active_persona(
@@ -628,7 +778,16 @@ async def set_active_persona(
     if persona_id is not None and not any(p.get("persona_id") == persona_id for p in personas):
         raise ValueError("Persona not found")
 
-    return await _write_personas(db, project_id, user_id, personas=personas, active_persona_id=persona_id)
+    return await _write_personas(
+        db,
+        project_id,
+        user_id,
+        personas=personas,
+        active_persona_id=persona_id,
+        audit_action="persona.set_active",
+        audit_before={"active_persona_id": project.get("active_persona_id")},
+        audit_after={"active_persona_id": persona_id},
+    )
 
 
 async def _write_personas(
@@ -638,6 +797,10 @@ async def _write_personas(
     *,
     personas: list[dict],
     active_persona_id: str | None,
+    audit_action: str | None = None,
+    audit_before: dict | None = None,
+    audit_after: dict | None = None,
+    audit_meta: dict | None = None,
 ) -> dict | None:
     await db.projects.update_one(
         {"_id": project_id, "user_id": user_id},
@@ -650,6 +813,16 @@ async def _write_personas(
             }
         },
     )
+    if audit_action:
+        await record_mutation(
+            db,
+            action=audit_action,
+            user_id=user_id,
+            project_id=project_id,
+            before=audit_before,
+            after=audit_after,
+            meta=audit_meta,
+        )
     return await get_project(db, project_id, user_id)
 
 
@@ -780,10 +953,32 @@ async def update_brand_requirements(
         existing_by_id=existing_by_id,
     )
     merged_insights = [*requirement_insights, *preserved]
-    return await _write_brand_insights(db, project_id, user_id, merged_insights)
+    before_insights = [brand_insight_slice(item) for item in existing if isinstance(item, dict)]
+    result = await _write_brand_insights(db, project_id, user_id, merged_insights)
+    if result is not None:
+        after_insights = [brand_insight_slice(item) for item in merged_insights if isinstance(item, dict)]
+        await record_mutation(
+            db,
+            action="brand_requirements.update",
+            user_id=user_id,
+            project_id=project_id,
+            before={"brand_insights": before_insights},
+            after={"brand_insights": after_insights},
+        )
+    return result
 
 
-async def _write_brand_insights(db: AsyncIOMotorDatabase, project_id: str, user_id: str, insights: list[dict]) -> dict | None:
+async def _write_brand_insights(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    insights: list[dict],
+    *,
+    audit_action: str | None = None,
+    audit_before: dict | None = None,
+    audit_after: dict | None = None,
+    audit_meta: dict | None = None,
+) -> dict | None:
     await db.projects.update_one(
         {"_id": project_id, "user_id": user_id},
         {
@@ -794,6 +989,16 @@ async def _write_brand_insights(db: AsyncIOMotorDatabase, project_id: str, user_
             }
         },
     )
+    if audit_action:
+        await record_mutation(
+            db,
+            action=audit_action,
+            user_id=user_id,
+            project_id=project_id,
+            before=audit_before,
+            after=audit_after,
+            meta=audit_meta,
+        )
     return await get_project(db, project_id, user_id)
 
 
@@ -804,12 +1009,23 @@ async def get_project_by_id(db: AsyncIOMotorDatabase, project_id: str) -> dict |
     return serialize_project(document)
 
 
-async def _write_script(db: AsyncIOMotorDatabase, project_id: str, user_id: str, script: dict) -> dict | None:
+async def _write_script(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    script: dict,
+    *,
+    audit_action: str,
+    audit_meta: dict | None = None,
+) -> dict | None:
     from app.repositories.script_snapshots import create_script_snapshot
 
     project = await get_project(db, project_id, user_id)
-    if project is not None:
-        script = preserve_brand_feedback_cells(script, project["current_script"])
+    if project is None:
+        return None
+
+    before_script = script_slice(project["current_script"])
+    script = preserve_brand_feedback_cells(script, project["current_script"])
 
     normalized = normalize_script(script)
     validate_script(normalized)
@@ -830,5 +1046,14 @@ async def _write_script(db: AsyncIOMotorDatabase, project_id: str, user_id: str,
         user_id,
         reason="auto_save",
         script=normalized,
+    )
+    await record_mutation(
+        db,
+        action=audit_action,
+        user_id=user_id,
+        project_id=project_id,
+        before={"script": before_script},
+        after={"script": script_slice(normalized)},
+        meta=audit_meta,
     )
     return await get_project(db, project_id, user_id)

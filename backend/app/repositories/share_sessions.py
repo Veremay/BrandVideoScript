@@ -8,6 +8,7 @@ from app.models.script import now_iso
 from app.models.script_ops import update_brand_feedback_cell
 from app.models.script_validate import normalize_script, validate_script
 from app.repositories.projects import get_project, get_project_by_id
+from app.services.audit_log import record_mutation, script_slice
 
 SHARE_TOKEN_BYTES = 32
 DEFAULT_SHARE_TTL_DAYS = 90
@@ -87,6 +88,7 @@ async def patch_share_feedback_cell(
     if project is None:
         return None
 
+    before_script = script_slice(project["current_script"])
     try:
         updated_script = update_brand_feedback_cell(project["current_script"], row_id, column_id, value)
     except ValueError:
@@ -105,5 +107,14 @@ async def patch_share_feedback_cell(
                 **stale_set_fields(mark_brand_feedback_changed()),
             }
         },
+    )
+    await record_mutation(
+        db,
+        action="share.feedback.save",
+        user_id=session.get("user_id"),
+        project_id=session["project_id"],
+        before={"script": before_script},
+        after={"script": script_slice(normalized)},
+        meta={"share_token": share_token, "row_id": row_id, "column_id": column_id, "value": value},
     )
     return normalized

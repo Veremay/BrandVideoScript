@@ -15,14 +15,19 @@ from app.api.routes import (
     users,
 )
 from app.core.config import get_cors_origins, get_settings
-from app.db.mongo import close_mongo, connect_mongo
+from app.db.mongo import close_mongo, connect_mongo, get_database
+from app.middleware.request_logging import RequestLoggingMiddleware
+from app.repositories.activity_logs import ensure_activity_log_indexes
+from app.services.app_log import setup_app_logging
 from app.services.pipeline_log import setup_pipeline_logging
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_pipeline_logging()
+    setup_app_logging()
     await connect_mongo()
+    await ensure_activity_log_indexes(get_database())
     yield
     await close_mongo()
 
@@ -30,6 +35,7 @@ async def lifespan(app: FastAPI):
 settings = get_settings()
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
+app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_cors_origins(settings),

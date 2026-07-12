@@ -5,6 +5,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.models.script import new_id, now_iso
 from app.models.script_validate import normalize_script, validate_script
 from app.repositories.projects import get_project
+from app.services.audit_log import record_mutation, script_slice
 
 SNAPSHOT_REASONS = {
     "manual_save",
@@ -124,6 +125,7 @@ async def restore_script_snapshot(
     if snapshot is None:
         raise ValueError("Snapshot not found")
 
+    before_script = script_slice(project["current_script"])
     restored_script = normalize_script(snapshot["script"])
     validate_script(restored_script)
     restored_script["updated_at"] = now_iso()
@@ -140,5 +142,14 @@ async def restore_script_snapshot(
                 **stale_set_fields(mark_script_changed()),
             }
         },
+    )
+    await record_mutation(
+        db,
+        action="script.snapshot.restore",
+        user_id=user_id,
+        project_id=project_id,
+        before={"script": before_script},
+        after={"script": script_slice(restored_script)},
+        meta={"snapshot_id": snapshot_id, "reason": snapshot.get("reason")},
     )
     return await get_project(db, project_id, user_id)
