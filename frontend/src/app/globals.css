@@ -6364,8 +6364,8 @@ button.editor-row-link-mark:focus-visible {
 .comm-dispute {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px;
+  gap: 8px;
+  padding: 14px;
   border: 1px solid var(--figma-border);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.6);
@@ -6397,6 +6397,141 @@ button.editor-row-link-mark:focus-visible {
 
 .comm-dispute-line {
   color: #b91c1c;
+}
+
+/* ---- Streamlined communication plan: reply-focused layout ---- */
+.comm-plan-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.comm-copy-all-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border: 1px solid var(--figma-border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--figma-text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.comm-copy-all-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+.comm-copy-all-btn:hover {
+  border-color: var(--figma-primary);
+  color: var(--figma-primary);
+  background: rgba(0, 101, 145, 0.05);
+}
+
+.comm-dispute-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.comm-dispute-index {
+  flex-shrink: 0;
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--figma-primary);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.comm-dispute-feedback-label {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--figma-text-secondary);
+  line-height: 1.4;
+}
+
+.comm-dispute-reply-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(0, 101, 145, 0.05);
+  border: 1px solid rgba(0, 101, 145, 0.12);
+}
+
+.comm-dispute-reply-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.comm-dispute-reply-header .comm-dispute-label {
+  margin-bottom: 0;
+}
+
+.comm-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--figma-text-muted, #6b7280);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.comm-copy-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+.comm-copy-btn:hover {
+  background: rgba(0, 101, 145, 0.08);
+  color: var(--figma-primary);
+  border-color: rgba(0, 101, 145, 0.15);
+}
+
+.comm-dispute-reply-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--figma-text);
+}
+
+.comm-dispute-fallback {
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(180, 83, 9, 0.06);
+  border: 1px solid rgba(180, 83, 9, 0.12);
+  font-size: 12px;
+  line-height: 1.45;
+  color: #92400e;
+}
+
+.comm-dispute-fallback .comm-dispute-label {
+  color: #b45309;
+}
+
+.comm-dispute-points {
+  padding: 4px 0 0;
 }
 
 .comm-footer {

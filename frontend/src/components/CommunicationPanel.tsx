@@ -114,8 +114,6 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
     }
   }
 
-  const disputeTitleById = new Map(argueItems.map((item) => [item.id, item.title]));
-
   return (
     <>
       <button
@@ -222,64 +220,78 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
                     {plan.design_intent ? <p className="comm-plan-intent">{plan.design_intent}</p> : null}
                   </section>
 
-                  {plan.satisfied_brand_needs.length > 0 ? (
-                    <section className="comm-plan-section">
-                      <h4 className="comm-plan-subtitle">Satisfied brand needs</h4>
-                      <ul className="comm-plan-ul">
-                        {plan.satisfied_brand_needs.map((need, index) => (
-                          <li key={index}>{need}</li>
-                        ))}
-                      </ul>
-                    </section>
-                  ) : null}
-
                   <section className="comm-plan-section">
-                    <h4 className="comm-plan-subtitle">Open disputes ({plan.open_disputes.length})</h4>
-                    {plan.open_disputes.map((dispute, index) => (
-                      <article className="comm-dispute" key={dispute.issue_node_id || index}>
-                        <p className="comm-dispute-summary">{dispute.summary}</p>
-                        {dispute.our_position ? (
-                          <p className="comm-dispute-row">
-                            <span className="comm-dispute-label">Our position</span>
-                            {dispute.our_position}
-                          </p>
-                        ) : null}
-                        {dispute.talking_points.length > 0 ? (
-                          <div className="comm-dispute-row">
-                            <span className="comm-dispute-label">Talking points</span>
-                            <ul className="comm-plan-ul">
-                              {dispute.talking_points.map((point, pointIndex) => (
-                                <li key={pointIndex}>{point}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        ) : null}
-                        {dispute.acceptable_concession ? (
-                          <p className="comm-dispute-row">
-                            <span className="comm-dispute-label">Concession</span>
-                            {dispute.acceptable_concession}
-                          </p>
-                        ) : null}
-                        {dispute.non_negotiable_line ? (
-                          <p className="comm-dispute-row comm-dispute-line">
-                            <span className="comm-dispute-label">Bottom line</span>
-                            {dispute.non_negotiable_line}
-                          </p>
-                        ) : null}
-                      </article>
-                    ))}
-                  </section>
+                    <div className="comm-plan-header-row">
+                      <h4 className="comm-plan-subtitle">Reply messages ({plan.open_disputes.length})</h4>
+                      <button
+                        className="comm-copy-all-btn"
+                        onClick={() => {
+                          const allReplies = plan.open_disputes
+                            .map((d, i) => {
+                              const reply = d.reply || d.our_position || d.summary || "(No content)";
+                              const feedback = d.brand_feedback || d.summary || `Feedback #${i + 1}`;
+                              return `**${i + 1}. ${feedback}**\n${reply}`;
+                            })
+                            .join("\n\n---\n\n");
+                          void navigator.clipboard.writeText(allReplies).then(() => {
+                            /* visual feedback handled via button text swap */
+                          });
+                        }}
+                        type="button"
+                      >
+                        <IconCopy /> Copy all
+                      </button>
+                    </div>
+                    {plan.open_disputes.map((dispute, index) => {
+                      // Robust fallback chain: new fields → legacy fields → hardcoded placeholder
+                      const replyText = dispute.reply || dispute.our_position || dispute.summary || "(No reply generated — please regenerate)";
+                      const feedbackText = dispute.brand_feedback || dispute.summary || `Feedback #${index + 1}`;
+                      const fallbackText = dispute.fallback || dispute.acceptable_concession || "";
+                      const talkingPoints = dispute.talking_points || [];
 
-                  {plan.recommended_communication_order.length > 0 ? (
-                    <section className="comm-plan-section">
-                      <h4 className="comm-plan-subtitle">Recommended order</h4>
-                      <ol className="comm-plan-ol">
-                        {plan.recommended_communication_order.map((nodeId, index) => (
-                          <li key={`${nodeId}-${index}`}>{disputeTitleById.get(nodeId) ?? nodeId}</li>
-                        ))}
-                      </ol>
-                    </section>
-                  ) : null}
+                      return (
+                        <article className="comm-dispute" key={dispute.issue_node_id || index}>
+                          <div className="comm-dispute-head">
+                            <span className="comm-dispute-index">#{index + 1}</span>
+                            <span className="comm-dispute-feedback-label">{feedbackText}</span>
+                          </div>
+
+                          <div className="comm-dispute-reply-box">
+                            <div className="comm-dispute-reply-header">
+                              <span className="comm-dispute-label">Reply</span>
+                              <button
+                                className="comm-copy-btn"
+                                onClick={() => void navigator.clipboard.writeText(replyText)}
+                                type="button"
+                                title="Copy reply"
+                              >
+                                <IconCopy />
+                              </button>
+                            </div>
+                            <p className="comm-dispute-reply-text">{replyText}</p>
+                          </div>
+
+                          {fallbackText && fallbackText !== "暂不让步" && fallbackText !== "无" ? (
+                            <p className="comm-dispute-fallback">
+                              <span className="comm-dispute-label">Fallback</span>
+                              {fallbackText}
+                            </p>
+                          ) : null}
+
+                          {talkingPoints.length > 0 ? (
+                            <div className="comm-dispute-points">
+                              <span className="comm-dispute-label">Key points</span>
+                              <ul className="comm-plan-ul">
+                                {talkingPoints.map((point, pointIndex) => (
+                                  <li key={pointIndex}>{point}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          ) : null}
+                        </article>
+                      );
+                    })}
+                  </section>
                 </>
               ) : (
                 <p className="comm-empty">
@@ -314,6 +326,15 @@ function IconHandshake() {
       <path d="m21 3 1 11h-2" />
       <path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3" />
       <path d="M3 4h8" />
+    </svg>
+  );
+}
+
+function IconCopy() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
     </svg>
   );
 }

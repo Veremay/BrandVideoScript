@@ -1168,14 +1168,20 @@ def _mock_negotiation_preparation(
     disputes: list[dict[str, Any]] = []
     for node in support_nodes:
         refs = node.get("linked_script_refs") or []
+        content = str(node.get("content", "")).strip()
+        title = str(node.get("title", "")).strip()
         disputes.append(
             {
                 "issue_node_id": node.get("node_id", ""),
-                "summary": str(node.get("title", "")).strip() or str(node.get("content", "")).strip()[:80],
+                "brand_feedback": title or content[:80],
+                "reply": our_position[:600],
+                "fallback": "可在不破坏内容自然度的前提下，小幅强化品牌相关信息的呈现。",
+                "talking_points": (stance_points or ["从创作者与观众视角解释当前设计的合理性。"])[:4],
+                # Legacy fields for backward compatibility
+                "summary": title or content[:80],
                 "our_position": our_position[:600],
                 "acceptable_concession": "可在不破坏内容自然度的前提下，小幅强化品牌相关信息的呈现。",
                 "non_negotiable_line": "不接受会显著降低观众接受度或破坏叙事完整性的硬性植入。",
-                "talking_points": (stance_points or ["从创作者与观众视角解释当前设计的合理性。"])[:4],
                 "related_node_ids": [node.get("node_id", "")] + stance_ids,
                 "related_script_refs": [
                     {

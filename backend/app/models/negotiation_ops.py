@@ -41,16 +41,24 @@ def _normalize_script_refs(value: Any) -> list[dict[str, str]]:
 def _normalize_dispute(item: Any) -> dict[str, Any] | None:
     if not isinstance(item, dict):
         return None
-    summary = _as_str(item.get("summary"))
-    if not summary and not item.get("issue_node_id"):
+    # Support both new streamlined fields and legacy fields
+    issue_node_id = _as_str(item.get("issue_node_id"), limit=80)
+    brand_feedback = _as_str(item.get("brand_feedback")) or _as_str(item.get("summary"))
+    reply = _as_str(item.get("reply")) or _as_str(item.get("our_position"))
+    fallback = _as_str(item.get("fallback")) or _as_str(item.get("acceptable_concession"))
+    if not issue_node_id and not brand_feedback and not reply:
         return None
     return {
-        "issue_node_id": _as_str(item.get("issue_node_id"), limit=80),
-        "summary": summary,
+        "issue_node_id": issue_node_id,
+        "brand_feedback": brand_feedback,
+        "reply": reply,
+        "fallback": fallback,
+        "talking_points": _as_str_list(item.get("talking_points")),
+        # Legacy fields preserved for backward compatibility
+        "summary": _as_str(item.get("summary")),
         "our_position": _as_str(item.get("our_position")),
         "acceptable_concession": _as_str(item.get("acceptable_concession")),
         "non_negotiable_line": _as_str(item.get("non_negotiable_line")),
-        "talking_points": _as_str_list(item.get("talking_points")),
         "related_node_ids": _as_str_list(item.get("related_node_ids"), limit=40),
         "related_script_refs": _normalize_script_refs(item.get("related_script_refs")),
     }
