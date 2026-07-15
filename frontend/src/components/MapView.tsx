@@ -139,8 +139,27 @@ function applyGraphFocus(
   nodeList: Node<IbisNodeData>[],
   edgeList: Edge[],
   focusId: string | null,
-  reachable: Set<string> | null
+  reachable: Set<string> | null,
+  conflictNodeIds?: Set<string> | null
 ): { nodes: Node<IbisNodeData>[]; edges: Edge[] } {
+  // Conflict tag focus takes priority over single-node focus
+  if (conflictNodeIds && conflictNodeIds.size > 0) {
+    const nodes = nodeList.map((node) => {
+      const inGroup = conflictNodeIds.has(node.id);
+      const className = inGroup ? "map-graph-focused map-graph-conflict-highlight" : "map-graph-dimmed";
+      return { ...node, className };
+    });
+    const edges = edgeList.map((edge) => {
+      const inGroup = conflictNodeIds.has(edge.source) && conflictNodeIds.has(edge.target);
+      return {
+        ...edge,
+        className: inGroup ? "map-graph-edge-focused" : "map-graph-edge-dimmed",
+        style: inGroup ? EDGE_FOCUS_STYLE : { ...EDGE_STYLE, opacity: 0.22 }
+      };
+    });
+    return { nodes, edges };
+  }
+
   if (!focusId || !reachable) {
     return { nodes: nodeList, edges: edgeList };
   }
@@ -349,6 +368,8 @@ function MapViewContent() {
   const [edgeMenu, setEdgeMenu] = useState<EdgeMenuState | null>(null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
+  const [focusConflictTag, setFocusConflictTag] = useState<string | null>(null);
+  const [rightPanelTab, setRightPanelTab] = useState<"consider" | "conflicts">("consider");
   const [syncingMap, setSyncingMap] = useState(false);
   const [populatingIssueId, setPopulatingIssueId] = useState<string | null>(null);
   const [applyingLayout, setApplyingLayout] = useState(false);
@@ -368,12 +389,67 @@ function MapViewContent() {
     setFocusNodeId(null);
   }, []);
 
+  // Conflict groups: position nodes grouped by conflict tag
+  const conflictGroups = useMemo(() => {
+    const groups = new Map<string, { node: Node<IbisNodeData>; rationale: RationaleNode }[]>();
+    for (const flowNode of flowNodes) {
+      const tags = flowNode.data.conflictTags;
+      if (!tags || tags.length === 0) continue;
+      const rationale = nodeById.get(flowNode.id);
+      if (!rationale || rationale.lifecycle === "resolved" || rationale.lifecycle === "superseded") continue;
+      for (const tag of tags) {
+        if (!groups.has(tag)) groups.set(tag, []);
+        groups.get(tag)!.push({ node: flowNode, rationale });
+      }
+    }
+    // Sort groups alphabetically by tag
+    return new Map([...groups.entries()].sort(([a], [b]) => a.localeCompare(b)));
+  }, [flowNodes, nodeById]);
+
+  const conflictFocusNodeIds = useMemo(() => {
+    if (!focusConflictTag) return null;
+    const ids = new Set<string>();
+    const group = conflictGroups.get(focusConflictTag);
+    if (group) {
+      for (const entry of group) {
+        ids.add(entry.node.id);
+      }
+    }
+    return ids;
+  }, [conflictGroups, focusConflictTag]);
+
+  const handleConflictGroupClick = useCallback(
+    (tag: string) => {
+      if (focusConflictTag === tag) {
+        setFocusConflictTag(null);
+        return;
+      }
+      setFocusConflictTag(tag);
+      setFocusNodeId(null);
+      // Pan to fit the conflict group nodes
+      const group = conflictGroups.get(tag);
+      if (!group || group.length === 0) return;
+      const targetNodes = nodes.filter((n) => group.some((e) => e.node.id === n.id));
+      if (targetNodes.length === 0) return;
+      requestAnimationFrame(() => {
+        fitView({
+          nodes: targetNodes,
+          padding: 0.4,
+          duration: 300
+        });
+      });
+    },
+    [conflictGroups, focusConflictTag, fitView, nodes]
+  );
+
   const handlePaneClick = useCallback(() => {
     closeMenus();
     clearGraphFocus();
+    setFocusConflictTag(null);
   }, [clearGraphFocus, closeMenus]);
 
   const handleNodeClick = useCallback((_event: React.MouseEvent, node: Node<IbisNodeData>) => {
+    setFocusConflictTag(null);
     setFocusNodeId((current) => (current === node.id ? null : node.id));
   }, []);
 
@@ -385,8 +461,8 @@ function MapViewContent() {
   }, [focusNodeId, graphAdjacency]);
 
   const { nodes: displayNodes, edges: displayEdges } = useMemo(
-    () => applyGraphFocus(nodes, edges, focusNodeId, focusReachable),
-    [edges, focusNodeId, focusReachable, nodes]
+    () => applyGraphFocus(nodes, edges, focusNodeId, focusReachable, conflictFocusNodeIds),
+    [edges, focusNodeId, focusReachable, nodes, conflictFocusNodeIds]
   );
 
   const runFitView = useCallback(() => {
@@ -1055,54 +1131,128 @@ function MapViewContent() {
         </div>
       </aside>
 
-      <aside className="map-overlay-right" aria-label="To be considered">
+      <aside className="map-overlay-right" aria-label="Right panel">
         <div className="map-consideration-panel">
-          <h2 className="map-legend-title">TO BE CONSIDERED</h2>
-          <p className="map-consideration-hint">
-            Positions you adopt for the next script revision (up to {MAX_CONSIDERATION_QUEUE_SIZE}).
-          </p>
-          {considerationPositions.length === 0 && staleConsiderationIds.length === 0 ? (
-            <p className="map-consideration-empty">Mark Position nodes from the node menu.</p>
+          <div className="map-right-tabs">
+            <button
+              className={`map-right-tab ${rightPanelTab === "consider" ? "active" : ""}`}
+              onClick={() => setRightPanelTab("consider")}
+              type="button"
+            >
+              CONSIDER
+              {considerationPositions.length > 0 ? (
+                <span className="map-right-tab-badge">{considerationPositions.length}</span>
+              ) : null}
+            </button>
+            <button
+              className={`map-right-tab ${rightPanelTab === "conflicts" ? "active" : ""}`}
+              onClick={() => setRightPanelTab("conflicts")}
+              type="button"
+            >
+              CONFLICTS
+              {conflictGroups.size > 0 ? (
+                <span className="map-right-tab-badge map-right-tab-badge-conflict">{conflictGroups.size}</span>
+              ) : null}
+            </button>
+          </div>
+
+          {rightPanelTab === "consider" ? (
+            <>
+              <h2 className="map-legend-title">TO BE CONSIDERED</h2>
+              <p className="map-consideration-hint">
+                Positions you adopt for the next script revision (up to {MAX_CONSIDERATION_QUEUE_SIZE}).
+              </p>
+              {considerationPositions.length === 0 && staleConsiderationIds.length === 0 ? (
+                <p className="map-consideration-empty">Mark Position nodes from the node menu.</p>
+              ) : (
+                <ul className="map-consideration-list app-scrollbar">
+                  {considerationPositions.map((position) => (
+                    <li className="map-consideration-item" key={position.node_id}>
+                      <strong className="map-consideration-item-title">{position.title}</strong>
+                      <button
+                        aria-label={`Remove "${position.title}" from consideration`}
+                        className="requirement-delete-btn map-consideration-item-remove"
+                        onClick={() => void handleToggleConsideration(position.node_id, false)}
+                        type="button"
+                      >
+                        <IconTrash />
+                      </button>
+                    </li>
+                  ))}
+                  {staleConsiderationIds.map((id) => (
+                    <li className="map-consideration-item map-consideration-item-stale" key={id}>
+                      <span className="map-consideration-item-title">
+                        <span className="map-node-status-tag map-node-status-resolved">Stance updated / stale</span>
+                      </span>
+                      <button
+                        aria-label="Remove stale consideration entry"
+                        className="requirement-delete-btn map-consideration-item-remove"
+                        onClick={() => void handleToggleConsideration(id, false)}
+                        type="button"
+                      >
+                        <IconTrash />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <button
+                className="map-consideration-generate-btn"
+                disabled={!considerationPositions.length || generatingSchemes}
+                onClick={() => void handleGenerateModificationPlan()}
+                type="button"
+              >
+                {generatingSchemes ? "Generating…" : "Generate modification plan"}
+              </button>
+            </>
           ) : (
-            <ul className="map-consideration-list app-scrollbar">
-              {considerationPositions.map((position) => (
-                <li className="map-consideration-item" key={position.node_id}>
-                  <strong className="map-consideration-item-title">{position.title}</strong>
-                  <button
-                    aria-label={`Remove "${position.title}" from consideration`}
-                    className="requirement-delete-btn map-consideration-item-remove"
-                    onClick={() => void handleToggleConsideration(position.node_id, false)}
-                    type="button"
-                  >
-                    <IconTrash />
-                  </button>
-                </li>
-              ))}
-              {staleConsiderationIds.map((id) => (
-                <li className="map-consideration-item map-consideration-item-stale" key={id}>
-                  <span className="map-consideration-item-title">
-                    <span className="map-node-status-tag map-node-status-resolved">Stance updated / stale</span>
-                  </span>
-                  <button
-                    aria-label="Remove stale consideration entry"
-                    className="requirement-delete-btn map-consideration-item-remove"
-                    onClick={() => void handleToggleConsideration(id, false)}
-                    type="button"
-                  >
-                    <IconTrash />
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <>
+              <h2 className="map-legend-title">CONFLICTS</h2>
+              <p className="map-consideration-hint">
+                Positions with conflicting stances, grouped by Coordinator-assigned tags.
+              </p>
+              {conflictGroups.size === 0 ? (
+                <p className="map-conflict-empty">No conflicts detected. Update the map to analyze positions.</p>
+              ) : (
+                <ul className="map-conflict-list app-scrollbar">
+                  {[...conflictGroups.entries()].map(([tag, entries]) => (
+                    <li
+                      className={`map-conflict-group ${focusConflictTag === tag ? "map-conflict-group-active" : ""}`}
+                      key={tag}
+                    >
+                      <button
+                        className="map-conflict-group-header"
+                        onClick={() => handleConflictGroupClick(tag)}
+                        type="button"
+                      >
+                        <span className="map-conflict-tag" data-tag={tag}>
+                          [{tag}]
+                        </span>
+                        <span className="map-conflict-group-count">{entries.length} position{entries.length !== 1 ? "s" : ""}</span>
+                      </button>
+                      <ul className="map-conflict-group-nodes">
+                        {entries.map((entry) => (
+                          <li key={entry.node.id}>
+                            <button
+                              className={`map-conflict-node-item ${focusNodeId === entry.node.id ? "map-conflict-node-active" : ""}`}
+                              onClick={() => {
+                                setFocusConflictTag(null);
+                                setFocusNodeId(focusNodeId === entry.node.id ? null : entry.node.id);
+                              }}
+                              type="button"
+                              title={entry.rationale.content}
+                            >
+                              {entry.node.data.title}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
           )}
-          <button
-            className="map-consideration-generate-btn"
-            disabled={!considerationPositions.length || generatingSchemes}
-            onClick={() => void handleGenerateModificationPlan()}
-            type="button"
-          >
-            {generatingSchemes ? "Generating…" : "Generate modification plan"}
-          </button>
         </div>
       </aside>
       </div>

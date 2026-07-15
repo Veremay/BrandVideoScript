@@ -5451,6 +5451,180 @@ button.editor-row-link-mark:focus-visible {
   cursor: not-allowed;
 }
 
+/* ---- Tab bar inside the right overlay panel ---- */
+.map-right-tabs {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-bottom: 10px;
+  padding: 3px;
+  border-radius: 8px;
+  background: rgba(0, 101, 145, 0.06);
+}
+
+.map-right-tab {
+  position: relative;
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--figma-text-secondary);
+  font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.map-right-tab:hover {
+  color: var(--figma-text);
+}
+
+.map-right-tab.active {
+  background: #fff;
+  color: var(--figma-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.map-right-tab-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--figma-primary);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.map-right-tab-badge-conflict {
+  background: #b91c1c;
+}
+
+/* ---- Conflict list inside right panel ---- */
+.map-conflict-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 8px;
+  color: var(--figma-text-secondary);
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.map-conflict-list {
+  flex: 1;
+  min-height: 0;
+  margin: 4px 0 0;
+  overflow: auto;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.map-conflict-group {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+
+.map-conflict-group-active {
+  border-color: rgba(0, 101, 145, 0.35);
+  background: rgba(0, 101, 145, 0.04);
+}
+
+.map-conflict-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  color: var(--figma-text);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.map-conflict-group-header:hover {
+  background: rgba(0, 101, 145, 0.06);
+}
+
+.map-conflict-group-header .map-conflict-tag {
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.map-conflict-group-count {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--figma-text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.map-conflict-group-nodes {
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.map-conflict-node-item {
+  display: block;
+  width: 100%;
+  padding: 6px 10px 6px 28px;
+  border: none;
+  background: transparent;
+  color: var(--figma-text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-conflict-node-item:hover {
+  background: rgba(0, 101, 145, 0.06);
+  color: var(--figma-text);
+}
+
+.map-conflict-node-active {
+  color: var(--figma-primary);
+  font-weight: 600;
+  background: rgba(0, 101, 145, 0.06);
+}
+
+/* ---- Conflict focus highlight on the graph ---- */
+.map-flow .react-flow__node.map-graph-conflict-highlight .map-node {
+  box-shadow: 0 20px 40px rgba(14, 165, 233, 0.14), 0 0 0 2px rgba(0, 101, 145, 0.35);
+  outline: 2px solid rgba(0, 101, 145, 0.55);
+  outline-offset: 2px;
+}
+
 .map-node-negotiation {
   margin-left: 6px;
   color: #0369a1;
