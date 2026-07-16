@@ -16,6 +16,7 @@ from app.models.script_validate import normalize_script, validate_script
 from app.repositories.projects import get_project
 from app.repositories.script_snapshots import create_script_snapshot
 from app.services.agents.expert_agent import run_expert_generate_modification_schemes
+from app.services.audit_log import hunks_slice, record_mutation, script_slice
 
 
 async def list_modification_schemes(
@@ -197,6 +198,29 @@ async def apply_modification_scheme_hunks(
     )
 
     updated = await get_project(db, project_id, user_id)
+    decided_hunk_ids = [*accepted, *[hunk_id for hunk_id in rejected]]
+    original_hunks = [hunk for hunk in (scheme.get("hunks") or []) if hunk.get("hunk_id") in decided_hunk_ids]
+    await record_mutation(
+        db,
+        action="scheme.hunks.decide",
+        user_id=user_id,
+        project_id=project_id,
+        before={
+            "script": script_slice(project["current_script"]),
+            "hunks": hunks_slice(original_hunks),
+        },
+        after={
+            "script": script_slice(updated["current_script"]) if updated else None,
+            "hunks": hunks_slice(updated_hunks),
+        },
+        meta={
+            "scheme_id": scheme_id,
+            "accepted_hunk_ids": accepted,
+            "rejected_hunk_ids": sorted(rejected),
+            "applied_hunk_ids": applied_ids,
+            "conflicts": conflicts,
+        },
+    )
     return {
         "project": updated,
         "applied_hunk_ids": applied_ids,

@@ -3,6 +3,7 @@ from typing import Literal
 from tavily import AsyncTavilyClient
 
 from app.core.config import get_settings
+from app.services.app_log import log_activity, log_error, log_warning
 
 SearchDepth = Literal["basic", "advanced", "fast", "ultra-fast"]
 SearchTopic = Literal["general", "news", "finance"]
@@ -45,11 +46,13 @@ class TavilyClient:
             "include_raw_content": include_raw_content,
         }
         if mock or not self.enabled:
+            log_warning("Tavily search mock/disabled", query=query, mock=mock, enabled=self.enabled)
             return {"mock": True, "payload": payload, "results": []}
 
+        log_activity(action="tavily.search", query=query, max_results=max_results, search_depth=search_depth)
         client = AsyncTavilyClient(api_key=self.settings.tavily_api_key)
         try:
-            return await client.search(
+            result = await client.search(
                 query=query,
                 max_results=max_results,
                 search_depth=search_depth,
@@ -60,6 +63,11 @@ class TavilyClient:
                 include_answer=include_answer,
                 include_raw_content=include_raw_content,
             )
+            log_activity(action="tavily.search.done", query=query, result_count=len(result.get("results") or []))
+            return result
+        except Exception as exc:
+            log_error("Tavily search failed", exc=exc, query=query)
+            raise
         finally:
             await client.close()
 
@@ -79,15 +87,22 @@ class TavilyClient:
             "query": query,
         }
         if mock or not self.enabled:
+            log_warning("Tavily extract mock/disabled", url_count=len(urls), mock=mock, enabled=self.enabled)
             return {"mock": True, "payload": payload, "results": []}
 
+        log_activity(action="tavily.extract", url_count=len(urls), extract_depth=extract_depth, format=format)
         client = AsyncTavilyClient(api_key=self.settings.tavily_api_key)
         try:
-            return await client.extract(
+            result = await client.extract(
                 urls=urls,
                 extract_depth=extract_depth,
                 format=format,
                 query=query,
             )
+            log_activity(action="tavily.extract.done", url_count=len(urls), result_count=len(result.get("results") or []))
+            return result
+        except Exception as exc:
+            log_error("Tavily extract failed", exc=exc, url_count=len(urls))
+            raise
         finally:
             await client.close()
