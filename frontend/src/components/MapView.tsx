@@ -924,6 +924,9 @@ function MapViewContent() {
   );
 
   const emptyGraph = flowNodes.length === 0;
+  const hasScriptContent = (project?.current_script?.rows ?? []).some((row) =>
+    (row.cells ?? []).some((cell) => String(cell.value ?? "").trim().length > 0)
+  );
   const hasRequirements = (project?.brand_insights ?? []).some(
     (insight) =>
       insight.category === "explicit_requirement" || insight.category === "implicit_requirement"
@@ -932,7 +935,8 @@ function MapViewContent() {
   const canUpdateMap = hasRequirements && hasPersona;
   const mapUpdateNeeded = isGraphStaleForUpdateMap(project?.stale);
   const mapSyncing = syncingMap || project?.stale?.rationale_graph === "generating";
-  const showUpdateMapButton = mapUpdateNeeded || mapSyncing || (emptyGraph && canUpdateMap);
+  const showUpdateMapButton =
+    hasScriptContent && (mapUpdateNeeded || mapSyncing || (emptyGraph && canUpdateMap));
   const updateMapBlockedReason = !hasRequirements
     ? "Add brand requirements (parse Brief or edit Requirements) before updating the map."
     : !hasPersona
@@ -986,13 +990,15 @@ function MapViewContent() {
       {emptyGraph ? (
         <div className="map-empty-state">
           <p>
-            {!hasRequirements && !hasPersona
-              ? "Parse a Brief to extract requirements and provision Personas, then click Update Map to build the graph."
-              : !hasRequirements
-                ? "Parse a Brief or add requirements in the Requirements panel, then click Update Map."
-                : !hasPersona
-                  ? "Provision at least one Persona, then click Update Map to detect conflicts from the script."
-                  : "Edit the script, requirements, or persona, then click Update Map to refresh the graph."}
+            {!hasScriptContent
+              ? "Write script content in the editor first, then come back to build the map."
+              : !hasRequirements && !hasPersona
+                ? "Parse a Brief to extract requirements and provision Personas, then click Update Map to build the graph."
+                : !hasRequirements
+                  ? "Parse a Brief or add requirements in the Requirements panel, then click Update Map."
+                  : !hasPersona
+                    ? "Provision at least one Persona, then click Update Map to detect conflicts from the script."
+                    : "Edit the script, requirements, or persona, then click Update Map to refresh the graph."}
           </p>
         </div>
       ) : null}
@@ -1139,7 +1145,7 @@ function MapViewContent() {
               onClick={() => setRightPanelTab("consider")}
               type="button"
             >
-              CONSIDER
+              SHORTLIST
               {considerationPositions.length > 0 ? (
                 <span className="map-right-tab-badge">{considerationPositions.length}</span>
               ) : null}
@@ -1158,7 +1164,7 @@ function MapViewContent() {
 
           {rightPanelTab === "consider" ? (
             <>
-              <h2 className="map-legend-title">TO BE CONSIDERED</h2>
+              {/* <h2 className="map-legend-title">TO BE CONSIDERED</h2> */}
               <p className="map-consideration-hint">
                 Positions you adopt for the next script revision (up to {MAX_CONSIDERATION_QUEUE_SIZE}).
               </p>
@@ -1207,10 +1213,7 @@ function MapViewContent() {
             </>
           ) : (
             <>
-              <h2 className="map-legend-title">CONFLICTS</h2>
-              <p className="map-consideration-hint">
-                Positions with conflicting stances, grouped by Coordinator-assigned tags.
-              </p>
+              {/* <h2 className="map-legend-title">CONFLICTS</h2> */}
               {conflictGroups.size === 0 ? (
                 <p className="map-conflict-empty">No conflicts detected. Update the map to analyze positions.</p>
               ) : (
@@ -1226,9 +1229,9 @@ function MapViewContent() {
                         type="button"
                       >
                         <span className="map-conflict-tag" data-tag={tag}>
-                          [{tag}]
+                          {tag}
                         </span>
-                        <span className="map-conflict-group-count">{entries.length} position{entries.length !== 1 ? "s" : ""}</span>
+                        <span className="map-conflict-group-count">{entries.length}</span>
                       </button>
                       <ul className="map-conflict-group-nodes">
                         {entries.map((entry) => (
@@ -1242,7 +1245,7 @@ function MapViewContent() {
                               type="button"
                               title={entry.rationale.content}
                             >
-                              {entry.node.data.title}
+                              <span className="map-conflict-node-item-label">{entry.node.data.title}</span>
                             </button>
                           </li>
                         ))}
@@ -1379,9 +1382,9 @@ function IbisNode({ data, id }: NodeProps) {
                     key={tag}
                     className="map-conflict-tag"
                     data-tag={tag}
-                    title={`Conflict group ${tag} — conflicts with other positions tagged [${tag}]`}
+                    title={`Conflict group ${tag} — conflicts with other positions tagged ${tag}`}
                   >
-                    [{tag}]
+                    {tag}
                   </span>
                 ))
               : null}

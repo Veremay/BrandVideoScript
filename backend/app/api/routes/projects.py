@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.db.mongo import database_dependency
 from app.models.schemas import (
     ActivePersonaUpdateRequest,
+    ActivityLogListResponse,
     BriefParseRequest,
     BriefParseResponse,
     BriefUpdateRequest,
@@ -31,6 +32,7 @@ from app.models.schemas import (
     ShareCreateRequest,
     ShareCreateResponse,
 )
+from app.repositories.activity_logs import list_project_activity_logs
 from app.repositories.script_snapshots import create_script_snapshot, list_script_snapshots, restore_script_snapshot
 from app.repositories.share_sessions import create_or_get_share_session
 from app.services.coordinator_service import provision_personas_from_analytics, run_brief_initial_parse, stream_brief_parse
@@ -90,6 +92,48 @@ async def get_one(
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
     return project
+
+
+@router.get("/{project_id}/activity-logs", response_model=ActivityLogListResponse)
+async def get_project_activity_logs(
+    project_id: str,
+    user_id: str = Query(min_length=1),
+    download: bool = Query(default=False, description="Return as a downloadable JSON file"),
+    event_type: str | None = Query(default="mutation", description="Filter by event_type; omit or empty for all"),
+    action: str | None = Query(default=None, description="Optional exact action filter, e.g. scheme.hunks.decide"),
+    limit: int = Query(default=5000, ge=1, le=20000),
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> dict | JSONResponse:
+    project = await get_project(db, project_id, user_id.strip())
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    normalized_event_type = None
+    if isinstance(event_type, str):
+        stripped = event_type.strip()
+        if stripped and stripped.lower() != "all":
+            normalized_event_type = stripped
+    events = await list_project_activity_logs(
+        db,
+        project_id,
+        event_type=normalized_event_type,
+        action=action.strip() if action else None,
+        limit=limit,
+    )
+    payload = {
+        "project_id": project_id,
+        "count": len(events),
+        "events": events,
+    }
+    if not download:
+        return payload
+
+    filename = f"activity_logs_{project_id}.json"
+    return JSONResponse(
+        content=payload,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        media_type="application/json",
+    )
 
 
 @router.patch("/{project_id}", response_model=ProjectResponse)

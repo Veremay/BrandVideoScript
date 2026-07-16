@@ -246,7 +246,13 @@ async function readSseStream<T>(
   }
 }
 
-function parseBriefSseBlock(block: string): BriefParseStreamEvent | null {
+type BriefParseSseEvent =
+  | { type: "status"; message: string }
+  | { type: "heartbeat" }
+  | { type: "done"; parse_summary: Record<string, number>; project?: Project }
+  | { type: "error"; message: string };
+
+function parseBriefSseBlock(block: string): BriefParseSseEvent | null {
   let event = "message";
   let data = "";
   for (const line of block.split("\n")) {
@@ -260,12 +266,47 @@ function parseBriefSseBlock(block: string): BriefParseStreamEvent | null {
   if (event === "done") {
     return {
       type: "done",
-      project: normalizeProject(payload.project as Project)!,
       parse_summary: (payload.parse_summary ?? {}) as Record<string, number>,
+      project: payload.project ? normalizeProject(payload.project as Project) ?? undefined : undefined,
     };
   }
   if (event === "error") return { type: "error", message: String(payload.message ?? "Parse failed") };
   return null;
+}
+
+function briefParseSummaryFromProject(project: Project): Record<string, number> {
+  const insights = project.brand_insights ?? [];
+  return {
+    explicit_requirements: insights.filter((i) => i.category === "explicit_requirement").length,
+    implicit_requirements: insights.filter((i) => i.category === "implicit_requirement").length,
+  };
+}
+
+async function waitForBriefParseResult(
+  projectId: string,
+  userId: string,
+  baselineUpdatedAt: string | null | undefined,
+  onStatus?: (message: string) => void
+): Promise<{ project: Project; parse_summary: Record<string, number> }> {
+  const started = Date.now();
+  let delayMs = 1500;
+  while (Date.now() - started < BRIEF_PARSE_TIMEOUT_MS) {
+    const project = await fetchProject(projectId, userId);
+    const status = project.brief?.parse_status;
+    const finishedThisRun =
+      status === "parsed" &&
+      (!baselineUpdatedAt || project.updated_at !== baselineUpdatedAt);
+    if (finishedThisRun) {
+      return { project, parse_summary: briefParseSummaryFromProject(project) };
+    }
+    if (status === "failed" && (!baselineUpdatedAt || project.updated_at !== baselineUpdatedAt)) {
+      throw new Error("Brief parse failed");
+    }
+    onStatus?.(status === "parsing" ? "Parsing… (reconnecting)" : "Waiting for parse…");
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    delayMs = Math.min(delayMs + 500, 4000);
+  }
+  throw new Error("Timed out waiting for brief parse");
 }
 
 export async function parseBriefStream(
@@ -273,16 +314,72 @@ export async function parseBriefStream(
   userId: string,
   onEvent: (event: BriefParseStreamEvent) => void
 ): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/projects/${projectId}/brief/parse/stream`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user_id: userId }),
-  });
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || `Parse failed: ${response.status}`);
+  const baseline = await fetchProject(projectId, userId);
+  const baselineUpdatedAt = baseline.updated_at;
+
+  let embeddedProject: Project | undefined;
+  let parseSummary: Record<string, number> = {};
+  let sawError = false;
+  let sawProgress = false;
+  let streamError: unknown = null;
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/projects/${projectId}/brief/parse/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId }),
+    });
+    if (!response.ok) {
+      const message = await response.text();
+      throw new Error(message || `Parse failed: ${response.status}`);
+    }
+    await readSseStream(response, parseBriefSseBlock, (event) => {
+      if (event.type === "status" || event.type === "heartbeat") {
+        sawProgress = true;
+        onEvent(event);
+        return;
+      }
+      if (event.type === "error") {
+        sawError = true;
+        onEvent(event);
+        return;
+      }
+      sawProgress = true;
+      parseSummary = event.parse_summary ?? {};
+      embeddedProject = event.project;
+    });
+  } catch (err) {
+    streamError = err;
   }
-  await readSseStream(response, parseBriefSseBlock, onEvent);
+
+  if (sawError) return;
+
+  if (embeddedProject) {
+    onEvent({ type: "done", project: embeddedProject, parse_summary: parseSummary });
+    return;
+  }
+
+  // Stream often drops mid-parse (incomplete chunked encoding) while the backend
+  // task keeps running. Poll until this run finishes (updated_at changes).
+  if (streamError || sawProgress) {
+    onEvent({ type: "status", message: "Parsing… (reconnecting)" });
+    const recovered = await waitForBriefParseResult(
+      projectId,
+      userId,
+      baselineUpdatedAt,
+      (message) => onEvent({ type: "status", message })
+    );
+    onEvent({
+      type: "done",
+      project: recovered.project,
+      parse_summary: Object.keys(parseSummary).length ? parseSummary : recovered.parse_summary,
+    });
+    return;
+  }
+
+  if (streamError instanceof Error) throw streamError;
+  if (streamError) throw new Error(String(streamError));
+  throw new Error("Parse stream ended unexpectedly");
 }
 
 type GraphSyncStreamEvent =

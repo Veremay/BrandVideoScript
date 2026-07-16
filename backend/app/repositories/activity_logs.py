@@ -55,6 +55,31 @@ async def insert_activity_log(db: AsyncIOMotorDatabase, event: dict[str, Any]) -
     await db.activity_logs.insert_one(event)
 
 
+def serialize_activity_event(document: dict[str, Any]) -> dict[str, Any]:
+    event = {key: value for key, value in document.items() if key != "_id"}
+    if "_id" in document and "event_id" not in event:
+        event["event_id"] = str(document["_id"])
+    return event
+
+
+async def list_project_activity_logs(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    *,
+    event_type: str | None = None,
+    action: str | None = None,
+    limit: int = 5000,
+) -> list[dict[str, Any]]:
+    query: dict[str, Any] = {"project_id": project_id}
+    if event_type:
+        query["event_type"] = event_type
+    if action:
+        query["action"] = action
+
+    cursor = db.activity_logs.find(query).sort("ts", 1).limit(limit)
+    return [serialize_activity_event(document) async for document in cursor]
+
+
 async def ensure_activity_log_indexes(db: AsyncIOMotorDatabase) -> None:
     collection = db.activity_logs
     await collection.create_index([("ts", -1)])
