@@ -375,6 +375,49 @@ def prune_orphan_agent_issues(
     return drop_agent_issues_without_positions(nodes, edges, issue_ids)
 
 
+def prune_orphan_positions(
+    nodes: list[dict[str, Any]],
+    edges: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], set[str]]:
+    """Drop agent Positions that have no supporting/opposing Arguments.
+
+    User-created Positions are kept even when orphaned.
+    Returns (cleaned_nodes, cleaned_edges, dropped_position_ids).
+    """
+    nodes_by_id = {str(n["node_id"]): n for n in nodes if n.get("node_id")}
+    # Map position_id -> set of argument_ids that link to it
+    position_arguments: dict[str, set[str]] = {}
+    for edge in edges:
+        rel = str(edge.get("relation_type") or "")
+        if rel not in {"supports", "opposes"}:
+            continue
+        to_id = str(edge.get("to_node_id") or "")
+        from_id = str(edge.get("from_node_id") or "")
+        to_node = nodes_by_id.get(to_id)
+        if to_node and _ibis_column(str(to_node.get("node_type", ""))) == "position":
+            position_arguments.setdefault(to_id, set()).add(from_id)
+
+    to_drop: set[str] = set()
+    for pos_id, pos in nodes_by_id.items():
+        if _ibis_column(str(pos.get("node_type", ""))) != "position":
+            continue
+        if pos.get("created_by") == "user":
+            continue
+        if not position_arguments.get(pos_id):
+            to_drop.add(pos_id)
+
+    if not to_drop:
+        return nodes, edges, set()
+
+    next_nodes = [n for n in nodes if n.get("node_id") not in to_drop]
+    next_edges = [
+        e
+        for e in edges
+        if e.get("from_node_id") not in to_drop and e.get("to_node_id") not in to_drop
+    ]
+    return next_nodes, next_edges, to_drop
+
+
 def collect_issue_delete_cascade(
     nodes_by_id: dict[str, dict[str, Any]],
     edges: list[dict[str, Any]],
@@ -577,6 +620,9 @@ def merge_proposed_graph(
         edges.append(edge)
 
     merged_nodes = list(nodes_by_id.values())
+    merged_nodes, edges, _ = prune_orphan_agent_issues(merged_nodes, edges)
+    merged_nodes, edges, _ = prune_orphan_positions(merged_nodes, edges)
+    # Re-run after pruning positions — removing a Position may leave its Issue orphaned
     merged_nodes, edges, _ = prune_orphan_agent_issues(merged_nodes, edges)
     validate_ibis_graph_integrity(merged_nodes, edges)
     return merged_nodes, edges

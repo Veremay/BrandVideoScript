@@ -297,9 +297,19 @@ export type HunkDecision = true | false | null;
 
 export type NegotiationDispute = {
   issue_node_id: string;
+  /** @new Streamlined: one-line summary of the brand's feedback. */
+  brand_feedback?: string;
+  /** @new Streamlined: ready-to-send reply message for the brand (2-4 sentences). */
+  reply?: string;
+  /** @new Streamlined: fallback concession if the brand insists (one sentence). */
+  fallback?: string;
+  /** @legacy */
   summary: string;
+  /** @legacy */
   our_position: string;
+  /** @legacy */
   acceptable_concession: string;
+  /** @legacy */
   non_negotiable_line: string;
   talking_points: string[];
   related_node_ids: string[];
