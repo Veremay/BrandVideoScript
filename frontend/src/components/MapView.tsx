@@ -1188,7 +1188,7 @@ function MapViewContent() {
                   {staleConsiderationIds.map((id) => (
                     <li className="map-consideration-item map-consideration-item-stale" key={id}>
                       <span className="map-consideration-item-title">
-                        <span className="map-node-status-tag map-node-status-resolved">Stance updated / stale</span>
+                        <span className="map-node-status-tag map-node-status-resolved">Position updated / stale</span>
                       </span>
                       <button
                         aria-label="Remove stale consideration entry"

@@ -2246,6 +2246,10 @@ textarea {
 
 .glacier-tab {
   flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   padding: 6px 8px;
   border: none;
   border-radius: 6px;
