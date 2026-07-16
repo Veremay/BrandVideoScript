@@ -100,6 +100,17 @@ async def create_script_snapshot(
         {"$set": {"current_script_version_id": script_version_id, "updated_at": created_at}},
     )
 
+    if reason == "manual_save":
+        await record_mutation(
+            db,
+            action="script.snapshot.create",
+            user_id=user_id,
+            project_id=project_id,
+            before={"script": script_slice(project["current_script"])},
+            after={"script": script_slice(normalized)},
+            meta={"snapshot_id": snapshot_id, "reason": reason, "script_version_id": script_version_id},
+        )
+
     return {
         "snapshot_id": snapshot_id,
         "project_id": project_id,

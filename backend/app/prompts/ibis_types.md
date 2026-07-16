@@ -34,7 +34,7 @@ Issue **不再代表冲突本身**；冲突由 position 上的 conflict_tags 表
 | 值 | 用途 |
 |----|------|
 | `brand_brief` | Brief 显式要求引发的品牌立场 |
-| `brand_inferred` | Wiki / 公开资料推断的隐性品牌立场 |
+| `brand_inferred` | 品牌知识 / 公开资料推断的隐性品牌立场 |
 | `audience_persona` | Persona 属性推论的观众立场 |
 | `audience_simulation` | 对脚本模拟观众反应得到的立场 |
 | `expert_strategy` | 创作策略立场与结构建议 |

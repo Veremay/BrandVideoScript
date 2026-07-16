@@ -116,8 +116,9 @@ async def stream_brief_parse(
         return
 
     result = task.result()
+    # Keep the final SSE payload small. Embedding the full project (brief text +
+    # insights) can break chunked transfer on long parses; the client refetches.
     yield encode_sse("done", {
-        "project": result["project"],
         "parse_summary": result.get("parse_summary", {}),
     })
 

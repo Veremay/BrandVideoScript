@@ -1275,11 +1275,6 @@ textarea {
   color: #dc2626;
 }
 
-.figma-save-pill.status-outdated {
-  background: rgba(240, 192, 64, 0.12);
-  color: #c9a227;
-}
-
 .figma-avatar-btn {
   display: inline-flex;
   align-items: center;
@@ -1649,16 +1644,18 @@ textarea {
   border-color: rgba(192, 86, 33, 0.35);
 }
 
-/* Conflict group tag: [A], [B], … — shown on position nodes */
+/* Conflict group tag: A, B, … — shown on position nodes */
 .map-conflict-tag {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  min-width: 16px;
   padding: 1px 5px;
   border-radius: 4px;
-  font-family: "SF Mono", "Fira Mono", monospace;
-  font-size: 9px;
+  font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
   line-height: 1.2;
   white-space: nowrap;
   cursor: help;
@@ -2249,6 +2246,10 @@ textarea {
 
 .glacier-tab {
   flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   padding: 6px 8px;
   border: none;
   border-radius: 6px;
@@ -5527,26 +5528,30 @@ button.editor-row-link-mark:focus-visible {
 .map-conflict-list {
   flex: 1;
   min-height: 0;
-  margin: 4px 0 0;
+  margin: 2px 0 0;
+  padding: 0;
   overflow: auto;
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
 }
 
 .map-conflict-group {
   display: flex;
   flex-direction: column;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 8px;
-  overflow: hidden;
-  transition: border-color 0.15s;
+  gap: 2px;
+  padding: 8px 8px 6px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.45);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04);
+  transition: background 0.15s, box-shadow 0.15s;
 }
 
 .map-conflict-group-active {
-  border-color: rgba(0, 101, 145, 0.35);
-  background: rgba(0, 101, 145, 0.04);
+  background: rgba(0, 101, 145, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(0, 101, 145, 0.22);
 }
 
 .map-conflict-group-header {
@@ -5554,22 +5559,27 @@ button.editor-row-link-mark:focus-visible {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 8px 10px;
+  padding: 2px 2px 6px;
   border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
   background: transparent;
   color: var(--figma-text);
   text-align: left;
   cursor: pointer;
-  transition: background 0.12s;
 }
 
 .map-conflict-group-header:hover {
-  background: rgba(0, 101, 145, 0.06);
+  background: transparent;
 }
 
 .map-conflict-group-header .map-conflict-tag {
   flex-shrink: 0;
   cursor: pointer;
+  min-width: 18px;
+  justify-content: center;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
 }
 
 .map-conflict-group-count {
@@ -5577,7 +5587,13 @@ button.editor-row-link-mark:focus-visible {
   margin-left: auto;
   color: var(--figma-text-secondary);
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  opacity: 0.8;
+}
+
+.map-conflict-group-count::after {
+  content: " positions";
 }
 
 .map-conflict-group-nodes {
@@ -5585,26 +5601,35 @@ button.editor-row-link-mark:focus-visible {
   flex-direction: column;
   list-style: none;
   margin: 0;
-  padding: 0;
-  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  padding: 2px 0 0;
+  border-top: none;
+  gap: 1px;
 }
 
 .map-conflict-node-item {
   display: block;
   width: 100%;
-  padding: 6px 10px 6px 28px;
+  padding: 6px 4px;
   border: none;
+  border-radius: 6px;
   background: transparent;
-  color: var(--figma-text-secondary);
+  color: var(--figma-text);
   font-size: 11px;
   font-weight: 500;
-  line-height: 1.35;
+  line-height: 1.4;
   text-align: left;
   cursor: pointer;
   transition: background 0.12s, color 0.12s;
+}
+
+.map-conflict-node-item-label {
+  display: -webkit-box;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .map-conflict-node-item:hover {
@@ -5615,7 +5640,7 @@ button.editor-row-link-mark:focus-visible {
 .map-conflict-node-active {
   color: var(--figma-primary);
   font-weight: 600;
-  background: rgba(0, 101, 145, 0.06);
+  background: rgba(0, 101, 145, 0.08);
 }
 
 /* ---- Conflict focus highlight on the graph ---- */

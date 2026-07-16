@@ -49,7 +49,11 @@ _PHASE1_TASK_INSTRUCTIONS = """\
 3. 明确区分来源：材料直接说明的归为 `explicit_requirement`；有材料依据但需要推断的归为 `implicit_requirement`。
 4. 每条洞察应说明品牌具体希望什么、为什么重要，以及对视频创作有什么可执行影响。
 5. 主动识别维度之间的张力，例如信息完整度与露出时长、受众接受习惯与品牌表达方式、自然场景与强露出要求之间的冲突。
-6. 最终只输出综合后的可执行需求，不要输出 5W1H 问答过程或六项清单。"""
+6. 最终只输出综合后的可执行需求，不要输出 5W1H 问答过程或六项清单。
+
+## 用户可见文案约束（title / content / reason）
+- 禁止提及内部系统或工具名：Brand Wiki、wiki、llm-wiki、Tavily、知识库路径、文件路径、工具函数名等。
+- 需要说明依据时，只用自然语言：如「根据 Brief」「根据品牌知识」「根据公开资料」。"""
 
 _PHASE1_OUTPUT_SCHEMA = """\
 ## 输出 JSON（仅需求字段，不要 ibis）
@@ -95,6 +99,10 @@ _PHASE2_TASK_INSTRUCTIONS += """
 - A useful brand position says what must be strengthened, protected, moved earlier, made clearer, or treated as unacceptable.
 - Every generated position must include a real argument connected with `supports` or `opposes`; do not rely on placeholder arguments.
 - Position content should be a concise stance, not pasted Brief text. Put evidence or Brief wording in the argument.
+
+## 用户可见文案约束（title / content / argument）
+- 禁止提及内部系统或工具名：Brand Wiki、wiki、llm-wiki、Tavily、知识库路径、文件路径、工具函数名等。
+- 需要说明依据时，只用自然语言：如「根据 Brief」「根据品牌知识」「根据公开资料」。
 """
 
 _PHASE2_OUTPUT_SCHEMA = """\
@@ -131,7 +139,8 @@ _ISSUE_RESPONSE_TASK_INSTRUCTIONS = """\
 - 用 `external_edges` 将 position（from_index: 0）以 `responds_to` 连到目标 issue（to_node_id）
 - 用 `edges` 将每个 argument（from_index）以 `supports` 或 `opposes` 连到 position（to_index: 0）
 - position / argument 的 `source_type` 限：`brand_brief`、`brand_inferred`
-- 不要输出 issue 节点"""
+- 不要输出 issue 节点
+- 用户可见文案禁止提及 Brand Wiki / wiki / Tavily 等内部名称；依据可写「根据品牌知识」「根据公开资料」「根据 Brief」"""
 
 _ISSUE_RESPONSE_OUTPUT_SCHEMA = """\
 ## 输出 JSON（仅 ibis 节点）
@@ -260,10 +269,11 @@ async def _run_requirements_extraction(project: dict[str, Any]) -> dict[str, Any
 
     log_step("brand_agent.extract_requirements", phase="IN", project_id=project_id)
 
+    public_sources = "\n".join(tavily_snippets) if tavily_snippets else "（无）"
     context_block = "\n\n".join([
         f"## Brief（原文）\n{text[:3000]}",
-        f"## Brand Wiki（{wiki.get('source') or '无匹配手册'}）\n{wiki.get('full_text') or '（未找到对应品牌手册）'}",
-        f"## Tavily\n{tavily_snippets}",
+        f"## 品牌知识\n{wiki.get('full_text') or '（未找到对应品牌知识）'}",
+        f"## 公开资料\n{public_sources}",
     ])
 
     def mock() -> dict[str, Any]:

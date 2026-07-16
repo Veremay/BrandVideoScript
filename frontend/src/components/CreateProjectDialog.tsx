@@ -124,7 +124,6 @@ export function CreateProjectDialog({
               />
               <span className="hub-category-copy">
                 <span className="hub-category-label">Setting 1</span>
-                <span className="hub-category-description">Recommended setup for this script.</span>
               </span>
             </label>
             <label className={`hub-category-option${mode === "vanilla" ? " is-selected" : ""}`}>
@@ -137,7 +136,6 @@ export function CreateProjectDialog({
               />
               <span className="hub-category-copy">
                 <span className="hub-category-label">Setting 2</span>
-                <span className="hub-category-description">Alternative setup for this script.</span>
               </span>
             </label>
           </div>

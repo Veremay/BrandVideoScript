@@ -94,7 +94,7 @@ class BrandWikiTest(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertTrue(context["found"])
-        self.assertIn("## Brand Wiki Search", context["context"])
+        self.assertIn("## 品牌知识检索", context["context"])
         self.assertIn("Nimbus/prohibited-expressions.md", context["context"])
         self.assertIn("Do not use miracle", context["context"])
         self.assertLessEqual(context["context"].count("Nimbus/prohibited-expressions.md"), 2)
@@ -204,7 +204,7 @@ class BrandWikiTest(unittest.IsolatedAsyncioTestCase):
         with patch.object(brand_agent, "invoke_agent_json", fake_invoke_agent_json):
             result = await brand_agent._run_requirements_extraction(project)
 
-        self.assertIn("## Brand Wiki Search", captured["context"])
+        self.assertIn("## 品牌知识检索", captured["context"])
         self.assertIn("Nimbus/prohibited-expressions.md", captured["context"])
         self.assertIn("Do not use miracle", captured["context"])
         self.assertIn("brand_wiki_search", result["tool_calls_used"])

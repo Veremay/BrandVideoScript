@@ -84,6 +84,12 @@ class ScriptSnapshotListResponse(BaseModel):
     snapshots: list[ScriptSnapshotSummary]
 
 
+class ActivityLogListResponse(BaseModel):
+    project_id: str
+    count: int
+    events: list[dict[str, Any]]
+
+
 class ScriptSnapshotCreateResponse(BaseModel):
     snapshot: ScriptSnapshotSummary
 

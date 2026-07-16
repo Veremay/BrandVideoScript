@@ -358,7 +358,17 @@ async def create_project(
         "updated_at": now,
     }
     await db.projects.insert_one(project)
-    return serialize_project(project)
+    serialized = serialize_project(project)
+    await record_mutation(
+        db,
+        action="project.create",
+        user_id=user_id,
+        project_id=str(project["_id"]),
+        before={"project": None},
+        after={"project": project_summary_slice(serialized)},
+        meta={"title": title, "mode": mode, "video_category": video_category},
+    )
+    return serialized
 
 
 async def list_projects(db: AsyncIOMotorDatabase, user_id: str) -> list[dict]:

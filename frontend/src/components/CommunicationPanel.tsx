@@ -143,7 +143,10 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
               aria-selected={tab === "argue"}
               type="button"
             >
-              Argue Input ({argueItems.length})
+              Argue Input
+              {argueItems.length > 0 ? (
+                <span className="map-right-tab-badge">{argueItems.length}</span>
+              ) : null}
             </button>
             <button
               className={`glacier-tab ${tab === "plan" ? "active" : ""}`}
@@ -164,7 +167,7 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
             <div className="comm-list">
               <p className="comm-hint">
                 Add the point you want to discuss with the brand. You can also mark feedback with "Argue" in the Script
-                Editor, then generate a plan grounded in your TO BE CONSIDERED stances ({considerationCount}).
+                Editor.
               </p>
               <div className="comm-input-grid">
                 <section className="comm-reference-col" aria-label="Referenced brand feedback">
@@ -180,7 +183,6 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
                           <article className="comm-card" key={item.id}>
                             <div className="comm-card-body">
                               <p className="comm-card-text">{item.content}</p>
-                              <span className="comm-card-meta">Scene row: {item.rowId}</span>
                             </div>
                             <button
                               aria-label="Remove from argue list"

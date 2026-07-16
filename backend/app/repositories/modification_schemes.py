@@ -16,7 +16,7 @@ from app.models.script_validate import normalize_script, validate_script
 from app.repositories.projects import get_project
 from app.repositories.script_snapshots import create_script_snapshot
 from app.services.agents.expert_agent import run_expert_generate_modification_schemes
-from app.services.audit_log import hunks_slice, record_mutation, script_slice
+from app.services.audit_log import hunks_slice, nodes_slice, record_mutation, schemes_slice, script_slice
 
 
 async def list_modification_schemes(
@@ -42,6 +42,14 @@ async def generate_modification_schemes(
     project = await get_project(db, project_id, user_id)
     if project is None:
         raise ValueError("Project not found")
+
+    before_schemes = schemes_slice(project.get("modification_schemes"))
+    target_nodes = [
+        node
+        for node in (project.get("rationale_nodes") or [])
+        if node.get("node_id") in set(target_issue_ids or [])
+        or node.get("node_id") in set(target_position_ids or [])
+    ]
 
     await db.projects.update_one(
         {"_id": project_id, "user_id": user_id},
@@ -89,6 +97,27 @@ async def generate_modification_schemes(
         raise
 
     updated = await get_project(db, project_id, user_id)
+    await record_mutation(
+        db,
+        action="scheme.generate",
+        user_id=user_id,
+        project_id=project_id,
+        before={
+            "schemes": before_schemes,
+            "script": script_slice(project.get("current_script")),
+            "target_nodes": nodes_slice(target_nodes),
+        },
+        after={
+            "schemes": schemes_slice(new_schemes),
+            "script": script_slice(updated.get("current_script") if updated else None),
+            "target_nodes": nodes_slice(target_nodes),
+        },
+        meta={
+            "target_issue_ids": target_issue_ids or [],
+            "target_position_ids": target_position_ids or [],
+            "message": (user_message or "")[:500],
+        },
+    )
     return {
         "project": updated,
         "schemes": new_schemes,

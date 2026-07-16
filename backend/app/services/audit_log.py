@@ -141,6 +141,71 @@ def brand_insight_slice(insight: dict[str, Any] | None) -> dict[str, Any] | None
     }
 
 
+def scheme_slice(scheme: dict[str, Any] | None) -> dict[str, Any] | None:
+    if scheme is None:
+        return None
+    return {
+        "scheme_id": scheme.get("scheme_id"),
+        "title": scheme.get("title"),
+        "direction": scheme.get("direction"),
+        "changes_summary": scheme.get("changes_summary"),
+        "rationale": scheme.get("rationale"),
+        "tradeoffs": deepcopy(scheme.get("tradeoffs") or {}),
+        "sacrifice": scheme.get("sacrifice"),
+        "communication_scene": scheme.get("communication_scene"),
+        "brand_objection": scheme.get("brand_objection"),
+        "response_script": scheme.get("response_script"),
+        "risk": scheme.get("risk"),
+        "status": scheme.get("status"),
+        "target_issue_ids": list(scheme.get("target_issue_ids") or []),
+        "target_position_ids": list(scheme.get("target_position_ids") or []),
+        "related_node_ids": list(scheme.get("related_node_ids") or []),
+        "hunks": hunks_slice(scheme.get("hunks")),
+    }
+
+
+def schemes_slice(schemes: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    return [item for item in (scheme_slice(scheme) for scheme in (schemes or [])) if item is not None]
+
+
+def negotiation_preparation_slice(prep: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Communication / negotiation plan content (not just ids)."""
+    if prep is None:
+        return None
+    disputes = []
+    for dispute in prep.get("open_disputes") or []:
+        if not isinstance(dispute, dict):
+            continue
+        disputes.append(
+            {
+                "issue_node_id": dispute.get("issue_node_id"),
+                "brand_feedback": dispute.get("brand_feedback") or dispute.get("summary"),
+                "reply": dispute.get("reply") or dispute.get("our_position"),
+                "fallback": dispute.get("fallback") or dispute.get("acceptable_concession"),
+                "talking_points": list(dispute.get("talking_points") or []),
+                "summary": dispute.get("summary"),
+                "our_position": dispute.get("our_position"),
+                "acceptable_concession": dispute.get("acceptable_concession"),
+                "non_negotiable_line": dispute.get("non_negotiable_line"),
+                "related_node_ids": list(dispute.get("related_node_ids") or []),
+                "related_script_refs": deepcopy(dispute.get("related_script_refs") or []),
+            }
+        )
+    return {
+        "prep_id": prep.get("prep_id"),
+        "title": prep.get("title"),
+        "design_intent": prep.get("design_intent"),
+        "satisfied_brand_needs": list(prep.get("satisfied_brand_needs") or []),
+        "open_disputes": disputes,
+        "recommended_communication_order": list(prep.get("recommended_communication_order") or []),
+        "related_issue_ids": list(prep.get("related_issue_ids") or []),
+        "status": prep.get("status"),
+        "based_on_script_version_id": prep.get("based_on_script_version_id"),
+        "created_at": prep.get("created_at"),
+        "updated_at": prep.get("updated_at"),
+    }
+
+
 def project_summary_slice(project: dict[str, Any] | None) -> dict[str, Any] | None:
     if project is None:
         return None

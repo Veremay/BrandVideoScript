@@ -242,7 +242,7 @@ async def brand_wiki_context_for_task(
     queries = [q for q in task_queries.get(task, [brief_text or "", task]) if q.strip()]
 
     selected_paths: list[str] = []
-    search_lines: list[str] = ["## Brand Wiki Search"]
+    search_lines: list[str] = ["## 品牌知识检索"]
     for query in queries:
         result = await brand_wiki_search(
             query,
@@ -262,7 +262,7 @@ async def brand_wiki_context_for_task(
 
     if selected_paths:
         read = await brand_wiki_read(selected_paths)
-        page_blocks = ["## Brand Wiki Pages"]
+        page_blocks = ["## 品牌知识详情"]
         for page in read["pages"]:
             page_blocks.append(f"### {page['path']}\n{page['content']}")
         return {
@@ -280,8 +280,8 @@ async def brand_wiki_context_for_task(
             "found": True,
             "source": fallback.get("source"),
             "context": (
-                "## Brand Wiki Fallback\n"
-                f"source={fallback.get('source')}\n\n{fallback.get('full_text')}"
+                "## 品牌知识（摘要）\n"
+                f"{fallback.get('full_text')}"
             ),
             "paths": [],
         }
@@ -290,7 +290,7 @@ async def brand_wiki_context_for_task(
         "brand_name": brand_identifier,
         "found": False,
         "source": None,
-        "context": "## Brand Wiki\n（未找到对应品牌知识库）",
+        "context": "## 品牌知识\n（未找到对应品牌知识）",
         "paths": [],
     }
 

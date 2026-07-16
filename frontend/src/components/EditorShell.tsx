@@ -10,7 +10,6 @@ import { PersonaPanel } from "@/components/PersonaPanel";
 import { RequirementsPanel } from "@/components/RequirementsPanel";
 import { ScriptGrid } from "@/components/ScriptGrid";
 import { ScriptSnapshotsPanel } from "@/components/ScriptSnapshotsPanel";
-import { staleSummary } from "@/lib/stale";
 import { createShareLink, fetchProjectGraph, saveBrief, saveScript } from "@/lib/api";
 import { useAppStore } from "@/store/appStore";
 
@@ -48,7 +47,6 @@ export function EditorShell() {
   const [communicationOpen, setCommunicationOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
   const coordinatorOpen = layout.coordinatorChatOpen;
-  const staleHint = staleSummary(project?.stale);
 
   useEffect(() => {
     if (!project || !script) return;
@@ -193,7 +191,7 @@ export function EditorShell() {
               <IconBack />
               Back
             </button>
-            <span className="figma-brand-logo">BrandVideo</span>
+            {/* <span className="figma-brand-logo">BrandVideo</span> */}
             {!isVanilla && (
               <div className="figma-view-toggle" role="tablist" aria-label="Switch view">
                 <button
@@ -278,12 +276,6 @@ export function EditorShell() {
             <button className="figma-nav-btn figma-nav-outline figma-nav-share" onClick={() => void handleShare()} disabled={sharing} type="button">
               {sharing ? "Sharing…" : "Share"}
             </button>
-            <div
-              className={`figma-save-pill status-${savePillStatus(editor.saveStatus, staleHint)}`}
-              title={savePillTitle(editor.saveStatus, staleHint) ?? undefined}
-            >
-              {savePillLabel(editor.saveStatus, staleHint)}
-            </div>
             <button className="figma-nav-btn figma-nav-primary" type="button">
               Export
             </button>
@@ -358,26 +350,6 @@ export function EditorShell() {
       </main>
     </RevisionProposalsProvider>
   );
-}
-
-function savePillStatus(status: string, staleHint: string | null) {
-  if (status === "editing" || status === "saving") return "editing";
-  if (status === "failed") return "failed";
-  if (staleHint) return "outdated";
-  return "saved";
-}
-
-function savePillLabel(status: string, staleHint: string | null) {
-  if (status === "editing") return "Editing";
-  if (status === "saving") return "Saving";
-  if (status === "failed") return "Failed";
-  if (staleHint) return "Outdated";
-  return "Saved";
-}
-
-function savePillTitle(status: string, staleHint: string | null) {
-  if (status !== "saved" || !staleHint) return null;
-  return `Script changed — outdated: ${staleHint}`;
 }
 
 function IconUpload() {
