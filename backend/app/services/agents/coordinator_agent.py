@@ -115,11 +115,14 @@ async def run_conflict_tagging(
     for group in conflict_groups:
         if str(group.get("relation_type") or "").strip().lower() != "conflict":
             continue
-        tag = str(group.get("tag") or "")
+        tag = str(group.get("tag") or "").strip()
         if not tag:
             continue
-        for pos_id in group.get("position_ids") or []:
-            pos_id = str(pos_id)
+        position_ids = [str(pos_id) for pos_id in (group.get("position_ids") or []) if str(pos_id).strip()]
+        # A conflict label needs at least two positions; drop singleton groups.
+        if len(set(position_ids)) < 2:
+            continue
+        for pos_id in position_ids:
             if pos_id in new_pos_ids:
                 position_tag_map.setdefault(pos_id, [])
                 if tag not in position_tag_map[pos_id]:
@@ -128,6 +131,26 @@ async def run_conflict_tagging(
                 existing_position_tag_map.setdefault(pos_id, [])
                 if tag not in existing_position_tag_map[pos_id]:
                     existing_position_tag_map[pos_id].append(tag)
+
+    # Safety net: strip any tag that somehow ended up on fewer than 2 positions.
+    combined_counts: dict[str, int] = {}
+    for tags in (*position_tag_map.values(), *existing_position_tag_map.values()):
+        for tag in tags:
+            combined_counts[tag] = combined_counts.get(tag, 0) + 1
+    singleton_tags = {tag for tag, count in combined_counts.items() if count < 2}
+    if singleton_tags:
+        position_tag_map = {
+            node_id: [tag for tag in tags if tag not in singleton_tags]
+            for node_id, tags in position_tag_map.items()
+        }
+        position_tag_map = {node_id: tags for node_id, tags in position_tag_map.items() if tags}
+        existing_position_tag_map = {
+            node_id: [tag for tag in tags if tag not in singleton_tags]
+            for node_id, tags in existing_position_tag_map.items()
+        }
+        existing_position_tag_map = {
+            node_id: tags for node_id, tags in existing_position_tag_map.items() if tags
+        }
 
     existing_node_updates = [
         {"node_id": node_id, "conflict_tags": tags}

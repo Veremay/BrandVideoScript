@@ -99,7 +99,10 @@ async def get_project_activity_logs(
     project_id: str,
     user_id: str = Query(min_length=1),
     download: bool = Query(default=False, description="Return as a downloadable JSON file"),
-    event_type: str | None = Query(default="mutation", description="Filter by event_type; omit or empty for all"),
+    event_type: str | None = Query(
+        default=None,
+        description="Filter by event_type (e.g. mutation, http). Omit / empty / all = export all types",
+    )
     action: str | None = Query(default=None, description="Optional exact action filter, e.g. scheme.hunks.decide"),
     limit: int = Query(default=5000, ge=1, le=20000),
     db: AsyncIOMotorDatabase = Depends(database_dependency),

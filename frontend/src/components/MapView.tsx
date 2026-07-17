@@ -340,11 +340,36 @@ function MapViewContent() {
     () => computeIbisLayout(rationaleNodes, rationaleEdges),
     [rationaleNodes, rationaleEdges]
   );
+  /** Tags that appear on fewer than 2 active positions are not real conflicts. */
+  const validConflictTags = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const node of rationaleNodes) {
+      if (node.node_type !== "position") continue;
+      if (node.lifecycle === "resolved" || node.lifecycle === "superseded") continue;
+      for (const tag of node.conflict_tags ?? []) {
+        const key = tag.trim();
+        if (!key) continue;
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+      }
+    }
+    return new Set([...counts.entries()].filter(([, count]) => count >= 2).map(([tag]) => tag));
+  }, [rationaleNodes]);
   const flowNodes = useMemo(() => {
     return rationaleNodes
-      .map((node, index) => rationaleToFlowNode(node, index, autoLayouts))
+      .map((node, index) => {
+        const flowNode = rationaleToFlowNode(node, index, autoLayouts);
+        if (!flowNode) return null;
+        const tags = flowNode.data.conflictTags?.filter((tag) => validConflictTags.has(tag));
+        return {
+          ...flowNode,
+          data: {
+            ...flowNode.data,
+            conflictTags: tags && tags.length > 0 ? tags : undefined
+          }
+        };
+      })
       .filter((node): node is Node<IbisNodeData> => node !== null);
-  }, [autoLayouts, rationaleNodes]);
+  }, [autoLayouts, rationaleNodes, validConflictTags]);
   const flowNodeIds = useMemo(() => new Set(flowNodes.map((node) => node.id)), [flowNodes]);
   const flowEdges = useMemo(() => {
     return rationaleEdges
@@ -389,7 +414,7 @@ function MapViewContent() {
     setFocusNodeId(null);
   }, []);
 
-  // Conflict groups: position nodes grouped by conflict tag
+  // Conflict groups: position nodes grouped by conflict tag (need ≥2 members)
   const conflictGroups = useMemo(() => {
     const groups = new Map<string, { node: Node<IbisNodeData>; rationale: RationaleNode }[]>();
     for (const flowNode of flowNodes) {
@@ -398,13 +423,17 @@ function MapViewContent() {
       const rationale = nodeById.get(flowNode.id);
       if (!rationale || rationale.lifecycle === "resolved" || rationale.lifecycle === "superseded") continue;
       for (const tag of tags) {
+        if (!validConflictTags.has(tag)) continue;
         if (!groups.has(tag)) groups.set(tag, []);
         groups.get(tag)!.push({ node: flowNode, rationale });
       }
     }
-    // Sort groups alphabetically by tag
-    return new Map([...groups.entries()].sort(([a], [b]) => a.localeCompare(b)));
-  }, [flowNodes, nodeById]);
+    return new Map(
+      [...groups.entries()]
+        .filter(([, entries]) => entries.length >= 2)
+        .sort(([a], [b]) => a.localeCompare(b))
+    );
+  }, [flowNodes, nodeById, validConflictTags]);
 
   const conflictFocusNodeIds = useMemo(() => {
     if (!focusConflictTag) return null;

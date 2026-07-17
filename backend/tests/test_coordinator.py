@@ -114,6 +114,40 @@ class CoordinatorConflictTaggingTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result["position_tag_map"], {})
 
+    async def test_conflict_tagging_ignores_singleton_group(self) -> None:
+        position_a = {
+            "node_id": "node_pos_a",
+            "node_type": "position",
+            "source_type": "brand_brief",
+            "title": "品牌前三秒露出产品",
+            "content": "品牌希望尽早传达卖点",
+        }
+        payload = {
+            "conflict_groups": [
+                {
+                    "tag": "A",
+                    "relation_type": "conflict",
+                    "reason": "只有一个 position，不算冲突",
+                    "position_ids": ["node_pos_a"],
+                }
+            ],
+            "decision_issues": [],
+        }
+
+        with patch(
+            "app.services.agents.coordinator_agent.invoke_agent_json",
+            new=AsyncMock(return_value=payload),
+        ):
+            result = await run_conflict_tagging(
+                {"_id": "p1", "rationale_nodes": []},
+                {"proposed_nodes": [position_a]},
+                None,
+                [position_a],
+            )
+
+        self.assertEqual(result["position_tag_map"], {})
+        self.assertEqual(result["existing_node_updates"], [])
+
     async def test_conflict_tagging_ignores_refinement_relation(self) -> None:
         diagnosis = {
             "node_id": "node_pos_brand_copy_tone",

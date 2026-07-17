@@ -5,6 +5,16 @@ from typing import Any
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.script import new_id, now_iso
+from app.services.app_log import activity_log_enabled, log_error
+
+_HTTP_SKIP_EXACT = frozenset({"/api/health", "/health", "/openapi.json", "/docs", "/redoc"})
+_HTTP_SKIP_PREFIXES = ("/docs/", "/redoc/")
+
+
+def should_persist_http_path(path: str) -> bool:
+    if path in _HTTP_SKIP_EXACT:
+        return False
+    return not any(path.startswith(prefix) for prefix in _HTTP_SKIP_PREFIXES)
 
 
 def build_activity_event(
@@ -25,6 +35,7 @@ def build_activity_event(
     action = f"{method} {path}"
     event: dict[str, Any] = {
         "event_id": new_id("evt"),
+        "event_type": "http",
         "ts": now_iso(),
         "action": action,
         "method": method,
@@ -53,6 +64,51 @@ def build_activity_event(
 
 async def insert_activity_log(db: AsyncIOMotorDatabase, event: dict[str, Any]) -> None:
     await db.activity_logs.insert_one(event)
+
+
+async def persist_http_activity_log(
+    db: AsyncIOMotorDatabase | None,
+    *,
+    method: str,
+    path: str,
+    status_code: int,
+    duration_ms: float,
+    request_id: str,
+    user_id: str | None = None,
+    project_id: str | None = None,
+    share_token: str | None = None,
+    client_ip: str | None = None,
+    query_params: dict[str, str] | None = None,
+    meta: dict[str, Any] | None = None,
+    error: str | None = None,
+) -> None:
+    """Persist an HTTP access event into activity_logs (same collection as mutations)."""
+    if not activity_log_enabled() or not should_persist_http_path(path) or db is None:
+        return
+    try:
+        event = build_activity_event(
+            method=method,
+            path=path,
+            status_code=status_code,
+            duration_ms=duration_ms,
+            request_id=request_id,
+            user_id=user_id,
+            project_id=project_id,
+            share_token=share_token,
+            client_ip=client_ip,
+            query_params=query_params,
+            meta=meta,
+            error=error,
+        )
+        await insert_activity_log(db, event)
+    except Exception as exc:
+        log_error(
+            "Failed to persist HTTP activity log",
+            exc=exc,
+            method=method,
+            path=path,
+            project_id=project_id,
+        )
 
 
 def serialize_activity_event(document: dict[str, Any]) -> dict[str, Any]:

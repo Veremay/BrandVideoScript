@@ -112,6 +112,29 @@ uv run python scripts/distill_brand_wiki.py --file 2022观夏品牌手册.md
 
 编译产物位于 `backend/data/brand_wiki/<brand>/`，包含 `_index.md`、`_agent-guide.md`、分节页面与 `error_book.yaml`。
 
+## Activity Logs
+
+用户行为写入 MongoDB 集合 `activity_logs`（由 `ACTIVITY_LOG_ENABLED` 控制，默认开启）：
+
+| `event_type` | 含义 |
+|--------------|------|
+| `http` | API 访问（method / path / status / duration） |
+| `mutation` | 数据变更审计（action + before / after） |
+
+同一请求可用 `request_id` 关联。导出与查询**默认包含全部类型**。
+
+脚本导出：
+
+```bash
+cd backend
+uv run python scripts/export_activity_logs.py --project-id PROJECT_ID --user-id USER_ID
+uv run python scripts/export_activity_logs.py --project-id PROJECT_ID --user-id USER_ID --out my_logs.json
+# 只要某一种类型时再过滤：
+uv run python scripts/export_activity_logs.py --project-id PROJECT_ID --user-id USER_ID --event-type mutation
+```
+
+HTTP API：`GET /api/projects/{project_id}/activity-logs?user_id=...`（可选 `event_type`、`download=true`）。
+
 ## 测试
 
 ```bash

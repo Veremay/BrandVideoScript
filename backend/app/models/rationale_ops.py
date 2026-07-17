@@ -129,6 +129,41 @@ def build_rationale_node(
     }
 
 
+def prune_singleton_conflict_tags(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Drop conflict tags that appear on fewer than 2 active positions.
+
+    Nodes themselves are kept; only orphan/singleton conflict labels are cleared.
+    Resolved/superseded positions do not count toward a tag's membership.
+    """
+    tag_counts: dict[str, int] = {}
+    for node in nodes:
+        if node.get("node_type") != "position":
+            continue
+        if node.get("lifecycle") in {"resolved", "superseded"}:
+            continue
+        for raw_tag in node.get("conflict_tags") or []:
+            tag = str(raw_tag).strip()
+            if tag:
+                tag_counts[tag] = tag_counts.get(tag, 0) + 1
+
+    singleton_tags = {tag for tag, count in tag_counts.items() if count < 2}
+    if not singleton_tags:
+        return nodes
+
+    pruned: list[dict[str, Any]] = []
+    for node in nodes:
+        tags = node.get("conflict_tags") or []
+        if node.get("node_type") != "position" or not tags:
+            pruned.append(node)
+            continue
+        kept = [tag for tag in tags if str(tag).strip() not in singleton_tags]
+        if kept == list(tags):
+            pruned.append(node)
+        else:
+            pruned.append({**node, "conflict_tags": kept})
+    return pruned
+
+
 def _ibis_column(node_type: str) -> str:
     if node_type == "position":
         return "position"
