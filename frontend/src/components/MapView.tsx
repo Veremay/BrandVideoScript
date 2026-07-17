@@ -354,7 +354,7 @@ function MapViewContent() {
     }
     return new Set([...counts.entries()].filter(([, count]) => count >= 2).map(([tag]) => tag));
   }, [rationaleNodes]);
-  const flowNodes = useMemo(() => {
+  const flowNodes = useMemo<Node<IbisNodeData>[]>(() => {
     return rationaleNodes
       .map((node, index) => {
         const flowNode = rationaleToFlowNode(node, index, autoLayouts);
@@ -366,7 +366,7 @@ function MapViewContent() {
             ...flowNode.data,
             conflictTags: tags && tags.length > 0 ? tags : undefined
           }
-        };
+        } as Node<IbisNodeData>;
       })
       .filter((node): node is Node<IbisNodeData> => node !== null);
   }, [autoLayouts, rationaleNodes, validConflictTags]);
@@ -387,7 +387,7 @@ function MapViewContent() {
     [nodeById]
   );
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(flowNodes);
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node<IbisNodeData>>(flowNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(flowEdges);
   const [addNodeMenuOpen, setAddNodeMenuOpen] = useState(false);
   const [edgeMenu, setEdgeMenu] = useState<EdgeMenuState | null>(null);

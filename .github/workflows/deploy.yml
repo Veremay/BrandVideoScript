@@ -1,0 +1,74 @@
+name: Test and deploy to Aliyun ECS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.8.4"
+          enable-cache: true
+
+      - name: Test backend
+        working-directory: backend
+        run: |
+          cp .env.example .env
+          uv run python -m compileall -q app
+          uv run python -m unittest discover -s tests -p "test_token_estimate.py"
+          uv run python -m unittest discover -s tests -p "test_tavily_client.py"
+          uv run python -m unittest discover -s tests -p "test_vanilla_context.py"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_BASE_URL: /api
+        run: |
+          npm ci
+          npm run typecheck
+          npm run build
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-24.04
+    environment: production
+    steps:
+      - name: Configure SSH
+        env:
+          ECS_SSH_KEY: ${{ secrets.ECS_SSH_KEY }}
+          ECS_KNOWN_HOSTS: ${{ secrets.ECS_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$ECS_SSH_KEY" > ~/.ssh/aliyun_ecs
+          chmod 600 ~/.ssh/aliyun_ecs
+          printf '%s\n' "$ECS_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Deploy and verify
+        env:
+          ECS_HOST: ${{ secrets.ECS_HOST }}
+          ECS_USER: ${{ secrets.ECS_USER }}
+          ECS_PORT: ${{ secrets.ECS_PORT }}
+        run: |
+          port="${ECS_PORT:-22}"
+          ssh -p "$port" -i ~/.ssh/aliyun_ecs "${ECS_USER}@${ECS_HOST}" \
+            'set -e; if [ ! -d "$HOME/brandvideo/.git" ]; then git clone --depth 1 --branch main https://github.com/Veremay/BrandVideoScript.git "$HOME/brandvideo"; fi; cd "$HOME/brandvideo"; git fetch --depth 1 origin main; git checkout -f -B main FETCH_HEAD; bash deploy/remote-deploy.sh'
