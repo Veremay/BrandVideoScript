@@ -1,11 +1,10 @@
-from pathlib import Path
-
-from app.services.agents import audience_agent, brand_agent
+from app.core.config import get_settings
+from app.services.prompt_loader import load_prompt, prompts_dir
 
 
 def test_brand_prompts_use_5w1h_without_forcing_questionnaire_output() -> None:
-    phase1_text = brand_agent._PHASE1_TASK_INSTRUCTIONS
-    phase2_text = brand_agent._PHASE2_TASK_INSTRUCTIONS
+    phase1_text = load_prompt("tasks/brand_phase1_instructions.md")
+    phase2_text = load_prompt("tasks/brand_phase2_instructions.md")
 
     for dimension in ("Who", "What", "Why", "When", "Where", "How"):
         assert f"**{dimension}**" in phase1_text
@@ -20,10 +19,10 @@ def test_brand_prompts_use_5w1h_without_forcing_questionnaire_output() -> None:
 
 
 def test_map_update_prompts_require_perspective_tension() -> None:
-    brand_text = brand_agent._PHASE2_TASK_INSTRUCTIONS
-    audience_text = audience_agent._DEFAULT_TASK_INSTRUCTIONS
-    expert_text = (Path(__file__).parents[1] / "app" / "prompts" / "expert_agent.md").read_text(encoding="utf-8")
-    coordinator_text = (Path(__file__).parents[1] / "app" / "prompts" / "coordinator_agent.md").read_text(encoding="utf-8")
+    brand_text = load_prompt("tasks/brand_phase2_instructions.md")
+    audience_text = load_prompt("tasks/audience_default_instructions.md")
+    expert_text = load_prompt("expert_agent.md")
+    coordinator_text = load_prompt("coordinator_agent.md")
 
     assert "Do not default to supporting the current script" in brand_text
     assert "brand requirements, risks, and non-negotiables" in brand_text
@@ -37,3 +36,18 @@ def test_map_update_prompts_require_perspective_tension() -> None:
     assert "Do not bury Brand or Audience viewpoints inside an Expert position" in expert_text
     assert "cannot be maximized at the same time" in coordinator_text
     assert "decision axis" in coordinator_text
+
+
+def test_prompt_language_en_resolves_en_directory(monkeypatch) -> None:
+    get_settings.cache_clear()
+    monkeypatch.setenv("PROMPT_LANGUAGE", "en")
+    get_settings.cache_clear()
+    try:
+        assert prompts_dir().name == "en"
+        assert "You are the **Brand Agent**" in load_prompt("brand_agent.md")
+        assert "brand requirement extraction" in load_prompt("tasks/brand_phase1_instructions.md").lower()
+        assert "AI writing assistant" in load_prompt("vanilla_system.md")
+    finally:
+        get_settings.cache_clear()
+        monkeypatch.delenv("PROMPT_LANGUAGE", raising=False)
+        get_settings.cache_clear()

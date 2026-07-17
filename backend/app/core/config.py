@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -19,6 +20,8 @@ class Settings(BaseSettings):
     siliconflow_request_timeout_seconds: float
     siliconflow_stream_timeout_seconds: float
     tavily_api_key: str = ""
+    # LLM system/task prompt language. Changing this requires process restart.
+    prompt_language: Literal["zh", "en"] = "zh"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

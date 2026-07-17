@@ -14,6 +14,7 @@ from app.services.agent_llm import (
 )
 from app.services.llm_errors import LLMInvocationError
 from app.services.pipeline_log import log_step
+from app.services.prompt_loader import load_prompt
 from app.services.tools.expert_kb import domain_case_retriever, script_structure_kb
 from app.models.choice_history import format_choice_history_for_prompt
 from app.models.modification_scheme_ops import (
@@ -359,46 +360,6 @@ async def run_expert_for_audience(
     return result
 
 
-_MAP_UPDATE_TASK_INSTRUCTIONS = """\
-## 场景：map_update — 创作策略立场
-
-结合脚本与 Brand / Audience 已产出的立场，从**创作策略视角**补充 Expert 的 position（及可选 argument）。
-
-**要求**：
-1. 产出 **1~3 个 position**（`source_type=expert_strategy`，`source_perspective=expert`），表达可执行的创作/结构建议或折中方向。
-2. 可为每个 position 补 **0~2 个 argument**（`supports`/`opposes` 连到对应 position）。
-3. **不要**新建 issue；**不要**填写 `conflict_tags`（由 Coordinator 后续分析）。
-4. map_update 中可只输出 position；系统会为未连接的 position 补充承载 Issue。
-5. Expert 立场通常偏平衡、可执行；仅当与品牌/观众立场存在实质对立时才可能被 Coordinator 标记冲突。"""
-
-_MAP_UPDATE_TASK_INSTRUCTIONS += """
-
-## Argument requirements
-- Every generated position must include a real argument connected with `supports` or `opposes`; do not rely on placeholder arguments.
-- The argument must explain the creative trade-off, evidence, or risk behind the position.
-- Do not output a position if you cannot provide a concrete argument for it.
-- Do not bury Brand or Audience viewpoints inside an Expert position. Keep those viewpoints as separate Brand/Audience positions; Expert should state only the creator-strategy synthesis and reference the visible trade-off.
-"""
-
-_MAP_UPDATE_OUTPUT_SCHEMA = """\
-## 输出 JSON
-
-```json
-{
-  "strategy_notes": ["…"],
-  "recommended_directions": ["balanced"],
-  "ibis": {
-    "nodes": [
-      { "node_type": "position", "title": "…", "content": "…", "source_type": "expert_strategy", "source_perspective": "expert" }
-    ],
-    "edges": [],
-    "external_edges": [],
-    "node_updates": []
-  }
-}
-```"""
-
-
 async def run_expert_for_map_update(
     project: dict[str, Any],
     *,
@@ -432,8 +393,9 @@ async def run_expert_for_map_update(
         changed_row_ids=sorted(row_ids),
     )
 
+    map_update_instructions = load_prompt("tasks/expert_map_update_instructions.md")
     context_block = "\n\n".join([
-        _MAP_UPDATE_TASK_INSTRUCTIONS,
+        map_update_instructions,
         script_block,
         f"## Brand 结构化结果\n{perspective_result_json(brand_result or {})}",
         f"## Audience 结构化结果\n{perspective_result_json(audience_result or {})}",
@@ -473,8 +435,8 @@ async def run_expert_for_map_update(
         task_type="expert_map_update",
         mock_payload=mock,
         extra_vars={
-            "TASK_INSTRUCTIONS": _MAP_UPDATE_TASK_INSTRUCTIONS,
-            "OUTPUT_SCHEMA": _MAP_UPDATE_OUTPUT_SCHEMA,
+            "TASK_INSTRUCTIONS": map_update_instructions,
+            "OUTPUT_SCHEMA": load_prompt("tasks/expert_map_update_output.md"),
         },
     )
 

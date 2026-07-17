@@ -19,15 +19,9 @@ from app.services.coordinator_intent import wants_generate_modification_schemes
 from app.services.llm_errors import LLMInvocationError
 from app.services.llm_client import LLMClient
 from app.services.pipeline_log import log_step
+from app.services.prompt_loader import load_prompt
 from app.services.sse import encode_sse
 
-
-VANILLA_SYSTEM_PROMPT = (
-    "你是一个面向短视频 / 品牌合作视频创作者的 AI 写作助手。"
-    "请用清晰、直接的中文，帮助创作者构思、撰写和打磨视频脚本，并回答他们的相关问题。"
-    "你是一个单一的通用大模型，不调用任何外部工具，也不依赖多智能体系统。"
-    "请仅基于对话内容作答，不要假设存在 Brand / Audience / Expert 等智能体或 IBIS 节点图。"
-)
 
 VANILLA_HISTORY_LIMIT = 40
 
@@ -230,7 +224,9 @@ async def _stream_vanilla_chat(
     log_step("coordinator_stream.vanilla", phase="IN", project_id=project_id, message=message)
 
     history = await list_coordinator_messages(db, project_id, user_id, limit=VANILLA_HISTORY_LIMIT)
-    llm_messages: list[dict[str, str]] = [{"role": "system", "content": VANILLA_SYSTEM_PROMPT}]
+    llm_messages: list[dict[str, str]] = [
+        {"role": "system", "content": load_prompt("vanilla_system.md")}
+    ]
     for doc in history:
         role = doc.get("role")
         content = (doc.get("content") or "").strip()

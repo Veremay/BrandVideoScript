@@ -11,79 +11,12 @@ from app.services.agent_llm import (
     script_excerpt_for_rows,
 )
 from app.services.pipeline_log import log_step
+from app.services.prompt_loader import load_prompt
 from app.services.tools.ibis_graph import persist_rationale_graph
 
 AUDIENCE_SOURCES = {"audience_persona", "audience_simulation"}
 
 AudienceTaskContext = Literal["coordinator", "issue_response"]
-
-_DEFAULT_TASK_INSTRUCTIONS = """\
-## 你的任务
-
-1. 评估自然度、广告感、信任门槛、划走风险。
-2. 推理观众向 **IBIS position（观众立场 / 期待）**，通过 `ibis` 字段交给 **`persist_rationale_graph`** 落库。
-3. 产出 position + real argument（把观众视角表达为明确立场，并给出真实理由）；**不要产 issue**。`source_type` 限：`audience_persona`、`audience_simulation`。系统会为未连接的 position 补充承载 Issue；map_update 中必须写 argument → position 的 `supports`/`opposes` edges；冲突由 **Coordinator** 后续分析并分配 `conflict_tags`。"""
-
-_DEFAULT_TASK_INSTRUCTIONS += """
-
-## Map update tension requirements
-- Do not default to supporting the current script.
-- Generate positions from audience friction or drop-off risk, not only positive reactions.
-- Prefer concrete tensions that surface trade-offs against brand requirements or creator strategy.
-- A useful audience position says what feels forced, unclear, too slow, too dense, or likely to reduce trust.
-- Every generated position must include a real argument connected with `supports` or `opposes`; do not rely on placeholder arguments.
-"""
-
-_DEFAULT_OUTPUT_SCHEMA = """\
-## 输出 JSON
-
-```json
-{
-  "naturalness": "…",
-  "ad_sense": "…",
-  "trust": "…",
-  "drop_off_risk": "…",
-  "suggestions": ["…"],
-  "structured_issues": [{ "title": "…", "content": "…" }],
-  "ibis": {
-    "nodes": [],
-    "edges": [],
-    "external_edges": [],
-    "node_updates": []
-  }
-}
-```"""
-
-_ISSUE_RESPONSE_TASK_INSTRUCTIONS = """\
-## 任务：针对用户 Issue 生成观众立场与论据
-
-用户提出了一个议题（Issue）。从当前 Persona 视角给出：
-- **1 个 position** 节点（观众立场）
-- **1~2 个 argument** 节点（支撑或反对该 position 的理由）
-- 用 `external_edges` 将 position（from_index: 0）以 `responds_to` 连到目标 issue（to_node_id）
-- 用 `edges` 将每个 argument（from_index）以 `supports` 或 `opposes` 连到 position（to_index: 0）
-- position / argument 的 `source_type` 限：`audience_persona`、`audience_simulation`
-- 不要输出 issue 节点"""
-
-_ISSUE_RESPONSE_OUTPUT_SCHEMA = """\
-## 输出 JSON
-
-```json
-{
-  "ibis": {
-    "nodes": [
-      { "node_type": "position", "title": "…", "content": "…", "source_type": "audience_simulation", "source_perspective": "audience" },
-      { "node_type": "argument", "title": "…", "content": "…", "source_type": "audience_simulation", "source_perspective": "audience" }
-    ],
-    "edges": [
-      { "from_index": 1, "to_index": 0, "relation_type": "supports" }
-    ],
-    "external_edges": [
-      { "from_index": 0, "to_node_id": "<issue_id>", "relation_type": "responds_to" }
-    ]
-  }
-}
-```"""
 
 
 async def run_audience_agent(
@@ -196,8 +129,8 @@ async def _run_script_analysis(
         task_type="audience_analyze_script",
         mock_payload=mock,
         extra_vars={
-            "TASK_INSTRUCTIONS": _DEFAULT_TASK_INSTRUCTIONS,
-            "OUTPUT_SCHEMA": _DEFAULT_OUTPUT_SCHEMA,
+            "TASK_INSTRUCTIONS": load_prompt("tasks/audience_default_instructions.md"),
+            "OUTPUT_SCHEMA": load_prompt("tasks/audience_default_output.md"),
         },
     )
 
@@ -303,8 +236,10 @@ async def _run_issue_response(
         task_type="audience_issue_response",
         mock_payload=mock,
         extra_vars={
-            "TASK_INSTRUCTIONS": _ISSUE_RESPONSE_TASK_INSTRUCTIONS,
-            "OUTPUT_SCHEMA": _ISSUE_RESPONSE_OUTPUT_SCHEMA.replace("<issue_id>", issue_id),
+            "TASK_INSTRUCTIONS": load_prompt("tasks/audience_issue_response_instructions.md"),
+            "OUTPUT_SCHEMA": load_prompt("tasks/audience_issue_response_output.md").replace(
+                "<issue_id>", issue_id
+            ),
         },
     )
 

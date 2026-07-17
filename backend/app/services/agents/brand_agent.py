@@ -17,151 +17,12 @@ from app.services.agent_llm import (
 from app.services.tools.brand_wiki import brand_wiki_context_for_task
 from app.services.tools.ibis_graph import persist_rationale_graph
 from app.services.pipeline_log import log_step
+from app.services.prompt_loader import load_prompt
 from app.services.tavily_client import TavilyClient
 
 BRAND_SOURCES = {"brand_brief", "brand_inferred"}
 
 BrandTaskContext = Literal["brief_parse", "coordinator", "issue_response"]
-
-# ---------------------------------------------------------------------------
-# Phase-specific prompt fragments injected into brand_agent.md placeholders
-# ---------------------------------------------------------------------------
-
-_PHASE1_TASK_INSTRUCTIONS = """\
-## 任务：品牌需求提取
-
-分析 Brief 与辅助检索结果，提取结构化品牌需求与洞察。
-专注于需求识别，**不需要生成 IBIS 节点**。
-
-## 5W1H 分析框架
-
-提取需求前，先在内部使用 5W1H 对材料进行交叉分析。5W1H 是分析工具，不是必须逐项输出的问卷：
-- **Who**：品牌希望影响谁？区分目标受众、购买者、使用者与传播对象。
-- **What**：品牌要求传达什么？识别核心卖点、产品信息、品牌价值、必选项与禁区。
-- **Why**：品牌为什么提出该要求？判断它服务的传播目标、商业目标或要规避的品牌风险。
-- **When**：信息应在视频哪个阶段出现？是否涉及发布时间、活动节点、使用时机或露出顺序？
-- **Where**：产品与品牌信息应在什么场景、渠道、画面位置或内容语境中呈现？
-- **How**：应以什么叙事方式、语气、视觉风格、口播方式和露出强度呈现？
-
-分析要求：
-1. 不要为了填满 5W1H 补造信息；缺少依据的维度保持未知，不得输出为确定需求。
-2. 合并多个维度共同指向的结论，避免把同一要求拆成多条重复洞察。
-3. 明确区分来源：材料直接说明的归为 `explicit_requirement`；有材料依据但需要推断的归为 `implicit_requirement`。
-4. 每条洞察应说明品牌具体希望什么、为什么重要，以及对视频创作有什么可执行影响。
-5. 主动识别维度之间的张力，例如信息完整度与露出时长、受众接受习惯与品牌表达方式、自然场景与强露出要求之间的冲突。
-6. 最终只输出综合后的可执行需求，不要输出 5W1H 问答过程或六项清单。
-
-## 用户可见文案约束（title / content / reason）
-- 禁止提及内部系统或工具名：Brand Wiki、wiki、llm-wiki、Tavily、知识库路径、文件路径、工具函数名等。
-- 需要说明依据时，只用自然语言：如「根据 Brief」「根据品牌知识」「根据公开资料」。"""
-
-_PHASE1_OUTPUT_SCHEMA = """\
-## 输出 JSON（仅需求字段，不要 ibis）
-
-字段枚举约束（严格使用以下值，不得自造）：
-- `brand_insights[].category`：`"explicit_requirement"` | `"implicit_requirement"`
-  - Brief 解析阶段禁止使用 `brand_feedback`；风险预判归入 `"implicit_requirement"`
-- `brand_insights[].confidence`：`"high"` | `"medium"` | `"low"`
-
-```json
-{
-  "constraints": ["纯文本，约束条件放这里"],
-  "pr_risks": ["纯文本，审片风险放这里"],
-  "brand_insights": [
-    { "category": "explicit_requirement", "title": "…", "content": "…", "reason": "…", "confidence": "high" }
-  ]
-}
-```"""
-
-_PHASE2_TASK_INSTRUCTIONS = """\
-## 任务：品牌立场节点生成
-
-基于已提取的品牌需求，推理品牌方立场，生成 IBIS position 节点。
-- Brand 侧产 position + real argument，不要产 issue；系统会为未连接的 position 补充承载 Issue，冲突由 **Coordinator** 后续分析并分配 `conflict_tags`
-- `source_type` 限：`brand_brief`、`brand_inferred`
-- map_update 中必须写 argument → position 的 `supports`/`opposes` edges；如果任务明确给定目标 Issue，才用 `responds_to` 连接"""
-
-_PHASE2_TASK_INSTRUCTIONS += """
-
-## 5W1H 立场完整性检查
-- **Who**：该立场保护哪类目标对象或品牌关系？
-- **What**：品牌具体要求改变、加强、前置、明确或保留什么？
-- **Why**：支持该立场的依据和不执行的风险是什么？
-- **When / Where**：是否需要明确脚本阶段、行、场景或露出位置？
-- **How**：是否给出了可执行的呈现方向？
-- 不要求每个立场机械覆盖全部六项；只保留与当前脚本改动或 Issue 有关且有依据的维度。
-- 5W1H 仅用于内部检查，不要输出问答清单。
-
-## Map update tension requirements
-- Do not default to supporting the current script.
-- Generate positions from brand requirements, risks, and non-negotiables.
-- Prefer concrete tensions that Coordinator can compare with audience or creator positions.
-- A useful brand position says what must be strengthened, protected, moved earlier, made clearer, or treated as unacceptable.
-- Every generated position must include a real argument connected with `supports` or `opposes`; do not rely on placeholder arguments.
-- Position content should be a concise stance, not pasted Brief text. Put evidence or Brief wording in the argument.
-
-## 用户可见文案约束（title / content / argument）
-- 禁止提及内部系统或工具名：Brand Wiki、wiki、llm-wiki、Tavily、知识库路径、文件路径、工具函数名等。
-- 需要说明依据时，只用自然语言：如「根据 Brief」「根据品牌知识」「根据公开资料」。
-"""
-
-_PHASE2_OUTPUT_SCHEMA = """\
-## 输出 JSON（仅 ibis 节点，不要需求字段）
-
-字段枚举约束：
-- `nodes[].node_type`：`"position"` 或 `"argument"`（Brand 侧不产 issue）
-- `nodes[].source_type`：`"brand_brief"` | `"brand_inferred"`
-
-```json
-{
-  "ibis": {
-    "nodes": [
-      { "node_type": "position", "title": "…", "content": "…", "source_type": "brand_brief", "source_perspective": "brand" },
-      { "node_type": "argument", "title": "…", "content": "…", "source_type": "brand_brief", "source_perspective": "brand" }
-    ],
-    "edges": [
-      { "from_index": 1, "to_index": 0, "relation_type": "supports" }
-    ],
-    "external_edges": [],
-    "node_updates": []
-  }
-}
-```
-
-{{IBIS_TYPES}}"""
-
-_ISSUE_RESPONSE_TASK_INSTRUCTIONS = """\
-## 任务：针对用户 Issue 生成品牌立场与论据
-
-用户提出了一个议题（Issue）。从品牌方视角给出：
-- **1 个 position** 节点（品牌立场）
-- **1~2 个 argument** 节点（支撑或反对该 position 的理由）
-- 用 `external_edges` 将 position（from_index: 0）以 `responds_to` 连到目标 issue（to_node_id）
-- 用 `edges` 将每个 argument（from_index）以 `supports` 或 `opposes` 连到 position（to_index: 0）
-- position / argument 的 `source_type` 限：`brand_brief`、`brand_inferred`
-- 不要输出 issue 节点
-- 用户可见文案禁止提及 Brand Wiki / wiki / Tavily 等内部名称；依据可写「根据品牌知识」「根据公开资料」「根据 Brief」"""
-
-_ISSUE_RESPONSE_OUTPUT_SCHEMA = """\
-## 输出 JSON（仅 ibis 节点）
-
-```json
-{
-  "ibis": {
-    "nodes": [
-      { "node_type": "position", "title": "…", "content": "…", "source_type": "brand_brief", "source_perspective": "brand" },
-      { "node_type": "argument", "title": "…", "content": "…", "source_type": "brand_brief", "source_perspective": "brand" }
-    ],
-    "edges": [
-      { "from_index": 1, "to_index": 0, "relation_type": "supports" }
-    ],
-    "external_edges": [
-      { "from_index": 0, "to_node_id": "<issue_id>", "relation_type": "responds_to" }
-    ],
-    "node_updates": []
-  }
-}
-```"""
 
 
 def _format_requirements_block(
@@ -295,8 +156,8 @@ async def _run_requirements_extraction(project: dict[str, Any]) -> dict[str, Any
         task_type="brand_extract_requirements",
         mock_payload=mock,
         extra_vars={
-            "TASK_INSTRUCTIONS": _PHASE1_TASK_INSTRUCTIONS,
-            "OUTPUT_SCHEMA": _PHASE1_OUTPUT_SCHEMA,
+            "TASK_INSTRUCTIONS": load_prompt("tasks/brand_phase1_instructions.md"),
+            "OUTPUT_SCHEMA": load_prompt("tasks/brand_phase1_output.md"),
         },
     )
 
@@ -412,8 +273,8 @@ async def _run_nodes_generation(
         task_type="brand_generate_nodes",
         mock_payload=mock,
         extra_vars={
-            "TASK_INSTRUCTIONS": _PHASE2_TASK_INSTRUCTIONS,
-            "OUTPUT_SCHEMA": _PHASE2_OUTPUT_SCHEMA,
+            "TASK_INSTRUCTIONS": load_prompt("tasks/brand_phase2_instructions.md"),
+            "OUTPUT_SCHEMA": load_prompt("tasks/brand_phase2_output.md"),
         },
     )
 
@@ -521,8 +382,10 @@ async def _run_issue_response(
         task_type="brand_issue_response",
         mock_payload=mock,
         extra_vars={
-            "TASK_INSTRUCTIONS": _ISSUE_RESPONSE_TASK_INSTRUCTIONS,
-            "OUTPUT_SCHEMA": _ISSUE_RESPONSE_OUTPUT_SCHEMA.replace("<issue_id>", issue_id),
+            "TASK_INSTRUCTIONS": load_prompt("tasks/brand_issue_response_instructions.md"),
+            "OUTPUT_SCHEMA": load_prompt("tasks/brand_issue_response_output.md").replace(
+                "<issue_id>", issue_id
+            ),
         },
     )
 
