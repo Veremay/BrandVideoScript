@@ -3,7 +3,7 @@
 Usage:
   uv run python scripts/export_activity_logs.py --project-id PROJECT_ID --user-id USER_ID
   uv run python scripts/export_activity_logs.py --project-id PROJECT_ID --user-id USER_ID --out my_logs.json
-  uv run python scripts/export_activity_logs.py --project-id PROJECT_ID --user-id USER_ID --all-events
+  uv run python scripts/export_activity_logs.py --project-id PROJECT_ID --user-id USER_ID --event-type mutation
 """
 
 from __future__ import annotations
@@ -67,16 +67,20 @@ def main() -> None:
         help="Output JSON path (default: activity_logs_<project_id>.json)",
     )
     parser.add_argument(
-        "--all-events",
-        action="store_true",
-        help="Include all event types (default: mutation only)",
+        "--event-type",
+        default=None,
+        help="Filter by event_type (e.g. mutation, http). Default: export all types",
     )
     parser.add_argument("--action", default=None, help="Optional exact action filter")
     parser.add_argument("--limit", type=int, default=5000, help="Max events to export")
     args = parser.parse_args()
 
     out_path = Path(args.out) if args.out else Path(f"activity_logs_{args.project_id}.json")
-    event_type = None if args.all_events else "mutation"
+    event_type = None
+    if isinstance(args.event_type, str):
+        stripped = args.event_type.strip()
+        if stripped and stripped.lower() != "all":
+            event_type = stripped
     count = asyncio.run(
         export_logs(
             project_id=args.project_id.strip(),

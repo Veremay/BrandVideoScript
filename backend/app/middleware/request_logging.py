@@ -1,4 +1,4 @@
-"""HTTP request logging middleware — console access log only.
+"""HTTP request logging middleware — console + activity_logs persistence.
 
 Implemented as pure ASGI middleware (not BaseHTTPMiddleware) so StreamingResponse /
 SSE endpoints are not buffered or truncated.
@@ -15,6 +15,8 @@ from typing import Any
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from app.db.mongo import get_database
+from app.repositories.activity_logs import persist_http_activity_log
 from app.services.app_log import (
     log_http,
     request_id_ctx,
@@ -49,6 +51,13 @@ def _query_user_id(scope: Scope) -> str | None:
         if key == "user_id" and value:
             return value
     return None
+
+
+def _try_get_database():
+    try:
+        return get_database()
+    except RuntimeError:
+        return None
 
 
 async def _buffer_body(receive: Receive) -> tuple[bytes, Receive]:
@@ -137,16 +146,30 @@ class RequestLoggingMiddleware:
         status_code = 500
         logged = False
 
-        def _log(*, error: str | None = None) -> None:
+        async def _log(*, error: str | None = None) -> None:
             nonlocal logged
             if logged:
                 return
             logged = True
+            duration_ms = (time.perf_counter() - start) * 1000
             log_http(
                 method=method,
                 path=path,
                 status_code=status_code,
-                duration_ms=(time.perf_counter() - start) * 1000,
+                duration_ms=duration_ms,
+                request_id=request_id,
+                user_id=user_id,
+                project_id=project_id,
+                client_ip=client_ip,
+                meta=body_meta,
+                error=error,
+            )
+            await persist_http_activity_log(
+                _try_get_database(),
+                method=method,
+                path=path,
+                status_code=status_code,
+                duration_ms=duration_ms,
                 request_id=request_id,
                 user_id=user_id,
                 project_id=project_id,
@@ -163,14 +186,14 @@ class RequestLoggingMiddleware:
                 headers_out["X-Request-ID"] = request_id
             await send(message)
             if message["type"] == "http.response.body" and not message.get("more_body", False):
-                _log()
+                await _log()
 
         try:
             await self.app(scope, app_receive, send_wrapper)
             # Streaming may end without a final body frame in disconnect edge cases.
-            _log()
+            await _log()
         except Exception as exc:
-            _log(error=f"{type(exc).__name__}: {exc}")
+            await _log(error=f"{type(exc).__name__}: {exc}")
             raise
         finally:
             request_id_ctx.reset(token)

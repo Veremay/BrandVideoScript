@@ -5,6 +5,7 @@ from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app.core.config import get_settings
 from app.models.script import now_iso
 from app.repositories.coordinator_messages import (
     build_coordinator_message,
@@ -14,7 +15,9 @@ from app.repositories.coordinator_messages import (
 from app.repositories.modification_schemes import generate_modification_schemes
 from app.repositories.projects import get_project
 from app.repositories.script_snapshots import snapshot_before_map_update
+from app.services.agent_llm import format_script_for_prompt
 from app.services.agent_orchestrator import merge_pipeline_into_project_graph, run_coordinator_pipeline
+from app.services.context_compress import maybe_compress_history
 from app.services.coordinator_intent import wants_generate_modification_schemes
 from app.services.llm_errors import LLMInvocationError
 from app.services.llm_client import LLMClient
@@ -23,7 +26,7 @@ from app.services.prompt_loader import load_prompt
 from app.services.sse import encode_sse
 
 
-VANILLA_HISTORY_LIMIT = 40
+VANILLA_HISTORY_LIMIT = 80
 
 
 def _resolve_perspectives(requested: list[str]) -> set[str]:
@@ -209,6 +212,14 @@ async def stream_coordinator_chat(
     yield encode_sse("done", done_payload)
 
 
+def build_vanilla_system_content(project: dict) -> str:
+    """System prompt + full current script (never compressed)."""
+    system = load_prompt("vanilla_system.md")
+    script_block = format_script_for_prompt(project)
+    heading = "Full current script" if get_settings().prompt_language == "en" else "当前完整脚本"
+    return f"{system}\n\n## {heading}\n{script_block}"
+
+
 async def _stream_vanilla_chat(
     db: AsyncIOMotorDatabase,
     project_id: str,
@@ -220,22 +231,22 @@ async def _stream_vanilla_chat(
     requested_perspectives: list[str],
     quotes: list[dict],
 ) -> AsyncIterator[str]:
-    """Plain single-LLM chat with a system prompt only — no multi-agent pipeline, graph, or schemes."""
+    """Plain single-LLM chat — system + full script + (compressed) history; no multi-agent pipeline."""
     log_step("coordinator_stream.vanilla", phase="IN", project_id=project_id, message=message)
 
     history = await list_coordinator_messages(db, project_id, user_id, limit=VANILLA_HISTORY_LIMIT)
-    llm_messages: list[dict[str, str]] = [
-        {"role": "system", "content": load_prompt("vanilla_system.md")}
-    ]
+    history_messages: list[dict[str, str]] = []
     for doc in history:
         role = doc.get("role")
         content = (doc.get("content") or "").strip()
         if role in {"user", "assistant"} and content:
-            llm_messages.append({"role": role, "content": content})
+            history_messages.append({"role": role, "content": content})
 
     quote_text = "\n".join(str(q.get("text", "")).strip() for q in quotes if q.get("text"))
-    if quote_text and llm_messages and llm_messages[-1]["role"] == "user":
-        llm_messages[-1]["content"] = f"引用脚本片段：\n{quote_text}\n\n{llm_messages[-1]['content']}"
+    if quote_text and history_messages and history_messages[-1]["role"] == "user":
+        history_messages[-1]["content"] = (
+            f"引用脚本片段：\n{quote_text}\n\n{history_messages[-1]['content']}"
+        )
 
     llm = LLMClient()
     if not llm.settings.siliconflow_api_key:
@@ -245,6 +256,12 @@ async def _stream_vanilla_chat(
             {"message": "未配置 LLM API key，无法调用模型。请在后端 .env 设置 SILICONFLOW_API_KEY 后重试。"},
         )
         return
+
+    compressed_history = await maybe_compress_history(history_messages, llm=llm)
+    llm_messages: list[dict[str, str]] = [
+        {"role": "system", "content": build_vanilla_system_content(project)},
+        *compressed_history,
+    ]
 
     content_parts: list[str] = []
     # mock=False: vanilla never falls back to a canned reply — real model only.

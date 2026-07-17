@@ -135,7 +135,10 @@ class LLMClient:
                         data = json.loads(chunk)
                     except json.JSONDecodeError:
                         continue
-                    delta = data.get("choices", [{}])[0].get("delta", {}).get("content")
+                    choices = data.get("choices") or []
+                    if not choices:
+                        continue
+                    delta = choices[0].get("delta", {}).get("content")
                     if delta:
                         collected.append(delta)
                         yield delta
