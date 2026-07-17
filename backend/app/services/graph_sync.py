@@ -5,6 +5,7 @@ from typing import Any
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.script import now_iso
+from app.models.rationale_ops import prune_singleton_conflict_tags
 from app.repositories.projects import get_project
 from app.repositories.script_snapshots import snapshot_before_map_update
 from app.services.agent_orchestrator import (
@@ -105,6 +106,8 @@ async def sync_graph_from_script(
             issue_reviews = reconcile_pipeline.issue_reviews
             if reconcile_pipeline.assistant_reply:
                 pipeline.assistant_reply = reconcile_pipeline.assistant_reply
+
+        nodes = prune_singleton_conflict_tags(nodes)
 
         await db.projects.update_one(
             {"_id": project_id, "user_id": user_id},
