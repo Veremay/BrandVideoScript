@@ -1,0 +1,23 @@
+/var/log/brandvideo/backend.log {
+    daily
+    size 50M
+    rotate 14
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    su root root
+}
+
+/var/log/brandvideo/projects/*/backend.log {
+    daily
+    size 50M
+    rotate 14
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    su root root
+}

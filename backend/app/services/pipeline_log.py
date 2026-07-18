@@ -8,10 +8,23 @@ import os
 import sys
 from typing import Any
 
+from app.services.app_log import get_project_id, get_request_id
+
 logger = logging.getLogger("brandvideo.pipeline")
 
 _STEP_MAX = 6000
 _LLM_MAX = 50000
+
+
+class _RequestContextFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        fields = []
+        if project_id := get_project_id():
+            fields.append(f"project_id={project_id}")
+        if request_id := get_request_id():
+            fields.append(f"request_id={request_id}")
+        record.request_context = f"{' '.join(fields)} | " if fields else ""
+        return True
 
 
 def setup_pipeline_logging() -> None:
@@ -20,8 +33,12 @@ def setup_pipeline_logging() -> None:
     level_name = os.getenv("PIPELINE_LOG_LEVEL", "INFO").upper()
     level = getattr(logging, level_name, logging.INFO)
     handler = logging.StreamHandler()
+    handler.addFilter(_RequestContextFilter())
     handler.setFormatter(
-        logging.Formatter("%(asctime)s | %(levelname)s | %(message)s", datefmt="%H:%M:%S")
+        logging.Formatter(
+            "%(asctime)s | %(levelname)s | %(request_context)s%(message)s",
+            datefmt="%H:%M:%S",
+        )
     )
     logger.addHandler(handler)
     logger.setLevel(level)
@@ -111,7 +128,8 @@ _STREAM_ECHO = os.getenv("LLM_STREAM_ECHO", "1") != "0"
 def log_llm_stream_start(task_type: str, model: str) -> None:
     if not _STREAM_ECHO:
         return
-    sys.stdout.write(f"\n{'~' * 60}\n[LLM STREAM] task={task_type} model={model}\n")
+    context = f"project_id={get_project_id()} request_id={get_request_id()}".strip()
+    sys.stdout.write(f"\n{'~' * 60}\n[LLM STREAM] {context} task={task_type} model={model}\n")
     sys.stdout.flush()
 
 

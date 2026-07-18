@@ -19,6 +19,7 @@ from app.db.mongo import get_database
 from app.repositories.activity_logs import persist_http_activity_log
 from app.services.app_log import (
     log_http,
+    project_id_ctx,
     request_id_ctx,
     summarize_request_body,
 )
@@ -126,6 +127,7 @@ class RequestLoggingMiddleware:
         path = scope.get("path", "")
         user_id = _query_user_id(scope)
         project_id = _extract_project_id(path)
+        project_token = project_id_ctx.set(project_id or "")
         client_ip = _client_ip(scope)
         body_meta: dict[str, Any] | None = None
 
@@ -196,4 +198,5 @@ class RequestLoggingMiddleware:
             await _log(error=f"{type(exc).__name__}: {exc}")
             raise
         finally:
+            project_id_ctx.reset(project_token)
             request_id_ctx.reset(token)

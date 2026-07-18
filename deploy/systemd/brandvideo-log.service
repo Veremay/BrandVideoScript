@@ -1,0 +1,15 @@
+[Unit]
+Description=BrandVideo Docker log exporter
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/default/brandvideo-log
+LogsDirectory=brandvideo
+ExecStart=/usr/bin/python3 /usr/local/lib/brandvideo/log_router.py --compose-file ${BRANDVIDEO_COMPOSE_FILE}
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

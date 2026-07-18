@@ -11,6 +11,7 @@ from typing import Any
 logger = logging.getLogger("brandvideo.app")
 
 request_id_ctx: ContextVar[str] = ContextVar("request_id", default="")
+project_id_ctx: ContextVar[str] = ContextVar("project_id", default="")
 
 _META_MAX = 4000
 _TRUNCATE_FIELDS = frozenset(
@@ -58,6 +59,10 @@ def activity_log_enabled() -> bool:
 
 def get_request_id() -> str:
     return request_id_ctx.get()
+
+
+def get_project_id() -> str:
+    return project_id_ctx.get()
 
 
 def _serialize(value: Any, *, max_len: int = _META_MAX) -> str:
