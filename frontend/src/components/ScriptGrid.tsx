@@ -607,7 +607,7 @@ function RowBlock({
                 ? "Enter your feedback for this scene"
                 : "Filled by brand partner via share link"
               : column.type === "duration"
-                ? "0-5"
+                ? "e.g. 0-5"
                 : "",
             readOnly: cellReadOnly,
             title: brandFeedback

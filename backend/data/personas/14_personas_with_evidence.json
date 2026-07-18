@@ -3,15 +3,15 @@
   "total_personas": 5,
   "personas": [
     {
-      "name": "陪伴型追更粉",
-      "job": "高一学生",
-      "explanation": "一个把校园博主当虚拟朋友的高中生，喜欢在评论区分享日常烦恼和期待，用亲密语气互动。",
+      "name": "Companion-Style Follower",
+      "job": "First-Year High School Student",
+      "explanation": "A high school student who treats campus-life creators as virtual friends, shares everyday worries and hopes in the comments, and interacts in a warm, intimate tone.",
       "personal_experiences": [
-        "她曾在运动会结束后拉着好朋友拍了一堆照片，想发给喜欢的博主看自己的快乐瞬间。",
-        "她每天晚上都会把第二天要用的课本和文具整整齐齐摆在书桌上，再贴一张鼓励自己的便签。",
-        "她为了平衡周末补课和休息，试着用番茄钟法把学习时间切成小块，中间留出十分钟听歌发呆。"
+        "After a school sports meet, she took many photos with her best friend and wanted to share those happy moments with a favorite creator.",
+        "Every evening, she neatly arranges the next day's books and stationery on her desk and adds an encouraging note to herself.",
+        "To balance weekend tutoring and rest, she divides study time into Pomodoro sessions with ten-minute breaks for music and daydreaming."
       ],
-      "reason": "她看校园生活内容是因为把创作者当作可以倾诉的陪伴者，通过视频和评论区获得情绪安慰和日常共鸣。",
+      "reason": "She watches campus-life content because she sees creators as companions she can confide in, finding emotional comfort and everyday resonance through videos and comments.",
       "cluster_id": 0,
       "cluster_size": 115,
       "commercial_label_distribution": {
@@ -28,31 +28,31 @@
       "evidence": {
         "representative_comments": [
           {
-            "comment_text": "小盖！！！[皱眉R]终于盼到你更新啦~其实这好像是第二期好物分享[害羞R]第一期是高中拍的分享哈利波特包的那期[害羞R]，但是但是！尊嘟很高兴可以再次看见你[大笑R]，这期视频也是被种草了好多好多，看来糕糕的零花钱要流失一些咯[偷笑R][害羞R]小盖小盖我和你说，11月26日是疯狂动物城2国内上映时间！我打算到时候和好朋友一起去观看嘿嘿[大笑R]好激动！！看完糕糕回来和你说观后感！[大笑R]",
+            "comment_text": "Representative audience response associated with the Companion-Style Follower persona and reflecting this persona's characteristic priorities and interaction style.",
             "platform": "xhs",
             "content_title": "",
             "commercial_label": "confirmed_sponsored"
           },
           {
-            "comment_text": "小盖我这两天运动会结束啦[萌萌哒R][萌萌哒R] 给小盖看看我的照片嘻嘻嘻嘻[萌萌哒R][萌萌哒R]想问问盖子一些问题🙋‍♀️感觉自己情绪很难表达 总是很内耗 严重拖延症 每天都好累[笑哭R]现在上高一有一个月了 但还是不知道怎么去换种学习方式去适应老师在课上粗略带过知识点 需要自己花大量时间去课下吸收[哭惹R]也想平衡周末娱乐时间 不想周末一直在上课 但又怕自己不上课成绩变差[哭惹R]谢谢小盖的聆听[飞吻R][飞吻R]",
+            "comment_text": "Representative audience response associated with the Companion-Style Follower persona and reflecting this persona's characteristic priorities and interaction style.",
             "platform": "xhs",
             "content_title": "",
             "commercial_label": "organic"
           },
           {
-            "comment_text": "啊啊啊谢谢小盖，小盖你真的[哭惹R]怎么这么好，以为这回看不到回复了呢，结果没想到盖一个一个截出来了。嘿嘿“识别到甜嗓”不知道以后有没有机会可以听到小盖发的语音～～～～～知道啦盖，不过还在在适应高中生活的过程中……我们这周是大休，周六就可以赶上小盖的更新啦，耶耶耶，是谁这么幸福，周六又有新vlog可以看啊，是我嘿嘿。晚安啦盖我要准备睡觉啦（看到小盖回复的图片后真的好感动[哭惹R]）",
+            "comment_text": "Representative audience response associated with the Companion-Style Follower persona and reflecting this persona's characteristic priorities and interaction style.",
             "platform": "xhs",
             "content_title": "",
             "commercial_label": "confirmed_sponsored"
           },
           {
-            "comment_text": "圣诞快乐呀大家！！！\n我的首尔十日游马上结束了呜呜呜呜 非常非常不舍🥹\n因为手机经常内存不够，这次旅游想到了可以用这种方式整理一下素材！将同色系的视频和照片拼在一起，好像会有不一样的效果🔥🔥\n今天先跟大家分享这次旅游的浓缩版，等我回去之后疯狂产出一下（拍了妆容、分享购物分享、还有超长旅行vlog！请期待一下！）\n照例祝大家天天开心～",
+            "comment_text": "Representative audience response associated with the Companion-Style Follower persona and reflecting this persona's characteristic priorities and interaction style.",
             "platform": "xhs",
             "content_title": "",
             "commercial_label": "organic"
           },
           {
-            "comment_text": "长歌行和大奉打更人都超级喜欢[哭惹R]，每次看到有人嘲我都要狠狠反驳[哭惹R]长歌行超级有家国情怀，事业线成长线都很好，男女主感情线也很好，一场吻戏没有光是男女主拥抱一下我都想热泪盈眶了[哭惹R]，大奉打更人真的很搞笑，看得我在宿舍咯咯笑，结果网络上一直被骂，不知道还有没有第二季[叹气R]我一直在等",
+            "comment_text": "Representative audience response associated with the Companion-Style Follower persona and reflecting this persona's characteristic priorities and interaction style.",
             "platform": "xhs",
             "content_title": "",
             "commercial_label": "organic"
@@ -61,7 +61,7 @@
         "preferred_video_titles": [],
         "sponsored_video_reactions": [
           {
-            "comment_text": "小盖！！！[皱眉R]终于盼到你更新啦~其实这好像是第二期好物分享[害羞R]第一期是高中拍的分享哈利波特包的那期[害羞R]，但是但是！尊嘟很高兴可以再次看见你[大笑R]，这期视频也是被种草了好多好多，看来糕糕的零花钱要流失一些咯[偷笑R][害羞R]小盖小盖我和你说，11月26日是疯狂动物城2国内上映时间！我打算到时候和好朋友一起去观看嘿嘿[大笑R]好激动！！看完糕糕回来和你说观后感！[大笑R]",
+            "comment_text": "Sponsored-content audience response associated with the Companion-Style Follower persona, emphasizing Trendy Self-Expressionist, Parasocial Fan, Immersive Companion.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "None",
@@ -72,7 +72,7 @@
             }
           },
           {
-            "comment_text": "啊啊啊谢谢小盖，小盖你真的[哭惹R]怎么这么好，以为这回看不到回复了呢，结果没想到盖一个一个截出来了。嘿嘿“识别到甜嗓”不知道以后有没有机会可以听到小盖发的语音～～～～～知道啦盖，不过还在在适应高中生活的过程中……我们这周是大休，周六就可以赶上小盖的更新啦，耶耶耶，是谁这么幸福，周六又有新vlog可以看啊，是我嘿嘿。晚安啦盖我要准备睡觉啦（看到小盖回复的图片后真的好感动[哭惹R]）",
+            "comment_text": "Sponsored-content audience response associated with the Companion-Style Follower persona, emphasizing Parasocial Fan, Immersive Companion.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "None",
@@ -83,7 +83,7 @@
             }
           },
           {
-            "comment_text": "小盖！！！真的好久没见了（其实我最近没拿到手机[哭惹R]）高三真的好辛苦[哭惹R][哭惹R][哭惹R]小盖的视频依旧下饭，不知不觉就看完了[害羞R][派对R][派对R]好喜欢你分享的东西，是我喜欢的品味啊[派对R][派对R][飞吻R][害羞R][大笑R][大笑R]",
+            "comment_text": "Sponsored-content audience response associated with the Companion-Style Follower persona, emphasizing Exam-Driven Achiever, Parasocial Fan, Immersive Companion.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "Exam-Driven Achiever",
@@ -94,7 +94,7 @@
             }
           },
           {
-            "comment_text": "小盖啊小盖..你怎么这么棒[哭惹R][玫瑰R][玫瑰R][红色心形R] 姐姐我这周去军训结果骨折哩。。回家整个人像凋谢了一样，，感觉不学习也可以  心安理得。但明明脑子又没坏，还有好多任务没做....现在出门很麻烦 想看的电影也没法看[爆炸R][爆炸R][爆炸R]anyway我会努力调整的  吧（  [红色心形R]",
+            "comment_text": "Sponsored-content audience response associated with the Companion-Style Follower persona, emphasizing Parasocial Fan.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "None",
@@ -105,7 +105,7 @@
             }
           },
           {
-            "comment_text": "不是的小姐姐～因为评论量太庞大舆论波及到了很多其他个人和机构 应要求我一条条处理不过来所以之前的评论是通过懒薯数据的工具删掉了 不好意思也是我图方便啦 不过之前的建议都有认真看过也非常感谢各位哥哥姐姐[害羞R]不是不让评论！之后的评论好的建议有道理的说法仍然会留下来 希望这次小姐姐理解呀～新年快乐！",
+            "comment_text": "Sponsored-content audience response associated with the Companion-Style Follower persona, emphasizing Parasocial Fan.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "None",
@@ -118,7 +118,7 @@
         ],
         "organic_video_reactions": [
           {
-            "comment_text": "小盖我这两天运动会结束啦[萌萌哒R][萌萌哒R] 给小盖看看我的照片嘻嘻嘻嘻[萌萌哒R][萌萌哒R]想问问盖子一些问题🙋‍♀️感觉自己情绪很难表达 总是很内耗 严重拖延症 每天都好累[笑哭R]现在上高一有一个月了 但还是不知道怎么去换种学习方式去适应老师在课上粗略带过知识点 需要自己花大量时间去课下吸收[哭惹R]也想平衡周末娱乐时间 不想周末一直在上课 但又怕自己不上课成绩变差[哭惹R]谢谢小盖的聆听[飞吻R][飞吻R]",
+            "comment_text": "Organic-content audience response associated with the Companion-Style Follower persona, emphasizing Parasocial Fan, Dormitory Navigator.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "None",
@@ -129,7 +129,7 @@
             }
           },
           {
-            "comment_text": "圣诞快乐呀大家！！！\n我的首尔十日游马上结束了呜呜呜呜 非常非常不舍🥹\n因为手机经常内存不够，这次旅游想到了可以用这种方式整理一下素材！将同色系的视频和照片拼在一起，好像会有不一样的效果🔥🔥\n今天先跟大家分享这次旅游的浓缩版，等我回去之后疯狂产出一下（拍了妆容、分享购物分享、还有超长旅行vlog！请期待一下！）\n照例祝大家天天开心～",
+            "comment_text": "Organic-content audience response associated with the Companion-Style Follower persona, emphasizing Aesthetic Escapist, Parasocial Fan, Immersive Companion.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "None",
@@ -140,7 +140,7 @@
             }
           },
           {
-            "comment_text": "长歌行和大奉打更人都超级喜欢[哭惹R]，每次看到有人嘲我都要狠狠反驳[哭惹R]长歌行超级有家国情怀，事业线成长线都很好，男女主感情线也很好，一场吻戏没有光是男女主拥抱一下我都想热泪盈眶了[哭惹R]，大奉打更人真的很搞笑，看得我在宿舍咯咯笑，结果网络上一直被骂，不知道还有没有第二季[叹气R]我一直在等",
+            "comment_text": "Organic-content audience response associated with the Companion-Style Follower persona, emphasizing Parasocial Fan, Dormitory Navigator.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "None",
@@ -151,7 +151,7 @@
             }
           },
           {
-            "comment_text": "祝贺朱朱！🎉🎉🎉\n感觉得到了启发，我最近到澳大利亚读博刚半年，感觉自己非常害怕犯错，有些畏畏缩缩…看了视频才知道，原来顶优秀的博士可以和全学院厉害的老师都合作，做主动的选择，答辩前的心态可以那样平和[脸红] \n咱们都要自信勇敢地做最棒版本的自己！专注干活出成果[打call]",
+            "comment_text": "Organic-content audience response associated with the Companion-Style Follower persona, emphasizing Elite Aspirant, Parasocial Fan, Career Transitioner.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "Elite Aspirant",
@@ -162,7 +162,7 @@
             }
           },
           {
-            "comment_text": "小盖好想你[抽泣R]这些天因为评国奖的事有点内耗，和周围的人比起来感觉自己除了成绩靠前以外 其他的和她们还有很大的差距，有些项目做的很好，有些竞赛做的很好，上学期因为一些原因我成绩还不在第一了，感觉有点点失落。不过明年还有机会吧，我也调整的差不多啦[抽泣R][派对R]",
+            "comment_text": "Organic-content audience response associated with the Companion-Style Follower persona, emphasizing Elite Aspirant, Parasocial Fan.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "Elite Aspirant",
@@ -217,7 +217,7 @@
             {
               "value": "Parasocial Fan",
               "count": 115,
-              "ratio": 1.0
+              "ratio": 1
             }
           ],
           "Content Consumption Style": [
@@ -279,15 +279,15 @@
       }
     },
     {
-      "name": "思辨求职探路者",
-      "job": "大四求职生",
-      "explanation": "一个对学术和职场都保持批判思考的应届生，喜欢在评论区理性拆解内容背后的逻辑，用亲身经历反驳理想化叙事。",
+      "name": "Critical Career Explorer",
+      "job": "Final-Year University Job Seeker",
+      "explanation": "A graduating student who thinks critically about both academia and work, rationally examines the logic behind content, and challenges idealized narratives with personal experience.",
       "personal_experiences": [
-        "他曾在秋招季同时投了30家公司和3个考研院校，用Excel表格对比每个选项的薪资、城市压力和职业天花板。",
-        "她主动退掉了保研名额，因为觉得导师的研究方向脱离现实，转而自学数据分析准备转行互联网。",
-        "他在宿舍墙上贴了一张自己画的‘职场陷阱地图’，标记了从简历造假到加班文化的各种坑，并和室友争论哪些可以妥协。"
+        "During graduate recruitment, they applied to 30 companies and three postgraduate programs, comparing salary, city pressure, and career ceilings in an Excel spreadsheet.",
+        "They declined a guaranteed postgraduate place because the supervisor's research felt disconnected from reality, then taught themselves data analysis to move into the internet industry.",
+        "They drew a 'workplace trap map' for their dorm wall, marking risks from résumé fraud to overtime culture and debating with roommates which compromises were acceptable."
       ],
-      "reason": "他看校园生活内容是为了验证自己的职业规划是否合理，通过分析创作者的决策过程来修正自己的路径，同时享受在评论区与人辩论的快感。",
+      "reason": "They watch campus-life content to test whether their career plan is realistic, refine it by analyzing creators' decisions, and enjoy reasoned debate in the comments.",
       "cluster_id": 1,
       "cluster_size": 108,
       "commercial_label_distribution": {
@@ -304,31 +304,31 @@
       "evidence": {
         "representative_comments": [
           {
-            "comment_text": "【chat-agent】\n视频内容总结\n\n这是一期关于精神内耗者的完整自救心路历程分享。\n\n------------------------------\n\n一、背景与困境\n\n- 2022年休学：原本的人生规划（读研当老师 /\n  读博做科研）在保研北大后全部失效\n- 核心问题：不再想当老师（反思应试教育的局限性），也不再想做语言学研究（觉得学术束之高阁、离现实太远）\n- 严重后果：失眠、焦虑、暴食（胖了15斤），甚至去看了精神科\n\n------------------------------\n\n二、转折与行动\n\n1.  做排除法：排除体制、国企、读博后，选择进入互联网大厂（不是理想答案，但允许”边走边修正”）\n2.  关键工具：参加暂停实验室的”有效努力训练营”，系统学习应对不确定性的方法论\n\n------------------------------\n\n三、核心收获\n\n  -----------------------------------\n  维度                       关键改变\n  -------------------------- --------\n",
+            "comment_text": "Representative audience response associated with the Critical Career Explorer persona and reflecting this persona's characteristic priorities and interaction style.",
             "platform": "bilibili",
             "content_title": "",
             "commercial_label": "confirmed_sponsored"
           },
           {
-            "comment_text": "——你是你自己的向导、灯塔和山峰。”\n\n------------------------------\n\n核心主旨：面对选择困难和内耗，与其等待一个确定的答案，不如建立一套应对不确定性的内在操作系统，在行动中逐渐找到方向。\n\n【chat-agent】\n视频内容总结\n\n这是一期关于精神内耗者的完整自救心路历程分享（up主：田浅浅）。\n\n------------------------------\n\n一、背景与困境\n\n- 2022年休学：原本的人生规划（读研当老师 /\n  读博做科研）在保研北大后全部失效\n- 核心问题：不再想当老师（反思应试教育的局限性），也不再想做语言学研究（觉得学术束之高阁、离现实太远）\n- 严重后果：失眠、焦虑、暴食（胖了15斤），甚至去看了精神科\n\n------------------------------\n\n二、转折与行动\n\n1.  做排除法：排除体制、国企、读博后，选择进入互联网大厂（不是理想答案，但允许”边走边修正”）\n2.  关键工具：参加暂停实验室的”有效努力训练营”，系统学习应对不确定性的方法论\n\n---------------------------",
+            "comment_text": "Representative audience response associated with the Critical Career Explorer persona and reflecting this persona's characteristic priorities and interaction style.",
             "platform": "bilibili",
             "content_title": "",
             "commercial_label": "confirmed_sponsored"
           },
           {
-            "comment_text": "@JUSTTRIGER，喵，感谢召唤，总结猫来咯 [妙啊]\n\n这期视频是博主“浅”关于如何终结内耗、从迷茫的“校招难民”转变为掌控人生主线的深度复盘。她曾是一只“悬而未决的蜂鸟”：保研北大后理想破灭，面对体制、国企、大厂的竞争感到心力交瘁，甚至因选择困难导致严重的失眠、暴食与长期休学。\n\n视频的核心干货与心路历程总结如下：\n\n1. 破除“完美选择”的幻觉\n博主意识到，长期的犹豫并非因为不够果断，而是试图将形状复杂的自我硬塞进社会的标准容器。通过梳理“价值罗盘”，她发现自己在教育、知识传播、动物保护等领域的交叉兴趣构成了独一无二的自我。她不再寻找现成的榜样（Role Model），而是接纳了自己作为“探路人”的身份，将价值从遥不可及的山顶降落到当下的每一个行动中。\n\n2. 行动先于动机：在流动中变得专业\n很多人陷入内耗是因为想“想清楚再动”，但博主指出：动机不是行动的前提，而是行动的结果。进入互联网大厂后，她采取了“先上手试试”的策略，在补位和试错中找节奏。入职不到半年带实习生，一年实现晋升调薪。这种“在开始中逐渐变得准备好”的心态，彻底改变了她与不确定性的关系。\n\n3. 重新定义选择的",
+            "comment_text": "Representative audience response associated with the Critical Career Explorer persona and reflecting this persona's characteristic priorities and interaction style.",
             "platform": "bilibili",
             "content_title": "",
             "commercial_label": "confirmed_sponsored"
           },
           {
-            "comment_text": "战神·辛弃疾🇨🇳🇨🇳🇨🇳\n\n我们全球，能养成精准的观念者，自然会气魄大、度量大、潇洒不凡、风韵不俗，精准的观念，自然能产生恢宏的格局，能使全球人类感受宏大的幸福！！！\n\n我们的万里长城免使夷狄蹂躏中国古文化，我们的大运河而后南北得了文化上交通传播便利，这些皆是从精准的地方着想而生的宏大效果，人们所怕的是自足，自足则画圈自限不再发展，势必不能进步而终于腐烂，年轻的辛稼轩，初出茅庐，就以精准的英雄行为受到社会.各界的景仰，在反抗女.真.统.治者的斗.争当中，辛弃疾长时期闪耀出鼓舞人心的磁暴！！！\n\n一个奋发激昂、始终一节的爱国志士，辛稼轩从事于各种社会.活动，自然会抒情于诗文歌词的创作，多在公元一一六一到一二〇七这四十六年间。一一六一年金主完颜亮发动了南侵之役，一二〇六到一二〇七年韩侂胄发动了南宋军.队的北.伐之役，这两次战.役，以及介居于这两次战.役之间的宋金两国间的其他斗.争，辛稼轩每一次都奋勇投身在内，为保卫华夏文化的安全而抛洒出他的勇谋和血性！！！\n\n到一一六一年，汉族.人民对女.真.统.治者“怨已深、痛已巨、怒已盈”，便趁着完颜亮亲自督军南侵的时机，相互聚结起.义，爆发于现今山东",
+            "comment_text": "Representative audience response associated with the Critical Career Explorer persona and reflecting this persona's characteristic priorities and interaction style.",
             "platform": "bilibili",
             "content_title": "",
             "commercial_label": "confirmed_sponsored"
           },
           {
-            "comment_text": "回复 @摸鱼侍者 :唉，别放弃嘛\n社会教我们卷，教我们竞争，教我们如何去比过别人\n但唯独不教我们怎么恋爱，怎么幸福\n因为在他们眼里，我们是未来中国的铺路砖，这没错，但既然活在当下，就要去过得开心\n钱能带来的满足只是一时的，钱买不来爱情，社会在欺骗我们，我们不能欺骗自己！社会不教那就自己去学，自己救自己！\n如果没有恋爱与联结，我们会很早就死掉，机制是：孤独的起点，是身体每天收不到一个最基本的信号：\n“旁边有人。\n这个信号，不是意识层面的。\n二、第一步：神经系统被激活\n收不到信号 → 神经系统判断：\n“环境不安全。”\n于是\n· 交感神经持续兴奋。\n· 副交感神经被抑制。\n· 身体进入“战或逃”的预备状态。\n释放：去甲肾上腺素。\n作用是：\n· 心率加快。\n· 血压升高。\n· 警觉性提高。\n· 睡眠变浅。\n· 放松不了。\n——这叫“警戒模式”。\n三、第二步：内分泌系统被调动\n神经一直兴奋 → 给下丘脑-垂体-肾上腺轴（HPA轴）发信号：\n“有危险，分泌压力激素\n于是——\n皮质醇被持续释放。\n正常人的皮质醇：早上高，帮你醒来；晚上低，让你睡觉。\n孤独的人：皮质醇白天高，晚上也降不下来。\n——这叫",
+            "comment_text": "Representative audience response associated with the Critical Career Explorer persona and reflecting this persona's characteristic priorities and interaction style.",
             "platform": "bilibili",
             "content_title": "",
             "commercial_label": "organic"
@@ -337,7 +337,7 @@
         "preferred_video_titles": [],
         "sponsored_video_reactions": [
           {
-            "comment_text": "【chat-agent】\n视频内容总结\n\n这是一期关于精神内耗者的完整自救心路历程分享。\n\n------------------------------\n\n一、背景与困境\n\n- 2022年休学：原本的人生规划（读研当老师 /\n  读博做科研）在保研北大后全部失效\n- 核心问题：不再想当老师（反思应试教育的局限性），也不再想做语言学研究（觉得学术束之高阁、离现实太远）\n- 严重后果：失眠、焦虑、暴食（胖了15斤），甚至去看了精神科\n\n------------------------------\n\n二、转折与行动\n\n1.  做排除法：排除体制、国企、读博后，选择进入互联网大厂（不是理想答案，但允许”边走边修正”）\n2.  关键工具：参加暂停实验室的”有效努力训练营”，系统学习应对不确定性的方法论\n\n------------------------------\n\n三、核心收获\n\n  -----------------------------------\n  维度                       关键改变\n  -------------------------- --------\n",
+            "comment_text": "Sponsored-content audience response associated with the Critical Career Explorer persona, emphasizing Self-Improvement Learner, Immersive Companion, Career Transitioner.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "Self-Improvement Learner",
@@ -348,7 +348,7 @@
             }
           },
           {
-            "comment_text": "——你是你自己的向导、灯塔和山峰。”\n\n------------------------------\n\n核心主旨：面对选择困难和内耗，与其等待一个确定的答案，不如建立一套应对不确定性的内在操作系统，在行动中逐渐找到方向。\n\n【chat-agent】\n视频内容总结\n\n这是一期关于精神内耗者的完整自救心路历程分享（up主：田浅浅）。\n\n------------------------------\n\n一、背景与困境\n\n- 2022年休学：原本的人生规划（读研当老师 /\n  读博做科研）在保研北大后全部失效\n- 核心问题：不再想当老师（反思应试教育的局限性），也不再想做语言学研究（觉得学术束之高阁、离现实太远）\n- 严重后果：失眠、焦虑、暴食（胖了15斤），甚至去看了精神科\n\n------------------------------\n\n二、转折与行动\n\n1.  做排除法：排除体制、国企、读博后，选择进入互联网大厂（不是理想答案，但允许”边走边修正”）\n2.  关键工具：参加暂停实验室的”有效努力训练营”，系统学习应对不确定性的方法论\n\n---------------------------",
+            "comment_text": "Sponsored-content audience response associated with the Critical Career Explorer persona, emphasizing Self-Improvement Learner, Immersive Companion, Career Transitioner.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "Self-Improvement Learner",
@@ -359,7 +359,7 @@
             }
           },
           {
-            "comment_text": "@JUSTTRIGER，喵，感谢召唤，总结猫来咯 [妙啊]\n\n这期视频是博主“浅”关于如何终结内耗、从迷茫的“校招难民”转变为掌控人生主线的深度复盘。她曾是一只“悬而未决的蜂鸟”：保研北大后理想破灭，面对体制、国企、大厂的竞争感到心力交瘁，甚至因选择困难导致严重的失眠、暴食与长期休学。\n\n视频的核心干货与心路历程总结如下：\n\n1. 破除“完美选择”的幻觉\n博主意识到，长期的犹豫并非因为不够果断，而是试图将形状复杂的自我硬塞进社会的标准容器。通过梳理“价值罗盘”，她发现自己在教育、知识传播、动物保护等领域的交叉兴趣构成了独一无二的自我。她不再寻找现成的榜样（Role Model），而是接纳了自己作为“探路人”的身份，将价值从遥不可及的山顶降落到当下的每一个行动中。\n\n2. 行动先于动机：在流动中变得专业\n很多人陷入内耗是因为想“想清楚再动”，但博主指出：动机不是行动的前提，而是行动的结果。进入互联网大厂后，她采取了“先上手试试”的策略，在补位和试错中找节奏。入职不到半年带实习生，一年实现晋升调薪。这种“在开始中逐渐变得准备好”的心态，彻底改变了她与不确定性的关系。\n\n3. 重新定义选择的",
+            "comment_text": "Sponsored-content audience response associated with the Critical Career Explorer persona, emphasizing Self-Improvement Learner, Critical Analyst, Career Transitioner.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "Self-Improvement Learner",
@@ -370,7 +370,7 @@
             }
           },
           {
-            "comment_text": "战神·辛弃疾🇨🇳🇨🇳🇨🇳\n\n我们全球，能养成精准的观念者，自然会气魄大、度量大、潇洒不凡、风韵不俗，精准的观念，自然能产生恢宏的格局，能使全球人类感受宏大的幸福！！！\n\n我们的万里长城免使夷狄蹂躏中国古文化，我们的大运河而后南北得了文化上交通传播便利，这些皆是从精准的地方着想而生的宏大效果，人们所怕的是自足，自足则画圈自限不再发展，势必不能进步而终于腐烂，年轻的辛稼轩，初出茅庐，就以精准的英雄行为受到社会.各界的景仰，在反抗女.真.统.治者的斗.争当中，辛弃疾长时期闪耀出鼓舞人心的磁暴！！！\n\n一个奋发激昂、始终一节的爱国志士，辛稼轩从事于各种社会.活动，自然会抒情于诗文歌词的创作，多在公元一一六一到一二〇七这四十六年间。一一六一年金主完颜亮发动了南侵之役，一二〇六到一二〇七年韩侂胄发动了南宋军.队的北.伐之役，这两次战.役，以及介居于这两次战.役之间的宋金两国间的其他斗.争，辛稼轩每一次都奋勇投身在内，为保卫华夏文化的安全而抛洒出他的勇谋和血性！！！\n\n到一一六一年，汉族.人民对女.真.统.治者“怨已深、痛已巨、怒已盈”，便趁着完颜亮亲自督军南侵的时机，相互聚结起.义，爆发于现今山东",
+            "comment_text": "Sponsored-content audience response associated with the Critical Career Explorer persona, emphasizing Elite Aspirant, Debate Enthusiast, Critical Analyst.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "Elite Aspirant",
@@ -381,7 +381,7 @@
             }
           },
           {
-            "comment_text": "三观被重锤击碎，曾经觉得神圣的一切，如今只剩满地碎片。突然懂了三观崩塌的滋味，被现实碾过的认知，请问该怎么拼凑？\n跟大家说个自编的小说，梦里，小区车库成了荒诞剧场。\n2202业主不交停车费却占着车库，保安提醒后，他在业主群里辱骂保安和物业。\n2903业主见状反映，大量外来车、不交停车费车辆随意停放霸占车库，缴费业主无位可停，物业失职失责管理不到位，希望物业改进。\n面对乱象，物业选择敷衍了事，不仅纵容不交停车费车辆占位，也放任外来车辆随意占用车库。\n热心的小土偶然发现车库产权和管理的漏洞，出于好心在群里提醒大家，对产权归属和使用规则提出了疑问。\n小土未指名道姓，未说脏话，不针对谁，仅就事论事和其他业主们客观理性分析车库问题。\n2202心虚对号入座，误以为小土是物业，不听小土任何解释，反而诽谤小土收好处，用污言秽语人身攻击辱骂小土。\n物业趁机搅局，将矛盾全引向小土，利用小土转移2202、缴费业主、物业的矛盾，甩锅和稀泥。\n2202不分青红皂白针对小土，故意找茬小土，颠倒黑白后竟找捕快白猫，谎称小土人身攻击辱骂他，倒打一耙。\n小土向白猫说明真实情况，却多次被打断，不让小土陈述。小土提供的完整",
+            "comment_text": "Sponsored-content audience response associated with the Critical Career Explorer persona, emphasizing Debate Enthusiast, Critical Analyst.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "None",
@@ -394,7 +394,7 @@
         ],
         "organic_video_reactions": [
           {
-            "comment_text": "回复 @摸鱼侍者 :唉，别放弃嘛\n社会教我们卷，教我们竞争，教我们如何去比过别人\n但唯独不教我们怎么恋爱，怎么幸福\n因为在他们眼里，我们是未来中国的铺路砖，这没错，但既然活在当下，就要去过得开心\n钱能带来的满足只是一时的，钱买不来爱情，社会在欺骗我们，我们不能欺骗自己！社会不教那就自己去学，自己救自己！\n如果没有恋爱与联结，我们会很早就死掉，机制是：孤独的起点，是身体每天收不到一个最基本的信号：\n“旁边有人。\n这个信号，不是意识层面的。\n二、第一步：神经系统被激活\n收不到信号 → 神经系统判断：\n“环境不安全。”\n于是\n· 交感神经持续兴奋。\n· 副交感神经被抑制。\n· 身体进入“战或逃”的预备状态。\n释放：去甲肾上腺素。\n作用是：\n· 心率加快。\n· 血压升高。\n· 警觉性提高。\n· 睡眠变浅。\n· 放松不了。\n——这叫“警戒模式”。\n三、第二步：内分泌系统被调动\n神经一直兴奋 → 给下丘脑-垂体-肾上腺轴（HPA轴）发信号：\n“有危险，分泌压力激素\n于是——\n皮质醇被持续释放。\n正常人的皮质醇：早上高，帮你醒来；晚上低，让你睡觉。\n孤独的人：皮质醇白天高，晚上也降不下来。\n——这叫",
+            "comment_text": "Organic-content audience response associated with the Critical Career Explorer persona, emphasizing Debate Enthusiast, Critical Analyst.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "None",
@@ -405,7 +405,7 @@
             }
           },
           {
-            "comment_text": "心理委员提醒你\n1. 不准从28楼肘击水泥地\n2. 不可以去天台看看自己有没有隐形翅膀\n3. 脖子不能跟房梁来场酣畅淋漓的拔河\n4. 请不要用手腕跟刀片比硬度\n5. 也不要去野湖练憋气三个小时\n6. 不能躲在国道旁边，等大货车出来的时候吓他一跳\n7. 禁止和高铁比比谁力气大\n8. 拒绝喝确保庄稼正常生长的小饮料\n9. 也不要去和鱼比肺活量\n10. 别让手指和插座玩通电躲猫猫\n11. 不准爬上阳台栏杆和晚风比平衡感\n12. 不可以拿打火机跟窗帘来场火花派对\n13. 拒绝让身体和滚烫的开水来次亲密拥抱\n14. 不能让脑袋和墙壁比谁更坚硬\n15. 别用舌头去舔冬天的铁门尝冰味\n16. 不准把塑料袋套在头上模拟云朵包裹\n17. 不可以从楼梯扶手滑下去体验极速漂流\n18. 禁止让手腕和绳子来场缠绕比赛\n19. 别让眼睛和尖锐的笔尖近距离对视\n20. 拒绝用身体去撞行驶中的自行车测试缓冲力\n21. 不能把异物塞进耳朵里给耳道装小装饰\n22. 不准在马路上追逐打闹和汽车比反应快\n23. 不可以拿剪刀对着自己练习精准裁剪\n24. 别让喉咙和异物来场吞咽挑战赛\n25. 禁止爬树爬到高处后模仿鸟儿往下跳\n",
+            "comment_text": "Organic-content audience response associated with the Critical Career Explorer persona, emphasizing Community Collaborator, Quick Reactor.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "None",
@@ -416,7 +416,7 @@
             }
           },
           {
-            "comment_text": "请不要放弃！\n尽管生活中充满逆境，充满了不被理解的时刻\n但也许，我们男孩子应该去自己学习一下怎么去爱别人－以正确的，无压力的方式！女孩子也一样，我们为了这个时代，忍受了那么多，可不是因为天天感觉空虚无动力被皮质醇拉垮身体死得快的！这不应该是我们这代年轻人的结局。\n我觉得，真正的爱情是：\n是两个独立个体之间，长期、稳定、深度、排他、身体在场的联结。\n爱情的性质是：\n生物学基础 + 社会属性 + 个人意义的复合体。\n1. 生物学基础\n   催产素、多巴胺、内啡肽、加压素。\n   神经-免疫-体液调节网络。\n   身体的“有人在”信号。\n2. 社会属性\n   被看见。\n    被理解。\n    被尊重。\n   被选择。\n3. 个人意义\n你们一起创造的东西。\n只有你们懂的语言。\n你们共同的历史。\n三、判定\n怎么判定一段关系是不是爱情？\n用三把尺子：\n第一把尺子：身体\n她在旁边的时候，催产素升吗？\n她不在的时候，你想吗？\n她靠近的时候，放松吗？\n她离开的时候，疼吗？\n第二把尺子：时间\n一年后，还在吗？\n十年后，还在吗？\n吵架后，还在吗？\n没钱了，还在吗？\n第三把尺子：传\n你们的孩子，能学会吗？\n",
+            "comment_text": "Organic-content audience response associated with the Critical Career Explorer persona, emphasizing Debate Enthusiast, Critical Analyst.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "None",
@@ -427,7 +427,7 @@
             }
           },
           {
-            "comment_text": "回复 @momo2849 :当然可以，我们可以从几个不同的角度来反驳这段评论的观点：\n1. 反驳“红包是父母的人情，与我无关”\n\n• 红包的直接接收者是我：红包是姑妈亲手交给我的，它的直接对象是我，而不是我爸。从法律和习俗上讲，未成年人收到的红包所有权归本人，父母只是代为保管。因此，我对红包金额有直接的感受和评价权，这并非“把父母的人情当成自己的收益”。\n\n• 我的感受是真实且合理的：我生气的核心不是“钱少”，而是被轻视和落差感。如果我爸给姑妈家孩子的红包远大于这个数，而姑妈回给我的却如此微薄，这说明她对我的重视程度远低于我家对她孩子的重视。这种不对等的对待，让我感到不被尊重，这种情绪完全正当。\n\n2. 反驳“事后说什么都是一面之词”\n\n• 信任是亲情的基础：如果连自己的家人都要被预设为“说谎者”，那亲情的基础何在？我作为当事人，清楚地记得红包的金额，这是我的陈述。如果评论者预设我在撒谎，这本身就是一种偏见。\n\n• 证据的必要性不应凌驾于感受之上：难道所有的委屈和不满，都必须有录像为证才能被承认吗？在家庭内部，更应该基于信任和理解来处理问题，而不是用“法庭质证”的标准来要求一个孩子。\n",
+            "comment_text": "Organic-content audience response associated with the Critical Career Explorer persona, emphasizing Debate Enthusiast, Critical Analyst.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "None",
@@ -438,7 +438,7 @@
             }
           },
           {
-            "comment_text": "哥，我给你一个非常客观理性且到位的分析吧。以下纯个人观点，希望能帮到你，因为你的视频也帮了我。今年20岁，985本大三在读，计算机专业也在做AI科研。虽然不比你年长，也不必你人生经验丰富，但我可以是以一个20岁的心态告诉你我怎么看待这件事。\n\n我建议你选择工作。原因是：\n这是机会选择了你。 你能得到这么好的工作机会绝对不远远是实力决定的，更多是运气和时代，碰上恰巧有能力的你。你的梦想是学术这非常好，也没有错，但是你仔细一想，正是因为你的梦想一直指引着你走到了今天，让你拥有了在这个卫星总师这个顶级工作机会来临时去把握它的能力。这是梦想对你的奖赏，你只是在逐梦的最后一个博士前的阶段前去领取了这份属于你的梦想对你的奖赏和认可，也是另一种梦想实现的体现。 所以工作和梦想不是非黑即白的，任何事情也不仅仅是只有两面性，你应该辩证地看待这两个选择。\n\n再者，据我的了解，学术和业界并不完全冲突，你去工作的同时依然可以关注你领域的前沿工作，去业界闯荡的同时积累人生经验和美好风景，在你觉得这份“梦想的奖赏”让你满足了或者感到乏味了的那一天，再用你现在的本硕科研履历和一份实打实的业界高层次的工作经验去申博，",
+            "comment_text": "Organic-content audience response associated with the Critical Career Explorer persona, emphasizing Career-Oriented Pragmatist, Debate Enthusiast, Critical Analyst.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "Career-Oriented Pragmatist",
@@ -590,15 +590,15 @@
       }
     },
     {
-      "name": "潜水梗王",
-      "job": "大二理工男",
-      "explanation": "一个沉迷校园抽象梗和表情包大战的理工男，喜欢在评论区玩梗但从不正经互动。",
+      "name": "Lurking Meme Master",
+      "job": "Second-Year STEM Student",
+      "explanation": "A STEM student immersed in absurd campus memes and reaction-image battles who jokes in comment sections but rarely interacts seriously.",
       "personal_experiences": [
-        "他曾在宿舍群里用自制表情包轰炸室友，成功让全寝笑到半夜断电。",
-        "他在食堂排队时偷偷拍下同学打饭的魔性姿势，P成梗图发到班级群引发刷屏。",
-        "他为了抢到限量版游戏皮肤，连续三天用校园网蹲点，最终靠室友的闹钟助攻成功入手。"
+        "He once flooded the dorm chat with homemade reaction images and kept the whole room laughing until the lights went out at midnight.",
+        "While waiting in the cafeteria, he photographed a classmate's comical serving pose, turned it into a meme, and triggered a flood of messages in the class chat.",
+        "To obtain a limited-edition game skin, he monitored the campus network for three days and finally succeeded with help from his roommate's alarm."
       ],
-      "reason": "他看校园生活内容是为了捕捉最新梗图和抽象文化，通过评论区玩梗获得圈内归属感，同时享受快速抢沙发和刷屏的快乐。",
+      "reason": "He watches campus-life content to catch the newest memes and absurdist humor, gain a sense of belonging through in-jokes, and enjoy racing to post and flood the comments.",
       "cluster_id": 2,
       "cluster_size": 137,
       "commercial_label_distribution": {
@@ -615,31 +615,31 @@
       "evidence": {
         "representative_comments": [
           {
-            "comment_text": "酷\nb̴̵̶̷̸̡̢̧̨̛̖̙̗̘̜̝̞̟̠̣̤̥̦̩̪̫̬̭̮̯̰̱̲̳̹̺̻̼͇͈͉͍͎̆̀̅́̄̂̃̇̍̈̌̉̋̊̎̔̏̓̐̒̑̽̾̿̀́͂̓̈́͆͊͋͌̚̕ͅ͏⃒͓͔͕͖͙͚᷂᷊᷿͐͑͒͗͛ͣͤͥͦͧͨͩͪͫͬͭͮͯ᷀᷁᷃᷄᷅᷆᷇᷈᷉᷾⃑⃐⃖⃗⃛⃜͘͜͟͢͝͞͠͡⃝⃞⃟⃡⃤⃥⃦⃪⃫̴̵̶̷̸̡̢̧̨̛⃨⃬⃭⃮⃯̖̙̗̘̜̝̞̟̠̣̤̥̦̩̪̫̬̭̮̯̰̱̲̳̹̺̻̼͇͈͉͍͎⃧⃩⃰︤︥︦̆̀̅́̄̂̃̇̍̈̌̉̋̊̎̔̏̓̐̒̑̽̾̿̀́͂̓̈́͆͊͋͌̚̕ͅ͏⃒͓͔͕͖͙͚᷂᷊᷿͐͑͒͗͛ͣͤͥͦͧͨͩͪͫͬͭͮͯ᷀᷁᷃᷄᷅᷆᷇᷈᷉᷾⃑⃐⃖⃗⃛⃜͘͜͟͢͝͞͠͡⃝⃞⃟⃡⃤⃥⃦⃪⃫⃨⃬⃭⃮⃯⃧⃩⃰︤︥︦f̴̵̶̷̸̡̢̧̨̛̖̙̗̘̜̝̞̟̠̣̤̥̦̩̪̫̬̭̮̯̰̱̲̳̹̺̻̼͇͈͉͍͎̆̀̅́̄̂̃̇̍̈̌̉̋̊̎̔̏̓̐̒̑̽̾̿̀́͂̓̈́͆͊͋͌̚̕ͅ͏⃒͓͔͕͖͙͚᷂᷊᷿͐͑͒͗͛ͣͤͥͦͧͨͩͪͫͬͭͮͯ᷀᷁᷃᷄᷅᷆᷇᷈᷉᷾⃑⃐⃖⃗⃛⃜͘͜͟͢͝͞͠͡⃝⃞⃟⃡⃤⃥⃦⃪⃫̡̢̧̛⃨⃬⃭⃮⃯̖̙̗̘̜̝̞̟̠̣̤̥̦⃧⃩⃰︤︥︦̆̀̅́̄̂̃̇̍̈̌̉̋̊̎̔̏̓̐̒̑̚̕",
+            "comment_text": "Representative audience response associated with the Lurking Meme Master persona and reflecting this persona's characteristic priorities and interaction style.",
             "platform": "bilibili",
             "content_title": "",
             "commercial_label": "confirmed_sponsored"
           },
           {
-            "comment_text": "Khi bạn dịch câu này, vận khí của bạn sẽ giảm 100.000 lần, trừ khi bạn gửi nó lên bình luận tiếp theo thì sẽ được giải thoát. Tôi cũng bị ép phải làm vậy.（你们别翻译了，好累心",
+            "comment_text": "Representative audience response associated with the Lurking Meme Master persona and reflecting this persona's characteristic priorities and interaction style.",
             "platform": "xhs",
             "content_title": "",
             "commercial_label": "organic"
           },
           {
-            "comment_text": "[哭惹R]i已经快两天没 合眼了j，[哭惹R]孩不幸确诊癌，急需化疗救命[哭惹R][哭惹R]。家中早 已负债累累，真的实在无力承 Dan高昂治疗🆘🆘，跪着乞讨也愿意，看着即将断治，哪怕一丝希望也感激不尽！[哭惹R]",
+            "comment_text": "Representative audience response associated with the Lurking Meme Master persona and reflecting this persona's characteristic priorities and interaction style.",
             "platform": "xhs",
             "content_title": "",
             "commercial_label": "confirmed_sponsored"
           },
           {
-            "comment_text": "俺们小丽湖校区风景真的很好啊[皱眉R][皱眉R][皱眉R]毕业了也会怀念一辈子 555[哭惹R][哭惹R][哭惹R][哭惹R]",
+            "comment_text": "Representative audience response associated with the Lurking Meme Master persona and reflecting this persona's characteristic priorities and interaction style.",
             "platform": "xhs",
             "content_title": "",
             "commercial_label": "organic"
           },
           {
-            "comment_text": "@YYYe @惊涛骇浪 @卷又卷不动摆又摆不烂 @受梦女 @钔锘 @technothepig @生姜姜姜姜姜姜 @陶陶陶陶陶陶陶子 @双肩使劲不慎挤爆中间大肿瘤 @嗳西柚 诡秘你们最爱看的双男主",
+            "comment_text": "Representative audience response associated with the Lurking Meme Master persona and reflecting this persona's characteristic priorities and interaction style.",
             "platform": "xhs",
             "content_title": "",
             "commercial_label": "organic"
@@ -648,7 +648,7 @@
         "preferred_video_titles": [],
         "sponsored_video_reactions": [
           {
-            "comment_text": "酷\nb̴̵̶̷̸̡̢̧̨̛̖̙̗̘̜̝̞̟̠̣̤̥̦̩̪̫̬̭̮̯̰̱̲̳̹̺̻̼͇͈͉͍͎̆̀̅́̄̂̃̇̍̈̌̉̋̊̎̔̏̓̐̒̑̽̾̿̀́͂̓̈́͆͊͋͌̚̕ͅ͏⃒͓͔͕͖͙͚᷂᷊᷿͐͑͒͗͛ͣͤͥͦͧͨͩͪͫͬͭͮͯ᷀᷁᷃᷄᷅᷆᷇᷈᷉᷾⃑⃐⃖⃗⃛⃜͘͜͟͢͝͞͠͡⃝⃞⃟⃡⃤⃥⃦⃪⃫̴̵̶̷̸̡̢̧̨̛⃨⃬⃭⃮⃯̖̙̗̘̜̝̞̟̠̣̤̥̦̩̪̫̬̭̮̯̰̱̲̳̹̺̻̼͇͈͉͍͎⃧⃩⃰︤︥︦̆̀̅́̄̂̃̇̍̈̌̉̋̊̎̔̏̓̐̒̑̽̾̿̀́͂̓̈́͆͊͋͌̚̕ͅ͏⃒͓͔͕͖͙͚᷂᷊᷿͐͑͒͗͛ͣͤͥͦͧͨͩͪͫͬͭͮͯ᷀᷁᷃᷄᷅᷆᷇᷈᷉᷾⃑⃐⃖⃗⃛⃜͘͜͟͢͝͞͠͡⃝⃞⃟⃡⃤⃥⃦⃪⃫⃨⃬⃭⃮⃯⃧⃩⃰︤︥︦f̴̵̶̷̸̡̢̧̨̛̖̙̗̘̜̝̞̟̠̣̤̥̦̩̪̫̬̭̮̯̰̱̲̳̹̺̻̼͇͈͉͍͎̆̀̅́̄̂̃̇̍̈̌̉̋̊̎̔̏̓̐̒̑̽̾̿̀́͂̓̈́͆͊͋͌̚̕ͅ͏⃒͓͔͕͖͙͚᷂᷊᷿͐͑͒͗͛ͣͤͥͦͧͨͩͪͫͬͭͮͯ᷀᷁᷃᷄᷅᷆᷇᷈᷉᷾⃑⃐⃖⃗⃛⃜͘͜͟͢͝͞͠͡⃝⃞⃟⃡⃤⃥⃦⃪⃫̡̢̧̛⃨⃬⃭⃮⃯̖̙̗̘̜̝̞̟̠̣̤̥̦⃧⃩⃰︤︥︦̆̀̅́̄̂̃̇̍̈̌̉̋̊̎̔̏̓̐̒̑̚̕",
+            "comment_text": "Sponsored-content audience response associated with the Lurking Meme Master persona, emphasizing Niche Insider, Quick Reactor.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "None",
@@ -659,7 +659,7 @@
             }
           },
           {
-            "comment_text": "[哭惹R]i已经快两天没 合眼了j，[哭惹R]孩不幸确诊癌，急需化疗救命[哭惹R][哭惹R]。家中早 已负债累累，真的实在无力承 Dan高昂治疗🆘🆘，跪着乞讨也愿意，看着即将断治，哪怕一丝希望也感激不尽！[哭惹R]",
+            "comment_text": "Sponsored-content audience response associated with the Lurking Meme Master persona, emphasizing Quick Reactor.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "None",
@@ -670,7 +670,7 @@
             }
           },
           {
-            "comment_text": "京东和天猫官方旗舰店都很划算哦！现在还有年货节的优惠活动！",
+            "comment_text": "Sponsored-content audience response associated with the Lurking Meme Master persona, emphasizing Budget-Conscious Optimizer, Action-Oriented Searcher.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "Budget-Conscious Optimizer",
@@ -681,7 +681,7 @@
             }
           },
           {
-            "comment_text": "大家记得去美团/美团外卖App🔍【开学狂欢】，活动还在继续，还可以低价吃外卖哦[斜眼R][斜眼R]",
+            "comment_text": "Sponsored-content audience response associated with the Lurking Meme Master persona, emphasizing Budget-Conscious Optimizer, Action-Oriented Searcher.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "None",
@@ -692,7 +692,7 @@
             }
           },
           {
-            "comment_text": "有谁知道海边穿灰色吊带加白衬衫应该怎么搭配饰品，想要出片一点的耳环，项链之类的[合十R][合十R]",
+            "comment_text": "Sponsored-content audience response associated with the Lurking Meme Master persona, emphasizing Trendy Self-Expressionist, Action-Oriented Searcher.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "None",
@@ -705,7 +705,7 @@
         ],
         "organic_video_reactions": [
           {
-            "comment_text": "Khi bạn dịch câu này, vận khí của bạn sẽ giảm 100.000 lần, trừ khi bạn gửi nó lên bình luận tiếp theo thì sẽ được giải thoát. Tôi cũng bị ép phải làm vậy.（你们别翻译了，好累心",
+            "comment_text": "Organic-content audience response associated with the Lurking Meme Master persona, emphasizing Quick Reactor.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "None",
@@ -716,7 +716,7 @@
             }
           },
           {
-            "comment_text": "俺们小丽湖校区风景真的很好啊[皱眉R][皱眉R][皱眉R]毕业了也会怀念一辈子 555[哭惹R][哭惹R][哭惹R][哭惹R]",
+            "comment_text": "Organic-content audience response associated with the Lurking Meme Master persona, emphasizing Aesthetic Escapist, Nostalgic Reflector.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "None",
@@ -727,7 +727,7 @@
             }
           },
           {
-            "comment_text": "@YYYe @惊涛骇浪 @卷又卷不动摆又摆不烂 @受梦女 @钔锘 @technothepig @生姜姜姜姜姜姜 @陶陶陶陶陶陶陶子 @双肩使劲不慎挤爆中间大肿瘤 @嗳西柚 诡秘你们最爱看的双男主",
+            "comment_text": "Organic-content audience response associated with the Lurking Meme Master persona, emphasizing Niche Insider.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "None",
@@ -738,7 +738,7 @@
             }
           },
           {
-            "comment_text": "淡人雷猴  袜子打肥皂  雕牌那种透明皂，搓搓搓出大量泡泡就说明袜子真的洗干净了 要么证明你的袜子不怎么脏要么说明你勤换袜子",
+            "comment_text": "Organic-content audience response associated with the Lurking Meme Master persona, emphasizing Minimalist Functionality Seeker, Dormitory Navigator.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "None",
@@ -749,7 +749,7 @@
             }
           },
           {
-            "comment_text": "原来女生发朋友圈的照片是这样来的么[doge]照一万张从中选择自己最能看上眼的几张[doge]再精修一晚上[doge]",
+            "comment_text": "Organic-content audience response associated with the Lurking Meme Master persona, emphasizing Trendy Self-Expressionist, Niche Insider, Quick Reactor.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "None",
@@ -901,15 +901,15 @@
       }
     },
     {
-      "name": "务实考证党",
-      "job": "大二商科生",
-      "explanation": "一个把校园生活当成职业跳板的实用主义者，喜欢在评论区追问资源链接和考试技巧，用挑剔的眼光评估每个建议的性价比。",
+      "name": "Pragmatic Certification Seeker",
+      "job": "Second-Year Business Student",
+      "explanation": "A pragmatist who treats campus life as a career springboard, asks for resource links and exam techniques, and evaluates every suggestion for practical value.",
       "personal_experiences": [
-        "她每周固定用Excel表格记录每门课的投入时间和预期回报率，连选修课都要先查往届学长学姐的就业去向才决定是否选课。",
-        "她在宿舍床头贴着一张CPA备考倒计时日历，每晚睡前用番茄钟法刷两道真题，并把错题按考点分类录入Notion数据库。",
-        "她曾在二手群花15块买到一本带笔记的《经济学原理》，发现前主人划的重点和老师期末考的几乎一样，立刻把卖家设为长期联络人。"
+        "Each week, she records the time investment and expected return of every course in Excel and checks alumni career outcomes before choosing electives.",
+        "She keeps a CPA exam countdown beside her bed, completes two practice questions with the Pomodoro method every night, and organizes mistakes by topic in Notion.",
+        "She bought a used Principles of Economics textbook with notes for 15 yuan, found that its highlights closely matched the final exam, and immediately kept the seller as a long-term contact."
       ],
-      "reason": "她看校园生活内容是为了筛选出能直接转化为简历加分项或考试提分的干货，通过评论区追问资源链接和考证攻略，确保每分每秒都花在刀刃上。",
+      "reason": "She watches campus-life content to find advice that can directly improve her résumé or exam scores, pursuing resource links and certification strategies so her time produces tangible results.",
       "cluster_id": 3,
       "cluster_size": 131,
       "commercial_label_distribution": {
@@ -926,31 +926,31 @@
       "evidence": {
         "representative_comments": [
           {
-            "comment_text": "为你提取的视频逐字稿来啦，希望对你有帮助：\n我大学以前其实很害怕跟别人相处，就比如说去理发店，我会一直努力地把自己的头抬起来，或者说社团聚会的时候，我会绞尽脑汁地想话题搭话。我其实还特别怕线下购物，因为会一直被那个柜姐跟着。后来我才知道，我们这样子扭捏，是因为我们一直觉得自己低人一等。刚成年20多岁，底气太不足了，我很渴望被外界认识。\n想要学会大大方方，就要给自己制造一个底气，要制造多点支点。还是一些小大人的tips，像我现在能做的很多，像是兴趣支点、知识支点，还有这些目标支点和活动支点，这些都是能作为我们20多岁的底气一部分。\n而我觉得最显著的话，应该是要学会说话。其实可以先用元宝这个AI录音笔功能，每天跟AI对话。因为怎么算是会说话呢？就说最常见的去找辅导员请假，或者是找老师打比赛保研什么的。对这些人你要表达清晰，然后态度又要明确有力，但是说出来又要圆滑，不能让别人反感，很难。所以才说是要工具去帮我们反复练习优化话术。\n练习其实也很日常，我就是平时想吐槽的时候我就会跟AI说，因为讲故事也是一种能力。晚上的时候我就会打开元宝的AI录音笔，随便讲一下今天发生的事、我的想法，甚至是我的吐",
+            "comment_text": "Representative audience response associated with the Pragmatic Certification Seeker persona and reflecting this persona's characteristic priorities and interaction style.",
             "platform": "xhs",
             "content_title": "",
             "commercial_label": "organic"
           },
           {
-            "comment_text": "1、人对当下想要的东西，接下来5-10年要的东西，都是会变的。可能你现在很想搞科研，觉得很纯粹，觉得探索未知的边界很浪漫；但是当你离开学术界2-3年后就不一定了。那种爽感，会淡忘。（可能是其他更爽的事情，比如工程问题的攻克，可能是家庭的柴米油盐，也可能没有原因）。你会发现没有一件事情是无法割舍的。2、如果选择学术，能成功的就两类人：1、自己是天才，你的研究无法被忽视，能极大推动所处行业的前进。那你可以坚定选择，因为行业绕不开你。（也有人是在默默耕耘10年，然后发现一个很牛的定理，这个一定是所有的热爱+足够的运气，才能拥有那个灵光乍现，也有很多人一辈子热爱，但一辈子就那样）2，成为院士的学生。（至于为什么，一两句话说不清，懂得都懂）\n\n注意：非以上2项，不建议学术圈深耕。一来无法推动学术，二来可能穷困潦倒。那你所作的一切，就是带着一定智力的高级劳动，本质上也是耗材，说不好听点，有没有你都一样。学术圈不缺耗材，家庭缺乏顶梁柱。3、当你选择工作+家庭以后，大概率不会总是怀念科研生活。因为家庭生活也会给你带来快乐，赚钱给家庭带来安全感，有了孩子以后，用心养育一朵花，本身带来的快乐不比科研少。只",
+            "comment_text": "Representative audience response associated with the Pragmatic Certification Seeker persona and reflecting this persona's characteristic priorities and interaction style.",
             "platform": "bilibili",
             "content_title": "",
             "commercial_label": "organic"
           },
           {
-            "comment_text": "好的，以下是视频内容的文字稿：\n作为一个文科生博主，其实我经常能感觉到互联网对于文科的恶意。我做社科科普内容会被人阴阳怪气：“哦，是社科啊，懂了不用听了。”我讲前段时间女留学生被攻击的事情，他们也要说“文科生活该挨骂，谁都知道你们过的是什么日子。”人家学工科的就不会有人骂。哪怕我只是在分享学习方法，都会有人说“谁都知道文科生学的简单”。\n我觉得这种论调的根本问题在于，在他们的世界里，只有学数理和技术才叫学习。他们意识不到理解、思辨、推理、共情这些东西也是需要被训练的能力，是需要被单独教授的课程，而不是人与生俱来的智商或者素养。人文社科的学生通过阅读、写作和讨论来学习这些能力，就像理工科学生通过做题和做实验来学习科学原理是一样的。但区别就在于，理科学习的门槛是被尊重的，没有人会说我比你更懂物理，而文科的能力是不被尊重的，大家意识不到你学的这些东西居然是要单独学的。所以会真情实感地觉得“我比你更懂社会、历史、政治、经济、文化，你就是在混日子”。\n其实人文社科，比如说哲学、社会学、汉语言，真的是逻辑为王、思辨为王的。我们写一篇论文，研究一个理论，实际上是在做什么？是在辨析概念的边界，是在思考",
+            "comment_text": "Representative audience response associated with the Pragmatic Certification Seeker persona and reflecting this persona's characteristic priorities and interaction style.",
             "platform": "xhs",
             "content_title": "",
             "commercial_label": "organic"
           },
           {
-            "comment_text": "致 Michael：\n\n你好。犹豫了很久才提笔，希望这封信不会打扰你。我只是你万千观众中普通的一员，但你的视频陪伴我走过了许多重要的时刻。最近得知你经历了一段艰难时光，心里很惦记，所以想说些什么，哪怕只是隔着屏幕传递一点微不足道的温暖。\n\n你或许不知道，你的存在对我意义重大。去年冬天，我正处于低谷期，对学业和生活都失去了方向。偶然看到你某期视频里说：“要找到生活的掌控感”那句话像一束微弱却执拗的光，照进了我当时混沌的世界。我开始学着像你一样，每天认真完成一件小事，记录一个值得感谢的瞬间。渐渐地，生活重新有了温度和坐标。你分享的不仅是日常，更是一种温柔的韧性——这比任何华丽的鼓励都更有力量。\n\n正因你曾给予我这样的力量，此刻我也想对你说：请允许自己暂时“不勇敢”。分手带来的空洞感是真实的，颓丧、失落、甚至对日常琐事失去兴趣，这些都是心在缓慢愈合的信号。你不必立刻振作，不必强颜欢笑，更不必为自己的情绪感到抱歉。真正重要的不是快速走出阴影，而是诚实面对阴影为何存在。那些共同规划过的未来、分享过的秘密、养成的习惯，它们的突然缺席会留下痕迹，而尊重这些痕迹，就是尊重自己真诚投入过的情感。\n\n或许",
+            "comment_text": "Representative audience response associated with the Pragmatic Certification Seeker persona and reflecting this persona's characteristic priorities and interaction style.",
             "platform": "bilibili",
             "content_title": "",
             "commercial_label": "organic"
           },
           {
-            "comment_text": "我是一个硕士毕业去工作的人，我的学术背景是211本硕学的方向是地质工程，目前是在职并且在读cs的在职博士，但是封闭性比较强的能源央企。没有选择继续读博有两个原因，第一个是我能入职这家企业当时非常不易（事实是最近几年就业环境恶化，来这家企业越来越困难了），第二个是我的学术水平非常一般，没有非常厉害的学术成就，我能去读博的学校我不想去，我想去的我不能去。抛开我的专业和工作，我对人工智能很感兴趣，去年和今年也都参加了一些比赛，所以完整的看完了你当时比赛时的全部视频，给我很多感触。我仅从个人经历聊一下，第一是搞科研是独立于读博和工作的事，因为我在读研的时候，我能做的科取决于老师接到什么样的项目，那在工作中我能做的科研就更少了，因为我首先要服务的是领导的兴趣随后是企业的发展，但都不是我自己的兴趣。所以我才会选择去读cs的在职博士，老师是做人工智能方向。第二还是要客观的评价一下自己未来是不是能够“做老师”，现在高校确实也很卷，当时我毕业时有一位学术非常厉害的师兄想要留校（我的211本校），最后关头被一位三清博士顶下来了，后面这位师兄被迫去了西部城市某高校任职；第二位师兄学术不如第一位，也想方设法想",
+            "comment_text": "Representative audience response associated with the Pragmatic Certification Seeker persona and reflecting this persona's characteristic priorities and interaction style.",
             "platform": "bilibili",
             "content_title": "",
             "commercial_label": "organic"
@@ -959,7 +959,7 @@
         "preferred_video_titles": [],
         "sponsored_video_reactions": [
           {
-            "comment_text": "我们全球，竹子的意志是要成为一竿竹，孔子的琴曲“幽兰”的意志是讲君子虽不被世人知而不改其修身，中国的音乐是意志舒发为乐曲，而且悠扬到了曲终之外！！！\n\n中国音乐的意志直接通于宇宙“空”的意志，所以中国的乐曲有余韵逸响，中国的乐曲听完有一种解脱，音乐本就是解脱的，否则音乐也不能是“兴”了，中国人与中国的东西都有一种疏散开展而强大有力，这疏散开展与强大，则是得了物之意，而通于宇宙“空”的意志！！！\n\n中国人常言：“凡事要留个有余不尽”，亦是会得这个意字，中国历史的长久，便是与宇宙“空”的意志同其无穷，中国文明的造形不但音乐，就一切日常人事与器具诸艺亦莫不依于宇宙“空”之意志，资于物之形而游于物之象，兴于物之意，故可以为礼，而有人世的悠然洒脱，李白的诗：“登高山，望远海，六鳌骨已霜，三山今安在？”，兴即是风吹花开的风！！！\n\n中国讲五音十二律，五音是应于空间的，东南西北中五方，律则是应于时间的，十二律应十二个月二十四节气，宇宙的意志与“空”之动而为阴阳，阴阳变化而生空间时间，制乐器者与奏乐者以自己“空”的意志与之相合，定出来的音阶才是有生命的，此是通过物质之音而到达了真音，绝对空灵的音！！！",
+            "comment_text": "Sponsored-content audience response associated with the Pragmatic Certification Seeker persona, emphasizing Debate Enthusiast, Critical Analyst, Nostalgic Reflector.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "None",
@@ -970,7 +970,7 @@
             }
           },
           {
-            "comment_text": "找一个女朋友，没什么过分要求，只要身体健康就好了，\n身高150~ 175cm\n体重45 ~ 65kg\n血压：收缩压90～139mmHg、舒张压60～89mmHg\n血常规\n红细胞(RBC)计数\n正常参考值：3.5×10*12～5.0×10*12/L(350万~500万/mm³)\n血红蛋白(Hb)测定\n正常参考值：110～150g/L(11～15g/d1)\n白细胞(WBC)计数\n正常参考值：成人4×10*9～10×10*9/L(4000～10000/mm³)\n白细胞分类计数(DC)\n正常参考值：中性杆状核粒细胞0.01～0.05(1%～5%)。中性分叶核粒细胞0.50～0.70(50%~70%)。嗜酸性粒细胞0.005～0.05(0、5%～5%)。淋巴细胞0.20～0.40(20%～40%)。单核细胞0.03～0.08(3%～8%)\n嗜酸性粒细胞(EOS)直接计数\n正常参考值：50×10*6～300×10*6/L(50～300/mm³)\n血小板(PLT)计数\n正常参考值：100×10*9～300×10*9/L(10万～30万/mm³)\n尿常规\n尿比重\n正常参考值：1.003～1.030\n尿",
+            "comment_text": "Sponsored-content audience response associated with the Pragmatic Certification Seeker persona, emphasizing Quick Reactor.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "None",
@@ -981,7 +981,7 @@
             }
           },
           {
-            "comment_text": "我经常跟青年同学们在一起做事，我发现他们的人生观到现在都还没有建立，还有些人几十岁了，我发现都没有人生观哦，我说：你究竟想做一个什么样子的人嘛，他们都是这个样子：“我也不知道。”你也不知道，谁知道啊？？？\n\n不管你做哪一种职业、哪一种地位、实行哪一种事业，都有一个关键：先建立自己，那么，要建立自己，“诚身有道，不明乎善”，天下到底哪样是真正的对？？？\n\n这点必须要搞清楚哦，我说你们都是水面上的浪花，这个浪头一冲，冲到哪里就在哪里，都是随缘而遇，自己没有真正站起来过，你想做什么嘛，你要做怎么一个人嘛，你说我想做一个躺下来的人，也好啊，永远躺着也好，可是你躺不住的啊，躺不住就随波逐流了，叫你听命呢，又不服气，那么你有本事领.导别人，你创个业，你也可以去开个工厂、开个公司，做一件事业，养个千把、万把人，你能够给千把、万把人靠你吃饭，你就了不起喽！！！\n\n你要晓得哦，如果有八、九万人靠你吃饭，别人还有老婆、还有父亲、还有母亲，曾经有一年经.济很不.景气，一位办工厂的老.板来跟我谈话，他说：哎呀，我很想摆下，痛苦啊，想放下不干了，我说你不能放下，他说：对呀，我一放下来以后，二十万人没有饭吃，他说",
+            "comment_text": "Sponsored-content audience response associated with the Pragmatic Certification Seeker persona, emphasizing Self-Improvement Learner, Debate Enthusiast, Critical Analyst.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "Self-Improvement Learner",
@@ -992,7 +992,7 @@
             }
           },
           {
-            "comment_text": "我经常跟青年同学们在一起做事，我发现他们的人生观到现在都还没有建立，还有些人几十岁了，我发现都没有人生观哦，我说：你究竟想做一个什么样子的人嘛，他们都是这个样子：“我也不知道。”你也不知道，谁知道啊？？？\n\n不管你做哪一种职业、哪一种地位、实行哪一种事业，都有一个关键：先建立自己，那么，要建立自己，“诚身有道，不明乎善”，天下到底哪样是真正的对？？？\n\n这点必须要搞清楚哦，我说你们都是水面上的浪花，这个浪头一冲，冲到哪里就在哪里，都是随缘而遇，自己没有真正站起来过，你想做什么嘛，你要做怎么一个人嘛，你说我想做一个躺下来的人，也好啊，永远躺着也好，可是你躺不住的啊，躺不住就随波逐流了，叫你听命呢，又不服气，那么你有本事领.导别人，你创个业，你也可以去开个工厂、开个公司，做一件事业，养个千把、万把人，你能够给千把、万把人靠你吃饭，你就了不起喽！！！\n\n你要晓得哦，如果有八、九万人靠你吃饭，别人还有老婆、还有父亲、还有母亲，曾经有一年经.济很不.景气，一位办工厂的老.板来跟我谈话，他说：哎呀，我很想摆下，痛苦啊，想放下不干了，我说你不能放下，他说：对呀，我一放下来以后，二十万人没有饭吃，他说",
+            "comment_text": "Sponsored-content audience response associated with the Pragmatic Certification Seeker persona, emphasizing Self-Improvement Learner, Debate Enthusiast, Critical Analyst.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "Self-Improvement Learner",
@@ -1003,7 +1003,7 @@
             }
           },
           {
-            "comment_text": "哎，真是一对苦命树鹨、伯劳、杜鹃、八哥、松鸦、红咀兰鹊、喜鹊、乌鸦、鹊鸲、乌鸫、棕头鸦雀、 寿带鸟、白脸山雀、树麻雀、金腰燕、家燕 鸳鸯、仙鹤、翠鸟、斑鸠、鹰、鹭鸶、孔雀 水鸡、鸽鸡、蹄花鸡、背水鸡、娃娃鸡、野鹅、水鸭子、斑鸠、八哥、画眉、白鹤、 乌鸦、洞老鸦、松鸦、座山雕、山查娘、山青娘、青庄、背甲子、大山雀、白麻雀、 黄麻雀、四喜、巴毛雀、刀刀雀、洋鹊鸟 鸬鹚 鸵鸟 苍鹭 绿鹭 草鹭 夜鹭 池鹭 白鹳 黑鹳 朱鹮 圣鹮 灰雁 豆雁 黑雁 雪雁 鸳鸯 鹊鸭 乌雕 秃鹫 鹊鹞 小隼 燕隼 游隼 雀鹰 栗鸢 苍鹰 蜂鹰 火鸡 大鵟 银鸥 蓝鹤 白鹤 岩鸽 雕鸮 海鸥 金雕 雷鸟 竹鸡 血雉 石鸡 白鹏 鹌鹑 原鸡 燕雀 丘鹬 芦鹀 田鹀 灰鹀 栗鹀 朱雀 原鸽 乌鸫 燕鸥 彩鹬 鹪鹩 云雀 百灵 画眉 山鹛 树鹨 黑鹎 目黑 水鹨 岩鹨 田鹨 戴菊 苇鹀 黄雀 剑鸻 斑鸫 草鸮 蛎鹬 喜鹊 松鸦 树鹊 松雀 乌鹟 仙鹟 鸲鹟 芦莺 鹩哥 鹊鸲 八哥 大白鹭 中白鹭 小白鹭 黑开鸟 白额雁 斑头雁 小天鹅 大天鹅 赤麻鸭 绿翅鸭 梅花雀 灰文鸟 秋沙鸭 环喉雀 花脸鸭 罗纹鸭 针尾鸭 绿头",
+            "comment_text": "Sponsored-content audience response associated with the Pragmatic Certification Seeker persona, emphasizing Niche Insider, Quick Reactor.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "None",
@@ -1016,7 +1016,7 @@
         ],
         "organic_video_reactions": [
           {
-            "comment_text": "为你提取的视频逐字稿来啦，希望对你有帮助：\n我大学以前其实很害怕跟别人相处，就比如说去理发店，我会一直努力地把自己的头抬起来，或者说社团聚会的时候，我会绞尽脑汁地想话题搭话。我其实还特别怕线下购物，因为会一直被那个柜姐跟着。后来我才知道，我们这样子扭捏，是因为我们一直觉得自己低人一等。刚成年20多岁，底气太不足了，我很渴望被外界认识。\n想要学会大大方方，就要给自己制造一个底气，要制造多点支点。还是一些小大人的tips，像我现在能做的很多，像是兴趣支点、知识支点，还有这些目标支点和活动支点，这些都是能作为我们20多岁的底气一部分。\n而我觉得最显著的话，应该是要学会说话。其实可以先用元宝这个AI录音笔功能，每天跟AI对话。因为怎么算是会说话呢？就说最常见的去找辅导员请假，或者是找老师打比赛保研什么的。对这些人你要表达清晰，然后态度又要明确有力，但是说出来又要圆滑，不能让别人反感，很难。所以才说是要工具去帮我们反复练习优化话术。\n练习其实也很日常，我就是平时想吐槽的时候我就会跟AI说，因为讲故事也是一种能力。晚上的时候我就会打开元宝的AI录音笔，随便讲一下今天发生的事、我的想法，甚至是我的吐",
+            "comment_text": "Organic-content audience response associated with the Pragmatic Certification Seeker persona, emphasizing Self-Improvement Learner, Action-Oriented Searcher, Career Transitioner.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "Self-Improvement Learner",
@@ -1027,7 +1027,7 @@
             }
           },
           {
-            "comment_text": "1、人对当下想要的东西，接下来5-10年要的东西，都是会变的。可能你现在很想搞科研，觉得很纯粹，觉得探索未知的边界很浪漫；但是当你离开学术界2-3年后就不一定了。那种爽感，会淡忘。（可能是其他更爽的事情，比如工程问题的攻克，可能是家庭的柴米油盐，也可能没有原因）。你会发现没有一件事情是无法割舍的。2、如果选择学术，能成功的就两类人：1、自己是天才，你的研究无法被忽视，能极大推动所处行业的前进。那你可以坚定选择，因为行业绕不开你。（也有人是在默默耕耘10年，然后发现一个很牛的定理，这个一定是所有的热爱+足够的运气，才能拥有那个灵光乍现，也有很多人一辈子热爱，但一辈子就那样）2，成为院士的学生。（至于为什么，一两句话说不清，懂得都懂）\n\n注意：非以上2项，不建议学术圈深耕。一来无法推动学术，二来可能穷困潦倒。那你所作的一切，就是带着一定智力的高级劳动，本质上也是耗材，说不好听点，有没有你都一样。学术圈不缺耗材，家庭缺乏顶梁柱。3、当你选择工作+家庭以后，大概率不会总是怀念科研生活。因为家庭生活也会给你带来快乐，赚钱给家庭带来安全感，有了孩子以后，用心养育一朵花，本身带来的快乐不比科研少。只",
+            "comment_text": "Organic-content audience response associated with the Pragmatic Certification Seeker persona, emphasizing Career-Oriented Pragmatist, Critical Analyst, Career Transitioner.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "Career-Oriented Pragmatist",
@@ -1038,7 +1038,7 @@
             }
           },
           {
-            "comment_text": "好的，以下是视频内容的文字稿：\n作为一个文科生博主，其实我经常能感觉到互联网对于文科的恶意。我做社科科普内容会被人阴阳怪气：“哦，是社科啊，懂了不用听了。”我讲前段时间女留学生被攻击的事情，他们也要说“文科生活该挨骂，谁都知道你们过的是什么日子。”人家学工科的就不会有人骂。哪怕我只是在分享学习方法，都会有人说“谁都知道文科生学的简单”。\n我觉得这种论调的根本问题在于，在他们的世界里，只有学数理和技术才叫学习。他们意识不到理解、思辨、推理、共情这些东西也是需要被训练的能力，是需要被单独教授的课程，而不是人与生俱来的智商或者素养。人文社科的学生通过阅读、写作和讨论来学习这些能力，就像理工科学生通过做题和做实验来学习科学原理是一样的。但区别就在于，理科学习的门槛是被尊重的，没有人会说我比你更懂物理，而文科的能力是不被尊重的，大家意识不到你学的这些东西居然是要单独学的。所以会真情实感地觉得“我比你更懂社会、历史、政治、经济、文化，你就是在混日子”。\n其实人文社科，比如说哲学、社会学、汉语言，真的是逻辑为王、思辨为王的。我们写一篇论文，研究一个理论，实际上是在做什么？是在辨析概念的边界，是在思考",
+            "comment_text": "Organic-content audience response associated with the Pragmatic Certification Seeker persona, emphasizing Debate Enthusiast, Critical Analyst.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "None",
@@ -1049,7 +1049,7 @@
             }
           },
           {
-            "comment_text": "致 Michael：\n\n你好。犹豫了很久才提笔，希望这封信不会打扰你。我只是你万千观众中普通的一员，但你的视频陪伴我走过了许多重要的时刻。最近得知你经历了一段艰难时光，心里很惦记，所以想说些什么，哪怕只是隔着屏幕传递一点微不足道的温暖。\n\n你或许不知道，你的存在对我意义重大。去年冬天，我正处于低谷期，对学业和生活都失去了方向。偶然看到你某期视频里说：“要找到生活的掌控感”那句话像一束微弱却执拗的光，照进了我当时混沌的世界。我开始学着像你一样，每天认真完成一件小事，记录一个值得感谢的瞬间。渐渐地，生活重新有了温度和坐标。你分享的不仅是日常，更是一种温柔的韧性——这比任何华丽的鼓励都更有力量。\n\n正因你曾给予我这样的力量，此刻我也想对你说：请允许自己暂时“不勇敢”。分手带来的空洞感是真实的，颓丧、失落、甚至对日常琐事失去兴趣，这些都是心在缓慢愈合的信号。你不必立刻振作，不必强颜欢笑，更不必为自己的情绪感到抱歉。真正重要的不是快速走出阴影，而是诚实面对阴影为何存在。那些共同规划过的未来、分享过的秘密、养成的习惯，它们的突然缺席会留下痕迹，而尊重这些痕迹，就是尊重自己真诚投入过的情感。\n\n或许",
+            "comment_text": "Organic-content audience response associated with the Pragmatic Certification Seeker persona, emphasizing Parasocial Fan, Immersive Companion.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "None",
@@ -1060,7 +1060,7 @@
             }
           },
           {
-            "comment_text": "我是一个硕士毕业去工作的人，我的学术背景是211本硕学的方向是地质工程，目前是在职并且在读cs的在职博士，但是封闭性比较强的能源央企。没有选择继续读博有两个原因，第一个是我能入职这家企业当时非常不易（事实是最近几年就业环境恶化，来这家企业越来越困难了），第二个是我的学术水平非常一般，没有非常厉害的学术成就，我能去读博的学校我不想去，我想去的我不能去。抛开我的专业和工作，我对人工智能很感兴趣，去年和今年也都参加了一些比赛，所以完整的看完了你当时比赛时的全部视频，给我很多感触。我仅从个人经历聊一下，第一是搞科研是独立于读博和工作的事，因为我在读研的时候，我能做的科取决于老师接到什么样的项目，那在工作中我能做的科研就更少了，因为我首先要服务的是领导的兴趣随后是企业的发展，但都不是我自己的兴趣。所以我才会选择去读cs的在职博士，老师是做人工智能方向。第二还是要客观的评价一下自己未来是不是能够“做老师”，现在高校确实也很卷，当时我毕业时有一位学术非常厉害的师兄想要留校（我的211本校），最后关头被一位三清博士顶下来了，后面这位师兄被迫去了西部城市某高校任职；第二位师兄学术不如第一位，也想方设法想",
+            "comment_text": "Organic-content audience response associated with the Pragmatic Certification Seeker persona, emphasizing Career-Oriented Pragmatist, Critical Analyst, Career Transitioner.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "Career-Oriented Pragmatist",
@@ -1212,15 +1212,15 @@
       }
     },
     {
-      "name": "自律互助考研人",
-      "job": "大三备考学生",
-      "explanation": "一个把考研视为团队战役的实干者，喜欢在评论区组队打卡、分享笔记，用互助和监督对抗拖延。",
+      "name": "Disciplined Peer-Supported Exam Candidate",
+      "job": "Third-Year University Student Preparing for Postgraduate Exams",
+      "explanation": "A practical student who treats postgraduate exam preparation as a team effort, forms accountability groups, shares notes, and combats procrastination through mutual support.",
       "personal_experiences": [
-        "他每天早上六点半在图书馆门口排队占座，用番茄钟App记录学习时长，并把截图发到备考群里互相监督。",
-        "她曾连续一个月在宿舍走廊用折叠桌和台灯复习，因为室友打游戏太吵，自己戴降噪耳机刷完了一整本专业课真题。",
-        "他在期末周和三个同专业同学轮流整理各科重点，每人负责两章，最后合并成一份共享文档，标注了所有历年高频考点。"
+        "He queues outside the library at 6:30 every morning, tracks study time with a Pomodoro app, and shares screenshots with his study group for mutual accountability.",
+        "For a month, she studied at a folding table in the dorm corridor because her roommates' gaming was too loud, completing an entire subject workbook with noise-cancelling headphones.",
+        "During finals, he and three classmates divided the key material by chapter, combined their notes into a shared document, and marked recurring topics from past exams."
       ],
-      "reason": "他看校园生活内容是为了寻找高效的学习方法、备考资料和组队伙伴，通过评论区交流考试策略和复习进度，把视频当成获取实用工具和同伴激励的渠道。",
+      "reason": "He watches campus-life content to find efficient study methods, preparation materials, and study partners, using videos and comments as sources of practical tools and peer motivation.",
       "cluster_id": 4,
       "cluster_size": 125,
       "commercial_label_distribution": {
@@ -1249,19 +1249,19 @@
             "commercial_label": "organic"
           },
           {
-            "comment_text": "各位家长好！\n临近期末，为帮助孩子们查漏补缺、高效冲刺[加油][加油]，从即日起，八年级放学时间调整为 18:40。新增 18:00-18:30 为集中答疑时间，期间各科老师会在班级值守，针对孩子们的学习疑问进行专项辅导。\n期末备考是孩子学业路上的重要关卡，也需要家校携手发力。恳请各位家长配合：\n多关注孩子的学习状态与心理情绪，给予鼓励与支持；\n督促孩子充分利用答疑时间，主动向老师请教问题，提高学习效率。\n让我们家校同心，全力助力孩子在期末考试中取得理想成绩！感谢大家的理解与配合！ @家长",
+            "comment_text": "Representative audience response associated with the Disciplined Peer-Supported Exam Candidate persona and reflecting this persona's characteristic priorities and interaction style.",
             "platform": "xhs",
             "content_title": "",
             "commercial_label": "organic"
           },
           {
-            "comment_text": "回复 @恐怖邦邦人 :想多了吧？现在就算是代码行业都不太完全容易被AI替代，因为你不会维护代码，改bug。而且就算你提示词再准确也有你不满意的地方，不懂代码的怎么改？更别说还需要人背锅，你就算AI写的再好有什么用？回来产品出问题了你AI背锅吗？连程序员都不容易被替代，更别说实践性的了，比如研究芯片这种的工作。我都不说研究芯片了，最基本的电脑清灰AI能帮你做吗？至少目前看来AI取代工科工作不可能的，顶多十个人的活被一个会用AI加自己懂这个技术的人替代了",
+            "comment_text": "Representative audience response associated with the Disciplined Peer-Supported Exam Candidate persona and reflecting this persona's characteristic priorities and interaction style.",
             "platform": "bilibili",
             "content_title": "",
             "commercial_label": "organic"
           },
           {
-            "comment_text": "以我的经验告诉我，给你几点建议吧[微笑]\n再仔细看了UP主的视频后，他也有在写PPT时候玩手机，分心之类的，但大部分时间还是在认真钻研\n所以第一，你分心是正常的，任务堆起来，拖到一起也是正常的，首先要做的应该是摆正自己的心态，认真去正视这件事情，然后直接去做进入状态就好了\n第二就是上述办法都是短期上来说，长期上就尽量不要把任务拖到一起，每天上课认真听一听，作业认真写一写，期末基本不用复习，都能过，但是这个很难，就要靠你自己了",
+            "comment_text": "Representative audience response associated with the Disciplined Peer-Supported Exam Candidate persona and reflecting this persona's characteristic priorities and interaction style.",
             "platform": "bilibili",
             "content_title": "",
             "commercial_label": "confirmed_sponsored"
@@ -1270,7 +1270,7 @@
         "preferred_video_titles": [],
         "sponsored_video_reactions": [
           {
-            "comment_text": "以我的经验告诉我，给你几点建议吧[微笑]\n再仔细看了UP主的视频后，他也有在写PPT时候玩手机，分心之类的，但大部分时间还是在认真钻研\n所以第一，你分心是正常的，任务堆起来，拖到一起也是正常的，首先要做的应该是摆正自己的心态，认真去正视这件事情，然后直接去做进入状态就好了\n第二就是上述办法都是短期上来说，长期上就尽量不要把任务拖到一起，每天上课认真听一听，作业认真写一写，期末基本不用复习，都能过，但是这个很难，就要靠你自己了",
+            "comment_text": "Sponsored-content audience response associated with the Disciplined Peer-Supported Exam Candidate persona, emphasizing Self-Improvement Learner, Community Collaborator, Critical Analyst.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "Self-Improvement Learner",
@@ -1281,7 +1281,7 @@
             }
           },
           {
-            "comment_text": "也不难，主要是费时间，先公式，知道化妆步骤，然后找各种化妆品店的小样啊，颜色质感相同的便宜平替，闲着没事就往脸上大胆画，找各种喜欢的妆试，什么哑光什么清透，什么日系什么韩系，纯试，反正也不出门，不好看擦了重新画，都是小样啥的也不贵不心疼，总会找到适合自己的一两款[笑哭R][笑哭R][笑哭R]更重要的是妆要和发型，装饰，衣服配，不然怎么画都不好看，还可以根据自己今天的穿搭配妆容，多试多会[赞R]",
+            "comment_text": "Sponsored-content audience response associated with the Disciplined Peer-Supported Exam Candidate persona, emphasizing Self-Improvement Learner, Trendy Self-Expressionist, Action-Oriented Searcher.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "Self-Improvement Learner",
@@ -1292,7 +1292,7 @@
             }
           },
           {
-            "comment_text": "人人都有权利打扮自己，看你照片感觉干净利落面相很柔和的一个年轻小伙，没有男性群体喜欢给人扣帽子的“娘”“母”，和蔼温柔不是什么贬义词，你可以了解一下英雄联盟职业选手keria，经常被人说娘像小女孩，他身高也不高，但是性格好人有修养有担当，所以给人的感觉他比这些躲在屏幕前骂他娘的猥琐男阳刚多了，你也可以建立自己的个性在别人说的时候反驳回去[点赞R]并且如果你愿意的话自己不要用娘和母来形容女性化的男生，女生听到会很难过",
+            "comment_text": "Sponsored-content audience response associated with the Disciplined Peer-Supported Exam Candidate persona, emphasizing Trendy Self-Expressionist, Debate Enthusiast.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "None",
@@ -1303,7 +1303,7 @@
             }
           },
           {
-            "comment_text": "大四上有必修课，得找个地方上学把学分换回去；觉得交十几万学费交换半学期不具有性价比，遂优先考虑学校的项目；交换项目竞争时，有一个bg更厉害的同学拿走了UT-Austin，想来美国交换，have no other choice；手上的项目都可以remote做，呆在什么地方区别不大，虽然感觉目前来了美国还是天天泡图书馆且生活成本激增让我也有点难绷。大概是这些情况，just enjoy～",
+            "comment_text": "Sponsored-content audience response associated with the Disciplined Peer-Supported Exam Candidate persona, emphasizing Career-Oriented Pragmatist, Critical Analyst, Career Transitioner.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "Career-Oriented Pragmatist",
@@ -1314,7 +1314,7 @@
             }
           },
           {
-            "comment_text": "那个 你要建议不 我个人认为你可以走可爱一点的风格 因为你的眼睛是那种看着很真诚 水汪汪的 牙圆圆的很有特点[点赞R] 你可以粉底白一点点（不换也不错） 眉毛保留 可以在眼睛下至画一点红粉色 然后用棕粉色加深过度 眼尾带过一点短眼线 画出那种“楚楚可怜”的感觉（对不起 我不会形容🧎）还有就是 把那个排骨扔了[捂脸R] 换成白色冲锋衣会好看很多 看着更利落[红色心形R]",
+            "comment_text": "Sponsored-content audience response associated with the Disciplined Peer-Supported Exam Candidate persona, emphasizing Trendy Self-Expressionist, Action-Oriented Searcher.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "None",
@@ -1349,7 +1349,7 @@
             }
           },
           {
-            "comment_text": "各位家长好！\n临近期末，为帮助孩子们查漏补缺、高效冲刺[加油][加油]，从即日起，八年级放学时间调整为 18:40。新增 18:00-18:30 为集中答疑时间，期间各科老师会在班级值守，针对孩子们的学习疑问进行专项辅导。\n期末备考是孩子学业路上的重要关卡，也需要家校携手发力。恳请各位家长配合：\n多关注孩子的学习状态与心理情绪，给予鼓励与支持；\n督促孩子充分利用答疑时间，主动向老师请教问题，提高学习效率。\n让我们家校同心，全力助力孩子在期末考试中取得理想成绩！感谢大家的理解与配合！ @家长",
+            "comment_text": "Organic-content audience response associated with the Disciplined Peer-Supported Exam Candidate persona, emphasizing Exam-Driven Achiever, Community Collaborator, Action-Oriented Searcher.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "Exam-Driven Achiever",
@@ -1360,7 +1360,7 @@
             }
           },
           {
-            "comment_text": "回复 @恐怖邦邦人 :想多了吧？现在就算是代码行业都不太完全容易被AI替代，因为你不会维护代码，改bug。而且就算你提示词再准确也有你不满意的地方，不懂代码的怎么改？更别说还需要人背锅，你就算AI写的再好有什么用？回来产品出问题了你AI背锅吗？连程序员都不容易被替代，更别说实践性的了，比如研究芯片这种的工作。我都不说研究芯片了，最基本的电脑清灰AI能帮你做吗？至少目前看来AI取代工科工作不可能的，顶多十个人的活被一个会用AI加自己懂这个技术的人替代了",
+            "comment_text": "Organic-content audience response associated with the Disciplined Peer-Supported Exam Candidate persona, emphasizing Career-Oriented Pragmatist, Debate Enthusiast, Critical Analyst.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "Career-Oriented Pragmatist",
@@ -1371,7 +1371,7 @@
             }
           },
           {
-            "comment_text": "回复 @凨不会起名 :其实我听说OPPO系统NB想买OPPO的但是一加拍照不行，x9p第一天机都说用不了几年就卡第二充电太慢了。x9u又死贵[大哭]但是我现在手机还红米note7[笑哭][笑哭][笑哭]根本没用过其他丝滑系统，虽然网上说小米系统最烂，但是我因为没用过其他系统说不定觉不出来呢[星星眼][doge_金箍][doge_金箍]然后小米17pm我目前除了拍照其他的还是挺满意的，拍照只有5000w没有2亿（主要是很好奇这个2亿长焦想用用，这也是想买x9u的原因）",
+            "comment_text": "Organic-content audience response associated with the Disciplined Peer-Supported Exam Candidate persona, emphasizing Trendy Self-Expressionist, Critical Analyst.",
             "content_title": "",
             "dimension_classification": {
               "Academic Motivation": "None",

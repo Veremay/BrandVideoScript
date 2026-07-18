@@ -20,6 +20,33 @@ const MapView = dynamic(() => import("@/components/MapView").then((mod) => mod.M
 
 const SAVE_DELAY_MS = 700;
 
+async function copyTextToClipboard(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // Fall through to the legacy copy path when clipboard permission is denied.
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+
+  try {
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    textarea.remove();
+  }
+}
+
 export function EditorShell() {
   const {
     appMode,
@@ -169,9 +196,9 @@ export function EditorShell() {
     try {
       const { share_token } = await createShareLink(project._id, project.user_id);
       const shareUrl = `${window.location.origin}/share/${share_token}`;
-      await navigator.clipboard.writeText(shareUrl);
+      const copied = await copyTextToClipboard(shareUrl);
       window.alert(
-        `Share link copied to clipboard.\n\nBrand partners can open this link to fill in the Brand Feedback column only:\n${shareUrl}`
+        `${copied ? "Share link copied to clipboard." : "Share link created. Copy it below:"}\n\nBrand partners can open this link to fill in the Brand Feedback column only:\n${shareUrl}`
       );
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "Failed to create share link");
