@@ -45,7 +45,7 @@ import {
   updateGraphNode
 } from "@/lib/api";
 import { isGraphStaleForUpdateMap } from "@/lib/stale";
-import { LoadingIndicator, useElapsedTime } from "@/lib/useElapsedTime";
+import { formatElapsed, useElapsedTime } from "@/lib/useElapsedTime";
 import { useAppStore } from "@/store/appStore";
 
 type MapNodeType = "issue" | "position" | "argument";
@@ -1036,29 +1036,26 @@ function MapViewContent() {
     <section className="map-workspace" ref={workspaceRef}>
       <div className="map-canvas-area">
       {showUpdateMapButton ? (
-        <div style={{ position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)", zIndex: 10, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
         <button
           className="map-update-map-btn"
-          style={{ position: "static" }}
           disabled={mapSyncing || !canUpdateMap}
           onClick={() => void handleUpdateMap()}
-          title={!canUpdateMap ? (updateMapBlockedReason ?? undefined) : undefined}
+          title={!canUpdateMap ? (updateMapBlockedReason ?? undefined) : mapSyncProgress?.message ?? undefined}
           type="button"
           aria-busy={mapSyncing}
         >
-          {mapSyncing ? "Updating…" : "Update Map"}
-        </button>
-        {mapSyncing ? (
-          <div className="map-update-loading" style={{ position: "static", transform: "none" }}>
-            <LoadingIndicator
-              elapsed={mapSyncElapsed}
-              label={mapSyncProgress?.message ?? "Updating map"}
-              inline
-              progress={mapSyncProgress ? Math.round((mapSyncProgress.step / mapSyncProgress.total) * 100) : undefined}
+          {mapSyncing && mapSyncProgress ? (
+            <span
+              className="btn-progress-fill"
+              style={{ transform: `scaleX(${mapSyncProgress.step / Math.max(mapSyncProgress.total, 1)})` }}
             />
-          </div>
-        ) : null}
-        </div>
+          ) : null}
+          <span className="btn-progress-label">
+            {mapSyncing
+              ? `Updating… ${formatElapsed(mapSyncElapsed)}`
+              : "Update Map"}
+          </span>
+        </button>
       ) : null}
       {!emptyGraph && !mapUpdateNeeded && !mapSyncing ? (
         <div className="map-graph-status" aria-live="polite">
@@ -1280,23 +1277,24 @@ function MapViewContent() {
                   ))}
                 </ul>
               )}
-              {generatingSchemes ? (
-                <div className="map-generate-loading">
-                  <LoadingIndicator
-                    elapsed={generatingElapsed}
-                    label={generatingProgress?.message ?? "Generating plan"}
-                    inline
-                    progress={generatingProgress ? Math.round((generatingProgress.step / generatingProgress.total) * 100) : undefined}
-                  />
-                </div>
-              ) : null}
               <button
                 className="map-consideration-generate-btn"
                 disabled={!considerationPositions.length || generatingSchemes}
                 onClick={() => void handleGenerateModificationPlan()}
+                title={generatingProgress?.message ?? undefined}
                 type="button"
               >
-                {generatingSchemes ? "Generating…" : "Generate modification plan"}
+                {generatingSchemes && generatingProgress ? (
+                  <span
+                    className="btn-progress-fill"
+                    style={{ transform: `scaleX(${generatingProgress.step / Math.max(generatingProgress.total, 1)})` }}
+                  />
+                ) : null}
+                <span className="btn-progress-label">
+                  {generatingSchemes
+                    ? `Generating… ${formatElapsed(generatingElapsed)}`
+                    : "Generate modification plan"}
+                </span>
               </button>
             </>
           ) : (

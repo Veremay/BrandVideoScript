@@ -1345,6 +1345,28 @@ textarea {
   cursor: pointer;
   transform: translateX(-50%);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  transition: min-width 0.25s ease, padding 0.25s ease;
+  white-space: nowrap;
+  min-width: 110px;
+  text-align: center;
+}
+
+/* Progress fill inside the button (determinate) */
+.map-update-map-btn > .btn-progress-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--brand-blue, #4f8ef7);
+  opacity: 0.22;
+  transform-origin: left;
+  transition: transform 0.35s ease;
+  z-index: 0;
+  border-radius: 999px;
+}
+
+.map-update-map-btn > .btn-progress-label {
+  position: relative;
+  z-index: 1;
 }
 
 .map-update-map-btn:hover:not(:disabled) {
@@ -1353,8 +1375,10 @@ textarea {
 }
 
 .map-update-map-btn:disabled {
-  opacity: 0.7;
   cursor: wait;
+  opacity: 1;
+  min-width: 220px;
+  padding: 8px 24px;
 }
 
 .map-flow {
@@ -5438,6 +5462,8 @@ button.editor-row-link-mark:focus-visible {
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+  position: relative;
+  overflow: hidden;
 }
 
 .map-overlay-right .map-consideration-generate-btn {
@@ -5447,9 +5473,25 @@ button.editor-row-link-mark:focus-visible {
   line-height: 1.25;
 }
 
+/* Progress fill inside the button */
+.map-consideration-generate-btn > .btn-progress-fill {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.25);
+  transform-origin: left;
+  transition: transform 0.35s ease;
+  z-index: 0;
+  border-radius: 10px;
+}
+
+.map-consideration-generate-btn > .btn-progress-label {
+  position: relative;
+  z-index: 1;
+}
+
 .map-consideration-generate-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
+  cursor: wait;
+  opacity: 1;
 }
 
 /* ---- Tab bar inside the right overlay panel ---- */
@@ -6687,22 +6729,3 @@ button.editor-row-link-mark:focus-visible {
 }
 
 /* ── Map update button area ── */
-.map-update-loading {
-  position: absolute;
-  top: 52px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
-  min-width: 200px;
-  padding: 8px 14px;
-  border-radius: 10px;
-  background: var(--surface2, #1e1e24);
-  border: 1px solid var(--border, rgba(255,255,255,0.07));
-  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
-}
-
-/* ── Generate plan button area ── */
-.map-generate-loading {
-  margin-top: 8px;
-  padding: 0 2px;
-}

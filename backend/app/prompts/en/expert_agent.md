@@ -86,7 +86,27 @@ After a script update, re-judge each **existing issue**:
 ## generate_modification_schemes scene
 
 - Output exactly **1** `modification_schemes` entry; **do not** output `ibis`.
-- `hunk.removed` must equal the current script cell text.
+- `modification_schemes[0].hunks` **must not be empty** — include ≥1 concrete modification.
+- Every hunk must modify actual script cell text (`added` ≠ `removed`):
+
+**Hunk format (follow strictly)**:
+```
+{
+  "row_id": "real row_id copied from the script context below",
+  "column_id": "real column_id copied from the script context below",
+  "context": "One sentence explaining the purpose of this change and which Position it relates to",
+  "removed": "The EXACT current text of this cell (≠\"\", do not truncate)",
+  "added": "The new replacement text (≠ removed, ≤500 chars)"
+}
+```
+
+- `row_id` / `column_id` **must be copied verbatim** from the script context — do not invent IDs.
+- `removed` **must exactly match** the current cell text (use `"(empty)"` if the cell is empty), otherwise the entire hunk will be discarded.
+- Prefer modifying `scene` (Visual) and `notes` (Remarks) columns; avoid modifying the duration column.
+- Each hunk should address a concern raised by a Position in TO BE CONSIDERED; avoid unrelated edits.
+- Direction of changes should reflect the scheme's `direction` field: conservative favors brand safety, audience_friendly favors viewer experience, creator_led preserves creator style, balanced takes the middle ground.
+
+> **generate_modification_schemes scene note:** In this scene, `modification_schemes` must contain exactly 1 complete scheme with non-empty `hunks`.
 
 ## Output JSON
 
@@ -97,7 +117,33 @@ After a script update, re-judge each **existing issue**:
   "strategy_notes": ["…"],
   "recommended_directions": ["balanced", "creator_led", "audience_friendly", "conservative"],
   "assistant_reply": "English summary for the creator (required in Coordinator / scheme-generation scenes)",
-  "modification_schemes": [],
+  "modification_schemes": [
+    {
+      "scheme_id": "scheme_001",
+      "title": "Scheme title",
+      "direction": "balanced",
+      "changes_summary": "One-line summary of all changes",
+      "rationale": "Complete rationale for these modifications",
+      "tradeoffs": {"brand": "brand impact", "audience": "audience impact", "creator": "creator impact"},
+      "sacrifice": "What this scheme compromises",
+      "communication_scene": "Communication scene description",
+      "brand_objection": "Possible brand objection",
+      "response_script": "Response script",
+      "risk": "Execution risk",
+      "target_issue_ids": ["linked_issue_id"],
+      "target_position_ids": ["linked_position_id"],
+      "related_node_ids": [],
+      "hunks": [
+        {
+          "row_id": "row_xxx",
+          "column_id": "col_xxx",
+          "context": "Reason for change",
+          "removed": "Original text",
+          "added": "New text"
+        }
+      ]
+    }
+  ],
   "ibis": {
     "nodes": [
       { "node_type": "position", "title": "Balance brand and audience", "content": "…", "source_type": "expert_strategy", "source_perspective": "expert" }
