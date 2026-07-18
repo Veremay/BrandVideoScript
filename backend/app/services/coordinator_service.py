@@ -8,6 +8,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.artifact_stale import mark_brief_changed, mark_persona_changed, stale_set_fields
 from app.models.script import now_iso
+from app.repositories.modification_schemes import generate_modification_schemes
 from app.repositories.projects import get_project
 from app.services.sse import encode_sse
 from app.repositories.script_snapshots import snapshot_before_map_update
@@ -21,7 +22,7 @@ from app.services.graph_sync import sync_graph_from_script
 from app.services.persona_analytics import PersonaAnalyticsContext, get_persona_analytics_provider
 from app.services.pipeline_log import log_step
 
-GRAPH_SYNC_HEARTBEAT_SECONDS = 8.0
+GRAPH_SYNC_HEARTBEAT_SECONDS = 3.0
 
 
 async def run_brief_initial_parse(
@@ -130,17 +131,44 @@ async def stream_graph_sync(
     *,
     changed_row_ids: list[str] | None = None,
 ) -> AsyncIterator[str]:
-    """SSE generator for Update Map. Keeps the frontend connection alive."""
-    yield encode_sse("status", {"message": "Updating map…"})
+    """SSE generator for Update Map. Reports progress via the progress queue."""
+    progress_queue: asyncio.Queue = asyncio.Queue()
 
     task: asyncio.Task[dict[str, Any]] = asyncio.create_task(
-        sync_graph_from_script(db, project_id, user_id, changed_row_ids=changed_row_ids)
+        sync_graph_from_script(db, project_id, user_id, changed_row_ids=changed_row_ids, progress_queue=progress_queue)
     )
+
+    step = 0
+    total = 0
+    yield encode_sse("progress", {"step": step, "total": 1, "message": "Starting map update…"})
+
     while not task.done():
+        # Try to read a progress message (non-blocking)
+        try:
+            msg = await asyncio.wait_for(progress_queue.get(), timeout=0.2)
+            if "total" in msg:
+                total = msg["total"]
+            elif "message" in msg:
+                step += 1
+                yield encode_sse("progress", {"step": step, "total": total if total > 0 else step + 2, "message": msg["message"]})
+        except asyncio.TimeoutError:
+            pass
+
+        # Heartbeat / task completion check
         try:
             await asyncio.wait_for(asyncio.shield(task), timeout=GRAPH_SYNC_HEARTBEAT_SECONDS)
         except asyncio.TimeoutError:
             yield encode_sse("heartbeat", {})
+
+    # Drain remaining progress messages
+    while not progress_queue.empty():
+        try:
+            msg = progress_queue.get_nowait()
+            if "message" in msg:
+                step += 1
+                yield encode_sse("progress", {"step": step, "total": total if total > 0 else step + 1, "message": msg["message"]})
+        except asyncio.QueueEmpty:
+            break
 
     exc = task.exception()
     if exc is not None:
@@ -149,6 +177,68 @@ async def stream_graph_sync(
 
     result = task.result()
     yield encode_sse("done", {"project": result.get("project"), "nodes_added": result.get("nodes_added", 0)})
+
+
+async def stream_generate_modification_schemes(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    *,
+    target_issue_ids: list[str] | None = None,
+    target_position_ids: list[str] | None = None,
+    user_message: str | None = None,
+) -> AsyncIterator[str]:
+    """SSE generator for Generate Modification Plan. Reports progress via queue."""
+    progress_queue: asyncio.Queue = asyncio.Queue()
+
+    task: asyncio.Task[dict[str, Any]] = asyncio.create_task(
+        generate_modification_schemes(
+            db, project_id, user_id,
+            target_issue_ids=target_issue_ids,
+            target_position_ids=target_position_ids,
+            user_message=user_message,
+            progress_queue=progress_queue,
+        )
+    )
+
+    step = 0
+    total = 3  # prepare, generate, save
+    yield encode_sse("progress", {"step": step, "total": total, "message": "Starting…"})
+
+    while not task.done():
+        try:
+            msg = await asyncio.wait_for(progress_queue.get(), timeout=0.2)
+            if "message" in msg:
+                step += 1
+                yield encode_sse("progress", {"step": step, "total": total, "message": msg["message"]})
+        except asyncio.TimeoutError:
+            pass
+
+        try:
+            await asyncio.wait_for(asyncio.shield(task), timeout=GRAPH_SYNC_HEARTBEAT_SECONDS)
+        except asyncio.TimeoutError:
+            yield encode_sse("heartbeat", {})
+
+    while not progress_queue.empty():
+        try:
+            msg = progress_queue.get_nowait()
+            if "message" in msg:
+                step += 1
+                yield encode_sse("progress", {"step": step, "total": total, "message": msg["message"]})
+        except asyncio.QueueEmpty:
+            break
+
+    exc = task.exception()
+    if exc is not None:
+        yield encode_sse("error", {"message": str(exc)})
+        return
+
+    result = task.result()
+    yield encode_sse("done", {
+        "project": result.get("project"),
+        "schemes": result.get("schemes"),
+        "assistant_reply": result.get("assistant_reply", ""),
+    })
 
 
 async def run_persona_provisioned_parse(

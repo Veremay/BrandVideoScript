@@ -383,6 +383,7 @@ export async function parseBriefStream(
 }
 
 type GraphSyncStreamEvent =
+  | { type: "progress"; step: number; total: number; message: string }
   | { type: "status"; message: string }
   | { type: "heartbeat" }
   | { type: "done"; project: Project }
@@ -397,6 +398,7 @@ function parseGraphSyncSseBlock(block: string): GraphSyncStreamEvent | null {
   }
   if (!data) return null;
   const payload = JSON.parse(data) as Record<string, unknown>;
+  if (event === "progress") return { type: "progress", step: Number(payload.step ?? 0), total: Number(payload.total ?? 1), message: String(payload.message ?? "") };
   if (event === "status") return { type: "status", message: String(payload.message ?? "") };
   if (event === "heartbeat") return { type: "heartbeat" };
   if (event === "done") return { type: "done", project: normalizeProject(payload.project as Project)! };
@@ -869,6 +871,56 @@ export async function generateModificationSchemes(
     SCHEME_GENERATE_TIMEOUT_MS
   );
   return { ...data, project: normalizeProject(data.project)! };
+}
+
+type ModificationSchemeStreamEvent =
+  | { type: "progress"; step: number; total: number; message: string }
+  | { type: "heartbeat" }
+  | { type: "done"; project: Project; schemes: ModificationScheme[]; assistant_reply: string }
+  | { type: "error"; message: string };
+
+function parseModificationSchemeSseBlock(block: string): ModificationSchemeStreamEvent | null {
+  let event = "message";
+  let data = "";
+  for (const line of block.split("\n")) {
+    if (line.startsWith("event:")) event = line.slice(6).trim();
+    if (line.startsWith("data:")) data = line.slice(5).trim();
+  }
+  if (!data) return null;
+  const payload = JSON.parse(data) as Record<string, unknown>;
+  if (event === "progress") return { type: "progress", step: Number(payload.step ?? 0), total: Number(payload.total ?? 1), message: String(payload.message ?? "") };
+  if (event === "heartbeat") return { type: "heartbeat" };
+  if (event === "done") return {
+    type: "done",
+    project: normalizeProject(payload.project as Project)!,
+    schemes: (payload.schemes ?? []) as ModificationScheme[],
+    assistant_reply: String(payload.assistant_reply ?? ""),
+  };
+  if (event === "error") return { type: "error", message: String(payload.message ?? "Scheme generation failed") };
+  return null;
+}
+
+export async function generateModificationSchemesStream(
+  projectId: string,
+  userId: string,
+  options: { target_issue_ids?: string[]; target_position_ids?: string[]; message?: string } | undefined,
+  onEvent: (event: ModificationSchemeStreamEvent) => void
+): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/projects/${projectId}/modification-schemes/generate/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      user_id: userId,
+      target_issue_ids: options?.target_issue_ids ?? [],
+      target_position_ids: options?.target_position_ids ?? [],
+      message: options?.message ?? null
+    }),
+  });
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Scheme generation failed: ${response.status}`);
+  }
+  await readSseStream(response, parseModificationSchemeSseBlock, onEvent);
 }
 
 export async function applyModificationSchemeHunks(

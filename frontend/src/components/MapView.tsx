@@ -30,7 +30,7 @@ import {
   resolveFlowEndpoints,
   visualConnectionToStored
 } from "@/lib/ibisLayout";
-import type { RationaleEdge, RationaleNode, RationaleSourceType } from "@/lib/types";
+import type { Project, RationaleEdge, RationaleNode, RationaleSourceType } from "@/lib/types";
 import {
   createGraphEdge,
   createGraphNode,
@@ -38,13 +38,14 @@ import {
   deleteGraphEdge,
   deleteGraphNode,
   populateIssuePositions,
-  syncMapFromScript,
+  syncMapFromScriptStream,
   fetchProject,
-  generateModificationSchemes,
+  generateModificationSchemesStream,
   toggleGraphConsiderationQueue,
   updateGraphNode
 } from "@/lib/api";
 import { isGraphStaleForUpdateMap } from "@/lib/stale";
+import { LoadingIndicator, useElapsedTime } from "@/lib/useElapsedTime";
 import { useAppStore } from "@/store/appStore";
 
 type MapNodeType = "issue" | "position" | "argument";
@@ -700,6 +701,9 @@ function MapViewContent() {
   const setWorkspaceView = useAppStore((state) => state.setWorkspaceView);
   const setEditorSchemeFocusId = useAppStore((state) => state.setEditorSchemeFocusId);
   const [generatingSchemes, setGeneratingSchemes] = useState(false);
+  const generatingElapsed = useElapsedTime(generatingSchemes);
+  const [generatingProgress, setGeneratingProgress] = useState<{ step: number; total: number; message: string } | null>(null);
+  const [mapSyncProgress, setMapSyncProgress] = useState<{ step: number; total: number; message: string } | null>(null);
 
   const considerationPositions = useMemo(() => {
     const queue = new Set(project?.consideration_queue ?? []);
@@ -764,17 +768,27 @@ function MapViewContent() {
       return;
     }
     setGeneratingSchemes(true);
+    setGeneratingProgress(null);
     try {
-      const result = await generateModificationSchemes(project._id, project.user_id, {
+      await generateModificationSchemesStream(project._id, project.user_id, {
         target_position_ids: positionIds,
         message: "Generate modification schemes for adopted positions in TO BE CONSIDERED."
+      }, (event) => {
+        if (event.type === "progress") {
+          setGeneratingProgress({ step: event.step, total: event.total, message: event.message });
+        }
+        if (event.type === "done") {
+          setProject(event.project);
+          const latest = event.schemes[event.schemes.length - 1];
+          if (latest?.scheme_id) {
+            setEditorSchemeFocusId(latest.scheme_id);
+          }
+          setWorkspaceView("editor");
+        }
+        if (event.type === "error") {
+          throw new Error(event.message);
+        }
       });
-      setProject(result.project);
-      const latest = result.schemes[result.schemes.length - 1];
-      if (latest?.scheme_id) {
-        setEditorSchemeFocusId(latest.scheme_id);
-      }
-      setWorkspaceView("editor");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to generate modification plan";
       window.alert(`${message} 请稍后重试。`);
@@ -786,6 +800,7 @@ function MapViewContent() {
       }
     } finally {
       setGeneratingSchemes(false);
+      setGeneratingProgress(null);
     }
   }, [
     considerationPositions,
@@ -964,6 +979,7 @@ function MapViewContent() {
   const canUpdateMap = hasRequirements && hasPersona;
   const mapUpdateNeeded = isGraphStaleForUpdateMap(project?.stale);
   const mapSyncing = syncingMap || project?.stale?.rationale_graph === "generating";
+  const mapSyncElapsed = useElapsedTime(mapSyncing);
   const showUpdateMapButton =
     hasScriptContent && (mapUpdateNeeded || mapSyncing || (emptyGraph && canUpdateMap));
   const updateMapBlockedReason = !hasRequirements
@@ -975,8 +991,27 @@ function MapViewContent() {
   const handleUpdateMap = useCallback(async () => {
     if (!project?._id || !project.user_id || syncingMap || !canUpdateMap) return;
     setSyncingMap(true);
+    setMapSyncProgress(null);
     try {
-      const updated = await syncMapFromScript(project._id, project.user_id);
+      const updated: Project = await new Promise((resolve, reject) => {
+        let resolved = false;
+        syncMapFromScriptStream(project._id, project.user_id, [], (event) => {
+          if (event.type === "progress") {
+            setMapSyncProgress({ step: event.step, total: event.total, message: event.message });
+          } else if (event.type === "done" && !resolved) {
+            resolved = true;
+            resolve(event.project);
+          } else if (event.type === "error" && !resolved) {
+            resolved = true;
+            reject(new Error(event.message));
+          }
+        }).catch((err) => {
+          if (!resolved) {
+            resolved = true;
+            reject(err);
+          }
+        });
+      });
       const nextNodes = updated.rationale_nodes ?? [];
       const nextEdges = updated.rationale_edges ?? [];
       const layouts = computeIbisLayout(nextNodes, nextEdges);
@@ -993,6 +1028,7 @@ function MapViewContent() {
       window.alert(error instanceof Error ? error.message : "Failed to update map");
     } finally {
       setSyncingMap(false);
+      setMapSyncProgress(null);
     }
   }, [canUpdateMap, project, setProject, syncingMap]);
 
@@ -1000,8 +1036,10 @@ function MapViewContent() {
     <section className="map-workspace" ref={workspaceRef}>
       <div className="map-canvas-area">
       {showUpdateMapButton ? (
+        <div style={{ position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)", zIndex: 10, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
         <button
           className="map-update-map-btn"
+          style={{ position: "static" }}
           disabled={mapSyncing || !canUpdateMap}
           onClick={() => void handleUpdateMap()}
           title={!canUpdateMap ? (updateMapBlockedReason ?? undefined) : undefined}
@@ -1010,6 +1048,17 @@ function MapViewContent() {
         >
           {mapSyncing ? "Updating…" : "Update Map"}
         </button>
+        {mapSyncing ? (
+          <div className="map-update-loading" style={{ position: "static", transform: "none" }}>
+            <LoadingIndicator
+              elapsed={mapSyncElapsed}
+              label={mapSyncProgress?.message ?? "Updating map"}
+              inline
+              progress={mapSyncProgress ? Math.round((mapSyncProgress.step / mapSyncProgress.total) * 100) : undefined}
+            />
+          </div>
+        ) : null}
+        </div>
       ) : null}
       {!emptyGraph && !mapUpdateNeeded && !mapSyncing ? (
         <div className="map-graph-status" aria-live="polite">
@@ -1231,6 +1280,16 @@ function MapViewContent() {
                   ))}
                 </ul>
               )}
+              {generatingSchemes ? (
+                <div className="map-generate-loading">
+                  <LoadingIndicator
+                    elapsed={generatingElapsed}
+                    label={generatingProgress?.message ?? "Generating plan"}
+                    inline
+                    progress={generatingProgress ? Math.round((generatingProgress.step / generatingProgress.total) * 100) : undefined}
+                  />
+                </div>
+              ) : null}
               <button
                 className="map-consideration-generate-btn"
                 disabled={!considerationPositions.length || generatingSchemes}

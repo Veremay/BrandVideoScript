@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -38,10 +39,15 @@ async def generate_modification_schemes(
     target_issue_ids: list[str] | None = None,
     target_position_ids: list[str] | None = None,
     user_message: str | None = None,
+    progress_queue: asyncio.Queue | None = None,
 ) -> dict[str, Any]:
     project = await get_project(db, project_id, user_id)
     if project is None:
         raise ValueError("Project not found")
+
+    async def _progress(message: str) -> None:
+        if progress_queue is not None:
+            await progress_queue.put({"message": message})
 
     before_schemes = schemes_slice(project.get("modification_schemes"))
     target_nodes = [
@@ -51,12 +57,15 @@ async def generate_modification_schemes(
         or node.get("node_id") in set(target_position_ids or [])
     ]
 
+    await _progress("Preparing context…")
+
     await db.projects.update_one(
         {"_id": project_id, "user_id": user_id},
         {"$set": {"stale.modification_schemes": "generating", "updated_at": now_iso()}},
     )
 
     try:
+        await _progress("Generating modification scheme…")
         result = await run_expert_generate_modification_schemes(
             project,
             target_issue_ids=target_issue_ids,
@@ -64,6 +73,9 @@ async def generate_modification_schemes(
             user_message=user_message,
         )
         new_schemes = (result.get("modification_schemes") or [])[:1]
+
+        await _progress("Saving…")
+
         combined = new_schemes
         nodes_by_id = {
             str(node.get("node_id")): node
