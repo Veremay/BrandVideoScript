@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { generateNegotiationPlan, toggleCommunicationSupport } from "@/lib/api";
+import { buildIbisNodeLabels } from "@/lib/ibisNodeLabels";
 import { useAppStore } from "@/store/appStore";
 
 type CommunicationTab = "argue" | "plan";
@@ -78,6 +79,15 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
   const considerationCount = project?.consideration_queue?.length ?? 0;
   const plan = project?.negotiation_preparation ?? null;
   const hasArgumentBrief = argumentBrief.trim().length > 0;
+  const isFullMode = (project?.mode ?? project?.current_script.settings?.mode ?? "full") === "full";
+  const ibisNodeLabels = useMemo(
+    () => buildIbisNodeLabels(project?.rationale_nodes ?? []),
+    [project?.rationale_nodes]
+  );
+  const ibisNodesById = useMemo(
+    () => new Map((project?.rationale_nodes ?? []).map((node) => [node.node_id, node])),
+    [project?.rationale_nodes]
+  );
 
   if (!open) return null;
 
@@ -250,6 +260,9 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
                       const feedbackText = dispute.brand_feedback || dispute.summary || `Feedback #${index + 1}`;
                       const fallbackText = dispute.fallback || dispute.acceptable_concession || "";
                       const talkingPoints = dispute.talking_points || [];
+                      const basedOnNodes = [...new Set(dispute.related_node_ids || [])]
+                        .map((nodeId) => ({ node: ibisNodesById.get(nodeId), code: ibisNodeLabels.get(nodeId) }))
+                        .filter((item): item is { node: NonNullable<typeof item.node>; code: string } => Boolean(item.node && item.code));
 
                       return (
                         <article className="comm-dispute" key={dispute.issue_node_id || index}>
@@ -271,6 +284,18 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
                               </button>
                             </div>
                             <p className="comm-dispute-reply-text">{replyText}</p>
+                            {isFullMode && basedOnNodes.length > 0 ? (
+                              <div className="comm-dispute-basis" aria-label="IBIS nodes used for this reply">
+                                <span>Based on IBIS</span>
+                                <div className="comm-dispute-basis-codes">
+                                  {basedOnNodes.map(({ node, code }) => (
+                                    <span className="comm-dispute-basis-code" key={node.node_id} title={`${code} · ${node.title}`}>
+                                      {code}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
                           </div>
 
                           {fallbackText && fallbackText !== "暂不让步" && fallbackText !== "无" ? (

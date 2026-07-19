@@ -909,6 +909,22 @@ export async function toggleCommunicationSupport(
   )!;
 }
 
+export async function fetchVanillaArguePrompt(
+  projectId: string,
+  userId: string,
+  rowId: string,
+  columnId: string
+): Promise<{ prompt: string; appendBlock: string }> {
+  const data = await request<{ prompt: string; append_block: string }>(
+    `/projects/${projectId}/vanilla/argue-prompt`,
+    {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId, row_id: rowId, column_id: columnId })
+    }
+  );
+  return { prompt: data.prompt, appendBlock: data.append_block };
+}
+
 export async function generateNegotiationPlan(
   projectId: string,
   userId: string,

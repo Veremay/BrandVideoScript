@@ -1540,14 +1540,27 @@ textarea {
 }
 
 .map-node-source {
-  display: block;
-  margin-top: 2px;
+  display: inline;
   color: var(--figma-text-secondary);
   font-size: calc(9px + var(--app-font-size-delta));
   font-style: normal;
   font-weight: 500;
   letter-spacing: 0.02em;
   text-transform: none;
+}
+
+.map-node-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.map-node-code {
+  color: var(--figma-primary);
+  font-size: calc(9px + var(--app-font-size-delta));
+  font-weight: 800;
+  letter-spacing: 0.04em;
 }
 
 .map-empty-state {
@@ -2183,6 +2196,33 @@ textarea {
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
 }
 
+.glacier-assistant--docked {
+  top: 64px;
+  right: 0;
+  bottom: 0;
+  width: var(--chat-dock-width, min(420px, 92vw));
+  height: auto;
+  max-height: none;
+  border: none;
+  border-left: 1px solid var(--figma-border, #bec8d2);
+  border-radius: 0;
+  background: var(--figma-bg, #faf8ff);
+  backdrop-filter: none;
+  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.08);
+}
+
+.app-figma--chat-docked {
+  --chat-dock-width: min(420px, 92vw);
+}
+
+.app-figma--chat-docked .figma-main {
+  padding-right: var(--chat-dock-width);
+}
+
+.app-figma--chat-docked .figma-fab {
+  right: calc(var(--chat-dock-width) + 24px);
+}
+
 .glacier-drop-overlay {
   position: absolute;
   inset: 8px;
@@ -2249,6 +2289,12 @@ textarea {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 16px;
+}
+
+.glacier-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .glacier-title-row {
@@ -2713,7 +2759,8 @@ textarea {
 
 .glacier-attach {
   position: absolute;
-  top: 50%;
+  top: 10px;
+  bottom: auto;
   left: 8px;
   z-index: 2;
   display: inline-flex;
@@ -2726,7 +2773,7 @@ textarea {
   border-radius: 8px;
   background: transparent;
   color: var(--glacier-text-secondary);
-  transform: translateY(-50%);
+  transform: none;
 }
 
 .glacier-attach:hover:not(:disabled) {
@@ -2747,8 +2794,8 @@ textarea {
 .glacier-input {
   display: block;
   width: 100%;
-  min-height: 48px;
-  max-height: 120px;
+  min-height: 112px;
+  max-height: 260px;
   padding: 14px 49px 14px 17px;
   border: 1px solid var(--glacier-border);
   border-radius: 12px;
@@ -2757,7 +2804,7 @@ textarea {
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
   font-size: calc(14px + var(--app-font-size-delta));
   line-height: 20px;
-  resize: none;
+  resize: vertical;
 }
 
 .glacier-input--with-attachment {
@@ -2775,7 +2822,8 @@ textarea {
 
 .glacier-send {
   position: absolute;
-  top: 50%;
+  top: auto;
+  bottom: 10px;
   right: 8px;
   display: inline-flex;
   align-items: center;
@@ -2787,7 +2835,7 @@ textarea {
   border-radius: 8px;
   background: var(--glacier-primary);
   color: #fff;
-  transform: translateY(-50%);
+  transform: none;
   cursor: pointer;
 }
 
@@ -2807,6 +2855,19 @@ textarea {
     width: calc(100vw - 24px);
     height: calc(100vh - 120px);
     max-height: calc(100vh - 120px);
+  }
+
+  .glacier-assistant--docked {
+    top: 64px;
+    right: 0;
+    bottom: 0;
+    width: min(100vw, 420px);
+    height: auto;
+    max-height: none;
+  }
+
+  .app-figma--chat-docked {
+    --chat-dock-width: min(100vw, 420px);
   }
 }
 
@@ -6766,6 +6827,31 @@ button.editor-row-link-mark:focus-visible {
   font-size: calc(13px + var(--app-font-size-delta));
   line-height: 1.6;
   color: var(--figma-text);
+}
+
+.comm-dispute-basis {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(0, 101, 145, 0.1);
+  color: var(--figma-text-muted, #6b7280);
+  font-size: calc(10px + var(--app-font-size-delta));
+  font-weight: 600;
+}
+
+.comm-dispute-basis-codes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.comm-dispute-basis-code {
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(0, 101, 145, 0.1);
+  color: var(--figma-primary);
+  font-weight: 800;
 }
 
 .comm-dispute-fallback {

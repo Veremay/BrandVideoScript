@@ -414,6 +414,17 @@ class NegotiationGenerateResponse(BaseModel):
     assistant_reply: str = ""
 
 
+class VanillaArguePromptRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    row_id: str = Field(min_length=1)
+    column_id: str = Field(min_length=1)
+
+
+class VanillaArguePromptResponse(BaseModel):
+    prompt: str
+    append_block: str
+
+
 class GraphNodeLayoutItem(BaseModel):
     node_id: str = Field(min_length=1)
     layout: dict[str, float]

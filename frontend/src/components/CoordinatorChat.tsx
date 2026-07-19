@@ -91,6 +91,10 @@ export function CoordinatorChat({
   const isVanilla = mode === "vanilla";
   const welcome = isVanilla ? WELCOME_VANILLA : WELCOME_FULL;
   const setProject = useAppStore((state) => state.setProject);
+  const pendingChatDraft = useAppStore((state) => state.pendingChatDraft);
+  const setPendingChatDraft = useAppStore((state) => state.setPendingChatDraft);
+  const docked = useAppStore((state) => state.layout.coordinatorChatDocked);
+  const setCoordinatorChatDocked = useAppStore((state) => state.setCoordinatorChatDocked);
   const [tab, setTab] = useState<AssistantTab>("chat");
   const [messages, setMessages] = useState<CoordinatorMessage[]>([welcome]);
   const [draft, setDraft] = useState("");
@@ -107,6 +111,19 @@ export function CoordinatorChat({
   useEffect(() => {
     if (open && selectedText) setTab("chat");
   }, [open, selectedText]);
+
+  useEffect(() => {
+    if (!open || pendingChatDraft == null) return;
+    setDraft((current) => {
+      const existing = current.trim();
+      if (existing) {
+        return `${existing}\n\n${pendingChatDraft.appendBlock}`;
+      }
+      return pendingChatDraft.prompt;
+    });
+    setTab("chat");
+    setPendingChatDraft(null);
+  }, [open, pendingChatDraft, setPendingChatDraft]);
 
   useEffect(() => {
     if (!open || !projectId || !userId) return;
@@ -377,9 +394,11 @@ export function CoordinatorChat({
 
   return (
     <>
-      <button className="glacier-backdrop" onClick={onClose} type="button" aria-label="Close Coordinator Chat" />
+      {!docked ? (
+        <button className="glacier-backdrop" onClick={onClose} type="button" aria-label="Close Coordinator Chat" />
+      ) : null}
       <aside
-        className="glacier-assistant"
+        className={`glacier-assistant${docked ? " glacier-assistant--docked" : ""}`}
         aria-label="Coordinator Agent Chat"
         onDragEnter={handleAttachmentDragEnter}
         onDragLeave={handleAttachmentDragLeave}
@@ -406,13 +425,24 @@ export function CoordinatorChat({
           <div className="glacier-header-top">
             <div className="glacier-title-row">
               <span className="glacier-icon-badge" aria-hidden="true">
-                <IconLightning />
+                <IconRobot />
               </span>
               <span className="glacier-title">{isVanilla ? "AI Assistant" : "Coordinator Agent"}</span>
             </div>
-            <button className="glacier-close" onClick={onClose} type="button" aria-label="Close">
-              <IconClose />
-            </button>
+            <div className="glacier-header-actions">
+              <button
+                className="glacier-close"
+                onClick={() => setCoordinatorChatDocked(!docked)}
+                type="button"
+                aria-label={docked ? "Restore floating chat" : "Dock chat to right sidebar"}
+                title={docked ? "Restore floating chat" : "Dock to right sidebar"}
+              >
+                {docked ? <IconRestore /> : <IconExpand />}
+              </button>
+              <button className="glacier-close" onClick={onClose} type="button" aria-label="Close">
+                <IconClose />
+              </button>
+            </div>
           </div>
           <div className="glacier-tabs" role="tablist" aria-label="Assistant views">
             <button
@@ -451,7 +481,7 @@ export function CoordinatorChat({
                   message.role === "assistant" ? (
                     <div className="glacier-msg-row glacier-msg-row--assistant" key={message.message_id}>
                       <span className="glacier-avatar glacier-avatar--bot" aria-hidden="true">
-                        <IconSpark />
+                        <IconRobot />
                       </span>
                       <div className="glacier-bubble glacier-bubble--assistant">
                         {message.content || (streaming ? "…" : "")}
@@ -556,7 +586,7 @@ export function CoordinatorChat({
             <textarea
               className={`glacier-input${isVanilla ? " glacier-input--with-attachment" : ""}`}
               placeholder={isVanilla ? "Ask the assistant…" : "Ask Coordinator…"}
-              rows={1}
+              rows={4}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={handleKeyDown}
@@ -573,10 +603,17 @@ export function CoordinatorChat({
   );
 }
 
-function IconLightning() {
+function IconRobot() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+      <rect x="5" y="9" width="14" height="11" rx="2" />
+      <path d="M12 3v3" />
+      <circle cx="12" cy="3" r="1" fill="currentColor" stroke="none" />
+      <circle cx="9" cy="14" r="1" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="14" r="1" fill="currentColor" stroke="none" />
+      <path d="M9 18h6" />
+      <path d="M3 13v3" />
+      <path d="M21 13v3" />
     </svg>
   );
 }
@@ -590,10 +627,20 @@ function IconClose() {
   );
 }
 
-function IconSpark() {
+function IconExpand() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+      <rect x="3" y="3" width="7" height="18" rx="1" />
+      <rect x="12" y="3" width="9" height="18" rx="1" />
+    </svg>
+  );
+}
+
+function IconRestore() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <rect x="6" y="8" width="12" height="13" rx="1.5" />
+      <path d="M9 8V6a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-2" />
     </svg>
   );
 }

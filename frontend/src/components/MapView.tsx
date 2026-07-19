@@ -31,6 +31,7 @@ import {
   visualConnectionToStored
 } from "@/lib/ibisLayout";
 import type { RationaleEdge, RationaleNode, RationaleSourceType } from "@/lib/types";
+import { buildIbisNodeLabels } from "@/lib/ibisNodeLabels";
 import {
   createGraphEdge,
   createGraphNode,
@@ -65,6 +66,7 @@ type IbisNodeData = {
   createdBy?: string;
   /** Conflict group labels assigned by Coordinator (e.g. ["A", "B"]). Position nodes only. */
   conflictTags?: string[];
+  nodeCode?: string;
 } & Record<string, unknown>;
 
 type MapNodeSeed = IbisNodeData & {
@@ -189,7 +191,8 @@ function applyGraphFocus(
 function rationaleToFlowNode(
   node: RationaleNode,
   index: number,
-  autoLayouts: Map<string, { x: number; y: number }>
+  autoLayouts: Map<string, { x: number; y: number }>,
+  nodeCode?: string
 ): Node<IbisNodeData> | null {
   if (!node.node_id || !node.title) return null;
   const rawType = node.node_type === "reference" ? "argument" : node.node_type;
@@ -216,6 +219,7 @@ function rationaleToFlowNode(
       suggestion: node.suggestion ?? null,
       createdBy: node.created_by,
       conflictTags: node.conflict_tags && node.conflict_tags.length > 0 ? node.conflict_tags : undefined,
+      nodeCode,
     }
   };
 }
@@ -340,6 +344,7 @@ function MapViewContent() {
     () => computeIbisLayout(rationaleNodes, rationaleEdges),
     [rationaleNodes, rationaleEdges]
   );
+  const nodeLabels = useMemo(() => buildIbisNodeLabels(rationaleNodes), [rationaleNodes]);
   /** Tags that appear on fewer than 2 active positions are not real conflicts. */
   const validConflictTags = useMemo(() => {
     const counts = new Map<string, number>();
@@ -357,7 +362,7 @@ function MapViewContent() {
   const flowNodes = useMemo<Node<IbisNodeData>[]>(() => {
     return rationaleNodes
       .map((node, index) => {
-        const flowNode = rationaleToFlowNode(node, index, autoLayouts);
+        const flowNode = rationaleToFlowNode(node, index, autoLayouts, nodeLabels.get(node.node_id));
         if (!flowNode) return null;
         const tags = flowNode.data.conflictTags?.filter((tag) => validConflictTags.has(tag));
         return {
@@ -369,7 +374,7 @@ function MapViewContent() {
         } as Node<IbisNodeData>;
       })
       .filter((node): node is Node<IbisNodeData> => node !== null);
-  }, [autoLayouts, rationaleNodes, validConflictTags]);
+  }, [autoLayouts, nodeLabels, rationaleNodes, validConflictTags]);
   const flowNodeIds = useMemo(() => new Set(flowNodes.map((node) => node.id)), [flowNodes]);
   const flowEdges = useMemo(() => {
     return rationaleEdges
@@ -1382,7 +1387,10 @@ function IbisNode({ data, id }: NodeProps) {
         <header className="map-node-header">
           <span className="map-node-label">
             {nodeData.nodeType}
-            {nodeData.sourceType ? <em className="map-node-source">{sourceLabel(nodeData.sourceType)}</em> : null}
+            <span className="map-node-meta">
+              {nodeData.sourceType ? <em className="map-node-source">{sourceLabel(nodeData.sourceType)}</em> : null}
+              {nodeData.nodeCode ? <strong className="map-node-code">{nodeData.nodeCode}</strong> : null}
+            </span>
           </span>
           <div className="map-node-header-actions">
             {nodeData.createdBy === "user" ? (

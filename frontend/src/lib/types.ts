@@ -1,6 +1,12 @@
 export type SaveStatus = "saved" | "editing" | "saving" | "failed";
 export type AppMode = "vanilla" | "full";
 
+/** Vanilla Argue → chatbot input injection payload. */
+export type PendingChatDraft = {
+  prompt: string;
+  appendBlock: string;
+};
+
 export type StaleStatus =
   | "up_to_date"
   | "stale_script_changed"
