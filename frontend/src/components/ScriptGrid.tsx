@@ -728,6 +728,7 @@ function ScriptGridBody({
             </tbody>
           </table>
         </div>
+        {/* Temporarily hidden so the table fills the window
         {!isShare ? (
           <div className="script-table-footer">
             <button className="add-scene-block-btn" onClick={handleAddSceneBlock} type="button">
@@ -736,6 +737,7 @@ function ScriptGridBody({
             </button>
           </div>
         ) : null}
+        */}
       </div>
     </div>
   );

@@ -147,9 +147,17 @@ export type CoordinatorMessage = {
   requested_perspectives: RequestedPerspective[];
   active_persona_id?: string | null;
   quotes: CoordinatorQuote[];
+  attachments?: CoordinatorAttachment[];
   related_node_ids: string[];
   generated_artifact_ids: string[];
   created_at: string;
+};
+
+export type CoordinatorAttachment = {
+  filename: string;
+  content: string;
+  mime_type: string;
+  size: number;
 };
 
 export type ScriptRefLink = {

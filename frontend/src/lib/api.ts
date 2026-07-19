@@ -705,6 +705,7 @@ export async function streamCoordinatorMessage(
     task_type?: "user_message" | "quote_analysis" | "script_delta" | "generate_modification_schemes";
     requested_perspectives?: RequestedPerspective[];
     quotes?: CoordinatorQuote[];
+    attachments?: Array<{ filename: string; content: string; mime_type: string; size: number }>;
     target_node_ids?: string[];
     changed_row_ids?: string[];
     mode?: "full" | "vanilla";

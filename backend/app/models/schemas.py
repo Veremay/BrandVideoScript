@@ -270,6 +270,13 @@ class CoordinatorQuote(BaseModel):
     script_version_id: str | None = None
 
 
+class CoordinatorAttachment(BaseModel):
+    filename: str = Field(min_length=1, max_length=180)
+    content: str = Field(min_length=1, max_length=20000)
+    mime_type: str = Field(default="text/plain", max_length=120)
+    size: int = Field(ge=0, le=262144)
+
+
 class CoordinatorStreamRequest(BaseModel):
     user_id: str = Field(min_length=1, max_length=80)
     message: str = Field(min_length=1, max_length=4000)
@@ -281,6 +288,7 @@ class CoordinatorStreamRequest(BaseModel):
     ] = "user_message"
     requested_perspectives: list[Literal["brand", "audience", "expert", "comprehensive"]] = Field(default_factory=lambda: ["comprehensive"])
     quotes: list[CoordinatorQuote] = Field(default_factory=list)
+    attachments: list[CoordinatorAttachment] = Field(default_factory=list, max_length=3)
     target_node_ids: list[str] = Field(default_factory=list)
     changed_row_ids: list[str] = Field(default_factory=list)
     # "full": multi-agent IBIS pipeline. "vanilla": single LLM with a system prompt only.
@@ -297,6 +305,7 @@ class CoordinatorMessageResponse(BaseModel):
     requested_perspectives: list[str] = Field(default_factory=list)
     active_persona_id: str | None = None
     quotes: list[dict[str, Any]] = Field(default_factory=list)
+    attachments: list[dict[str, Any]] = Field(default_factory=list)
     related_node_ids: list[str] = Field(default_factory=list)
     generated_artifact_ids: list[str] = Field(default_factory=list)
     created_at: str

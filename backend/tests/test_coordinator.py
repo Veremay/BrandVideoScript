@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, patch
 
 from app.repositories.coordinator_messages import build_coordinator_message
 from app.services.agents.coordinator_agent import run_conflict_tagging
+from app.services.coordinator_stream import _vanilla_message_content
 from app.services.coordinator_service import stream_graph_sync
 from app.services.sse import encode_sse
 
@@ -17,11 +18,24 @@ class CoordinatorMessagesTest(unittest.TestCase):
             task_type="quote_analysis",
             requested_perspectives=["brand", "audience"],
             quotes=[{"text": "hello", "row_id": "row_1"}],
+            attachments=[{"filename": "notes.md", "content": "Key point", "mime_type": "text/markdown", "size": 9}],
             related_node_ids=["node_1"],
         )
         self.assertTrue(message["message_id"].startswith("msg_"))
         self.assertEqual(message["requested_perspectives"], ["brand", "audience"])
         self.assertEqual(message["quotes"][0]["row_id"], "row_1")
+        self.assertEqual(message["attachments"][0]["filename"], "notes.md")
+
+    def test_vanilla_message_content_includes_attachment(self) -> None:
+        content = _vanilla_message_content(
+            {
+                "content": "Review this",
+                "attachments": [{"filename": 'notes".md', "content": "Key point"}],
+            }
+        )
+        self.assertIn("Review this", content)
+        self.assertIn('name="notes&quot;.md"', content)
+        self.assertIn("Key point", content)
 
 
 class SseEncodingTest(unittest.TestCase):
