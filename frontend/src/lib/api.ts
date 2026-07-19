@@ -229,20 +229,25 @@ async function readSseStream<T>(
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const parts = buffer.split("\n\n");
-    buffer = parts.pop() ?? "";
-    for (const part of parts) {
-      const event = parseBlock(part.trim());
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split("\n\n");
+      buffer = parts.pop() ?? "";
+      for (const part of parts) {
+        const event = parseBlock(part.trim());
+        if (event) onEvent(event);
+      }
+    }
+    if (buffer.trim()) {
+      const event = parseBlock(buffer.trim());
       if (event) onEvent(event);
     }
-  }
-  if (buffer.trim()) {
-    const event = parseBlock(buffer.trim());
-    if (event) onEvent(event);
+  } finally {
+    try { reader.cancel(); } catch { /* ignore */ }
+    reader.releaseLock();
   }
 }
 
@@ -412,16 +417,29 @@ export async function syncMapFromScriptStream(
   changedRowIds: string[],
   onEvent: (event: GraphSyncStreamEvent) => void
 ): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/projects/${projectId}/graph/sync-from-script/stream`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user_id: userId, changed_row_ids: changedRowIds }),
-  });
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || `Map update failed: ${response.status}`);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), AGENT_PIPELINE_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/projects/${projectId}/graph/sync-from-script/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId, changed_row_ids: changedRowIds }),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      const message = await response.text();
+      throw new Error(message || `Map update failed: ${response.status}`);
+    }
+    await readSseStream(response, parseGraphSyncSseBlock, onEvent);
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new Error(`Map update timed out after ${Math.round(AGENT_PIPELINE_TIMEOUT_MS / 60000)} minutes. The backend is still processing — you can refresh and check the map status.`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  await readSseStream(response, parseGraphSyncSseBlock, onEvent);
 }
 
 export async function provisionPersonasFromAnalytics(
@@ -906,21 +924,34 @@ export async function generateModificationSchemesStream(
   options: { target_issue_ids?: string[]; target_position_ids?: string[]; message?: string } | undefined,
   onEvent: (event: ModificationSchemeStreamEvent) => void
 ): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/projects/${projectId}/modification-schemes/generate/stream`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      user_id: userId,
-      target_issue_ids: options?.target_issue_ids ?? [],
-      target_position_ids: options?.target_position_ids ?? [],
-      message: options?.message ?? null
-    }),
-  });
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || `Scheme generation failed: ${response.status}`);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), AGENT_PIPELINE_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/projects/${projectId}/modification-schemes/generate/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user_id: userId,
+        target_issue_ids: options?.target_issue_ids ?? [],
+        target_position_ids: options?.target_position_ids ?? [],
+        message: options?.message ?? null
+      }),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      const message = await response.text();
+      throw new Error(message || `Scheme generation failed: ${response.status}`);
+    }
+    await readSseStream(response, parseModificationSchemeSseBlock, onEvent);
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new Error(`Scheme generation timed out after ${Math.round(AGENT_PIPELINE_TIMEOUT_MS / 60000)} minutes. The backend is still processing — you can refresh and check the status.`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  await readSseStream(response, parseModificationSchemeSseBlock, onEvent);
 }
 
 export async function applyModificationSchemeHunks(

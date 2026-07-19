@@ -45,7 +45,7 @@ import {
   updateGraphNode
 } from "@/lib/api";
 import { isGraphStaleForUpdateMap } from "@/lib/stale";
-import { formatElapsed, useElapsedTime } from "@/lib/useElapsedTime";
+import { useSmoothProgress } from "@/lib/useElapsedTime";
 import { useAppStore } from "@/store/appStore";
 
 type MapNodeType = "issue" | "position" | "argument";
@@ -701,9 +701,18 @@ function MapViewContent() {
   const setWorkspaceView = useAppStore((state) => state.setWorkspaceView);
   const setEditorSchemeFocusId = useAppStore((state) => state.setEditorSchemeFocusId);
   const [generatingSchemes, setGeneratingSchemes] = useState(false);
-  const generatingElapsed = useElapsedTime(generatingSchemes);
   const [generatingProgress, setGeneratingProgress] = useState<{ step: number; total: number; message: string } | null>(null);
   const [mapSyncProgress, setMapSyncProgress] = useState<{ step: number; total: number; message: string } | null>(null);
+  const smoothMapProgress = useSmoothProgress(
+    mapSyncProgress?.step ?? 0,
+    mapSyncProgress?.total ?? 1,
+    syncingMap
+  );
+  const smoothGeneratingProgress = useSmoothProgress(
+    generatingProgress?.step ?? 0,
+    generatingProgress?.total ?? 1,
+    generatingSchemes
+  );
 
   const considerationPositions = useMemo(() => {
     const queue = new Set(project?.consideration_queue ?? []);
@@ -778,12 +787,16 @@ function MapViewContent() {
           setGeneratingProgress({ step: event.step, total: event.total, message: event.message });
         }
         if (event.type === "done") {
-          setProject(event.project);
-          const latest = event.schemes[event.schemes.length - 1];
-          if (latest?.scheme_id) {
-            setEditorSchemeFocusId(latest.scheme_id);
-          }
-          setWorkspaceView("editor");
+          // Animate to 100% before completing
+          setGeneratingProgress((prev) => ({ step: prev?.total ?? 1, total: prev?.total ?? 1, message: "Complete" }));
+          setTimeout(() => {
+            setProject(event.project);
+            const latest = event.schemes[event.schemes.length - 1];
+            if (latest?.scheme_id) {
+              setEditorSchemeFocusId(latest.scheme_id);
+            }
+            setWorkspaceView("editor");
+          }, 400);
         }
         if (event.type === "error") {
           throw new Error(event.message);
@@ -979,7 +992,6 @@ function MapViewContent() {
   const canUpdateMap = hasRequirements && hasPersona;
   const mapUpdateNeeded = isGraphStaleForUpdateMap(project?.stale);
   const mapSyncing = syncingMap || project?.stale?.rationale_graph === "generating";
-  const mapSyncElapsed = useElapsedTime(mapSyncing);
   const showUpdateMapButton =
     hasScriptContent && (mapUpdateNeeded || mapSyncing || (emptyGraph && canUpdateMap));
   const updateMapBlockedReason = !hasRequirements
@@ -1000,7 +1012,9 @@ function MapViewContent() {
             setMapSyncProgress({ step: event.step, total: event.total, message: event.message });
           } else if (event.type === "done" && !resolved) {
             resolved = true;
-            resolve(event.project);
+            // Animate to 100% before completing
+            setMapSyncProgress((prev) => ({ step: prev?.total ?? 1, total: prev?.total ?? 1, message: "Complete" }));
+            setTimeout(() => resolve(event.project), 400);
           } else if (event.type === "error" && !resolved) {
             resolved = true;
             reject(new Error(event.message));
@@ -1047,12 +1061,12 @@ function MapViewContent() {
           {mapSyncing && mapSyncProgress ? (
             <span
               className="btn-progress-fill"
-              style={{ transform: `scaleX(${mapSyncProgress.step / Math.max(mapSyncProgress.total, 1)})` }}
+              style={{ transform: `scaleX(${smoothMapProgress / 100})` }}
             />
           ) : null}
           <span className="btn-progress-label">
             {mapSyncing
-              ? `Updating… ${formatElapsed(mapSyncElapsed)}`
+              ? `Updating… ${Math.round(smoothMapProgress)}%`
               : "Update Map"}
           </span>
         </button>
@@ -1287,12 +1301,12 @@ function MapViewContent() {
                 {generatingSchemes && generatingProgress ? (
                   <span
                     className="btn-progress-fill"
-                    style={{ transform: `scaleX(${generatingProgress.step / Math.max(generatingProgress.total, 1)})` }}
+                    style={{ transform: `scaleX(${smoothGeneratingProgress / 100})` }}
                   />
                 ) : null}
                 <span className="btn-progress-label">
                   {generatingSchemes
-                    ? `Generating… ${formatElapsed(generatingElapsed)}`
+                    ? `Generating… ${Math.round(smoothGeneratingProgress)}%`
                     : "Generate modification plan"}
                 </span>
               </button>
