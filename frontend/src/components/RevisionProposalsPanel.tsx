@@ -19,6 +19,7 @@ import {
 import { isStaleStatus } from "@/lib/stale";
 import type { HunkDecision, ModificationScheme, ModificationSchemeDirection, Script } from "@/lib/types";
 import { deriveHunkDecisions, findScheme } from "@/lib/schemeHunkState";
+import { LoadingIndicator, useElapsedTime } from "@/lib/useElapsedTime";
 import { useAppStore } from "@/store/appStore";
 
 const DIRECTION_LABELS: Record<ModificationSchemeDirection, string> = {
@@ -388,6 +389,7 @@ export function RevisionProposalsList() {
 export function RevisionProposalsActions() {
   const { schemes, schemesStale, selectedScheme, applying, acceptAllAndApply, applyAcceptedOnly, rejectAllHunks } =
     useRevisionProposals();
+  const applyingElapsed = useElapsedTime(applying);
 
   if (!schemes.length) return null;
 
@@ -396,6 +398,9 @@ export function RevisionProposalsActions() {
 
   return (
     <div className="glacier-plans-actions">
+      {applying ? (
+        <LoadingIndicator elapsed={applyingElapsed} label="Applying changes" inline />
+      ) : null}
       <div className="glacier-plans-actions-row">
         <button
           className="glacier-btn glacier-btn--primary"
@@ -568,6 +573,7 @@ export function EditorModificationPlan() {
     setSelectedSchemeId,
     setPreviewOpen
   } = useRevisionProposals();
+  const applyingElapsed = useElapsedTime(applying);
 
   if (!schemes.length) return null;
 
@@ -617,6 +623,9 @@ export function EditorModificationPlan() {
 
       {selectedScheme?.hunks.length ? (
         <div className="editor-modification-actions">
+          {applying ? (
+            <LoadingIndicator elapsed={applyingElapsed} label="Applying changes" inline />
+          ) : null}
           <button
             className="editor-modification-btn editor-modification-btn--primary"
             disabled={applying || schemesStale}

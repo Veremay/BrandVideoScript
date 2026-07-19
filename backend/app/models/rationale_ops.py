@@ -514,6 +514,53 @@ def collect_argument_delete_cascade(
     return set()
 
 
+def prune_orphan_arguments(
+    nodes: list[dict[str, Any]],
+    edges: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Remove Argument nodes that are not connected to any Position via supports/opposes.
+
+    This can happen after reconcile pruning removes Positions that were the only
+    target of an Argument. Rather than crashing the whole graph merge, we drop the
+    orphan Argument silently.
+    """
+    nodes_by_id = _index_by_id(nodes, "node_id")
+    # Collect argument IDs that are linked to at least one Position
+    linked_arg_ids: set[str] = set()
+    position_ids: set[str] = {
+        str(n["node_id"]) for n in nodes if n.get("node_type") == "position" and n.get("node_id")
+    }
+    for edge in edges:
+        if edge.get("relation_type") not in {"supports", "opposes"}:
+            continue
+        to_id = str(edge.get("to_node_id") or "")
+        from_id = str(edge.get("from_node_id") or "")
+        if to_id in position_ids:
+            arg = nodes_by_id.get(from_id)
+            if arg and str(arg.get("node_type")) == "argument":
+                linked_arg_ids.add(from_id)
+
+    orphan_ids: set[str] = set()
+    for node in nodes:
+        if node.get("node_type") != "argument":
+            continue
+        node_id = str(node.get("node_id") or "")
+        if not node_id:
+            continue
+        if node_id not in linked_arg_ids:
+            orphan_ids.add(node_id)
+
+    if orphan_ids:
+        kept_nodes = [n for n in nodes if str(n.get("node_id") or "") not in orphan_ids]
+        kept_edges = [
+            e for e in edges
+            if str(e.get("from_node_id") or "") not in orphan_ids
+            and str(e.get("to_node_id") or "") not in orphan_ids
+        ]
+        return kept_nodes, kept_edges
+    return nodes, edges
+
+
 def validate_ibis_graph_integrity(
     nodes: list[dict[str, Any]],
     edges: list[dict[str, Any]],
@@ -659,6 +706,8 @@ def merge_proposed_graph(
     merged_nodes, edges, _ = prune_orphan_positions(merged_nodes, edges)
     # Re-run after pruning positions — removing a Position may leave its Issue orphaned
     merged_nodes, edges, _ = prune_orphan_agent_issues(merged_nodes, edges)
+    # Remove Arguments that lost their Position during pruning
+    merged_nodes, edges = prune_orphan_arguments(merged_nodes, edges)
     validate_ibis_graph_integrity(merged_nodes, edges)
     return merged_nodes, edges
 

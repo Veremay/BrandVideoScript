@@ -1,11 +1,11 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
-import { insightsFromProject } from "@/lib/brandRequirements";
+import { createEmptyInsight, insightsFromProject, toApiBrandInsights } from "@/lib/brandRequirements";
 import { parseBriefStream, provisionPersonasFromAnalytics, saveBrief } from "@/lib/api";
 import { getProjectSetupStatus } from "@/lib/projectSetup";
-import type { BrandInsight, PlatformContext } from "@/lib/types";
+import type { BrandInsight, BrandInsightCategory, BrandInsightConfidence, PlatformContext } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
 
 type ProjectSetupProps = {
@@ -19,15 +19,98 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
   const [uploadingBrief, setUploadingBrief] = useState(false);
   const [parsingBrief, setParsingBrief] = useState(false);
   const [generatingPersonas, setGeneratingPersonas] = useState(false);
+  const [savingRequirements, setSavingRequirements] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Editable local copies — seed from project on first render, sync via handleParseBrief callback
+  const [localExplicit, setLocalExplicit] = useState<BrandInsight[]>(() => {
+    if (!project) return [];
+    return insightsFromProject(project).explicit;
+  });
+  const [localImplicit, setLocalImplicit] = useState<BrandInsight[]>(() => {
+    if (!project) return [];
+    return insightsFromProject(project).implicit;
+  });
+
+  const isDirty = useMemo(() => {
+    if (!project) return false;
+    const current = insightsFromProject(project);
+    return (
+      JSON.stringify(current.explicit) !== JSON.stringify(localExplicit) ||
+      JSON.stringify(current.implicit) !== JSON.stringify(localImplicit)
+    );
+  }, [localExplicit, localImplicit, project]);
 
   if (!project) return null;
 
   const status = getProjectSetupStatus(project);
-  const { explicit: explicitRequirements, implicit: implicitRequirements } = insightsFromProject(project);
   const hasBrief = Boolean(project.brief.text?.trim() || project.brief.filename);
-  const hasRequirements = explicitRequirements.length > 0 || implicitRequirements.length > 0;
+  const hasRequirements = localExplicit.length > 0 || localImplicit.length > 0;
   const busy = uploadingBrief || parsingBrief || generatingPersonas;
+
+  function updateLocalInsight(
+    list: BrandInsight[],
+    setList: (items: BrandInsight[]) => void,
+    insightId: string,
+    patch: Partial<BrandInsight>
+  ) {
+    setList(list.map((item) => (item.insight_id === insightId ? { ...item, ...patch } : item)));
+  }
+
+  function addLocalInsight(
+    list: BrandInsight[],
+    setList: (items: BrandInsight[]) => void,
+    category: BrandInsightCategory
+  ) {
+    setList([...list, createEmptyInsight(category)]);
+  }
+
+  function removeLocalInsight(list: BrandInsight[], setList: (items: BrandInsight[]) => void, insightId: string) {
+    setList(list.filter((item) => item.insight_id !== insightId));
+  }
+
+  async function handleSaveRequirements() {
+    if (!project) return;
+    const currentProject = project;
+    setSavingRequirements(true);
+    setError(null);
+
+    const payload = toApiBrandInsights([...localExplicit, ...localImplicit]);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/projects/${currentProject._id}/brand/requirements`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: currentProject.user_id, brand_insights: payload }),
+          signal: controller.signal,
+        }
+      );
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || `Save failed (${response.status})`);
+      }
+
+      const saved = await response.json();
+      setProject(saved);
+      const next = insightsFromProject(saved);
+      setLocalExplicit(next.explicit);
+      setLocalImplicit(next.implicit);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setError("Save timed out. Please try again.");
+      } else {
+        setError(err instanceof Error ? err.message : "Save failed");
+      }
+    } finally {
+      clearTimeout(timeoutId);
+      setSavingRequirements(false);
+    }
+  }
 
   async function persistBrief(text: string, filename?: string) {
     if (!project) return;
@@ -65,6 +148,9 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
       await parseBriefStream(project._id, project.user_id, (event) => {
         if (event.type === "done") {
           setProject(event.project);
+          const fresh = insightsFromProject(event.project);
+          setLocalExplicit(fresh.explicit);
+          setLocalImplicit(fresh.implicit);
         } else if (event.type === "error") {
           setError(event.message);
         }
@@ -145,26 +231,20 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
             <div className="setup-card-scroll app-scrollbar">
               {hasRequirements ? (
                 <div className="setup-item-groups">
-                  {explicitRequirements.length ? (
-                    <section className="setup-item-group">
-                      <h3 className="setup-item-group-title">Explicit ({explicitRequirements.length})</h3>
-                      <ul className="setup-item-list">
-                        {explicitRequirements.map((item, index) => (
-                          <SetupRequirementItem index={index} item={item} key={item.insight_id} />
-                        ))}
-                      </ul>
-                    </section>
-                  ) : null}
-                  {implicitRequirements.length ? (
-                    <section className="setup-item-group">
-                      <h3 className="setup-item-group-title">Implicit ({implicitRequirements.length})</h3>
-                      <ul className="setup-item-list">
-                        {implicitRequirements.map((item, index) => (
-                          <SetupRequirementItem index={index} item={item} key={item.insight_id} />
-                        ))}
-                      </ul>
-                    </section>
-                  ) : null}
+                  <EditableRequirementGroup
+                    items={localExplicit}
+                    label="Explicit"
+                    onAdd={() => addLocalInsight(localExplicit, setLocalExplicit, "explicit_requirement")}
+                    onDelete={(id) => removeLocalInsight(localExplicit, setLocalExplicit, id)}
+                    onUpdate={(id, patch) => updateLocalInsight(localExplicit, setLocalExplicit, id, patch)}
+                  />
+                  <EditableRequirementGroup
+                    items={localImplicit}
+                    label="Implicit"
+                    onAdd={() => addLocalInsight(localImplicit, setLocalImplicit, "implicit_requirement")}
+                    onDelete={(id) => removeLocalInsight(localImplicit, setLocalImplicit, id)}
+                    onUpdate={(id, patch) => updateLocalInsight(localImplicit, setLocalImplicit, id, patch)}
+                  />
                 </div>
               ) : (
                 <p className="setup-empty">No requirements parsed yet.</p>
@@ -196,6 +276,16 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
               >
                 {parsingBrief ? "Parsing..." : status.requirementsComplete ? "Re-parse" : "Parse Requirements"}
               </button>
+              {hasRequirements ? (
+                <button
+                  className="figma-nav-btn figma-nav-outline"
+                  disabled={busy || savingRequirements || !isDirty}
+                  onClick={() => void handleSaveRequirements()}
+                  type="button"
+                >
+                  {savingRequirements ? "Saving…" : "Save Changes"}
+                </button>
+              ) : null}
             </div>
           </article>
 
@@ -270,18 +360,77 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
   );
 }
 
-function SetupRequirementItem({ item, index }: { item: BrandInsight; index: number }) {
-  const label = item.title?.trim() || `Requirement #${index + 1}`;
+function EditableRequirementGroup({
+  items,
+  label,
+  onAdd,
+  onDelete,
+  onUpdate
+}: {
+  items: BrandInsight[];
+  label: string;
+  onAdd: () => void;
+  onDelete: (insightId: string) => void;
+  onUpdate: (insightId: string, patch: Partial<BrandInsight>) => void;
+}) {
+  if (!items.length) return null;
 
   return (
-    <li className="setup-item">
-      <div className="setup-item-header">
-        <strong>{label}</strong>
-        <span className={`setup-item-confidence is-${item.confidence}`}>{item.confidence}</span>
-      </div>
-      <p>{item.content}</p>
-      {item.reason?.trim() ? <p className="setup-item-reason">{item.reason}</p> : null}
-    </li>
+    <section className="setup-item-group">
+      <h3 className="setup-item-group-title">
+        {label} ({items.length})
+      </h3>
+      <ul className="setup-item-list">
+        {items.map((item, index) => (
+          <li className="setup-item setup-item--editable" key={item.insight_id}>
+            <div className="setup-item-header">
+              <span className="setup-item-index">#{index + 1}</span>
+              <select
+                className="setup-confidence-select"
+                onChange={(e) => onUpdate(item.insight_id, { confidence: e.target.value as BrandInsightConfidence })}
+                value={item.confidence}
+              >
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+              <button
+                aria-label="Delete requirement"
+                className="setup-item-delete"
+                onClick={() => onDelete(item.insight_id)}
+                type="button"
+              >
+                <IconTrashSmall />
+              </button>
+            </div>
+            <input
+              className="setup-item-title-input"
+              onChange={(e) => onUpdate(item.insight_id, { title: e.target.value })}
+              placeholder="Title"
+              type="text"
+              value={item.title}
+            />
+            <textarea
+              className="setup-item-content-input"
+              onChange={(e) => onUpdate(item.insight_id, { content: e.target.value })}
+              placeholder="Describe this requirement…"
+              rows={2}
+              value={item.content}
+            />
+            <textarea
+              className="setup-item-reason-input"
+              onChange={(e) => onUpdate(item.insight_id, { reason: e.target.value })}
+              placeholder="Reason (from Brief or inference)"
+              rows={1}
+              value={item.reason}
+            />
+          </li>
+        ))}
+      </ul>
+      <button className="setup-add-btn" onClick={onAdd} type="button">
+        + Add {label.toLowerCase()} requirement
+      </button>
+    </section>
   );
 }
 
@@ -307,6 +456,16 @@ function IconCheck() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
       <path d="M20 6 9 17l-5-5" />
+    </svg>
+  );
+}
+
+function IconTrashSmall() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+      <path d="M2 4h12" />
+      <path d="M12.667 4v9.333a1.333 1.333 0 0 1-1.334 1.334H4.667a1.333 1.333 0 0 1-1.334-1.334V4" />
+      <path d="M5.333 4V2.667a1.333 1.333 0 0 1 1.334-1.334h2.666a1.333 1.333 0 0 1 1.334 1.334V4" />
     </svg>
   );
 }

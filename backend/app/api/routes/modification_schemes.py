@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.db.mongo import database_dependency
@@ -16,6 +17,7 @@ from app.repositories.modification_schemes import (
     generate_modification_schemes,
     list_modification_schemes,
 )
+from app.services.coordinator_service import stream_generate_modification_schemes
 from app.services.llm_errors import LLMInvocationError
 
 router = APIRouter(prefix="/projects/{project_id}/modification-schemes", tags=["modification-schemes"])
@@ -51,6 +53,26 @@ async def post_generate_modification_schemes(
     except ValueError as exc:
         raise HTTPException(status_code=404 if "not found" in str(exc).lower() else 400, detail=str(exc)) from exc
     return result
+
+
+@router.post("/generate/stream")
+async def post_generate_modification_schemes_stream(
+    project_id: str,
+    payload: ModificationSchemeGenerateRequest,
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> StreamingResponse:
+    return StreamingResponse(
+        stream_generate_modification_schemes(
+            db,
+            project_id,
+            payload.user_id.strip(),
+            target_issue_ids=payload.target_issue_ids or None,
+            target_position_ids=payload.target_position_ids or None,
+            user_message=payload.message,
+        ),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.post("/{scheme_id}/apply", response_model=ModificationSchemeApplyResponse)
