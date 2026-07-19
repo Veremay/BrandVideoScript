@@ -254,7 +254,7 @@ export function RequirementsPanel({ open, onClose }: RequirementsPanelProps) {
             </ul>
           )}
 
-          <button className="requirements-add-btn" onClick={addInsight} type="button">
+          <button className="add-scene-block-btn requirements-add-btn" onClick={addInsight} type="button">
             <IconPlus />
             Add {activeTab === "explicit" ? "explicit" : "implicit"} requirement
           </button>

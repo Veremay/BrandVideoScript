@@ -743,42 +743,6 @@ textarea {
   font-weight: 800;
 }
 
-.setup-stats {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin: 0;
-  flex-shrink: 0;
-}
-
-.setup-stats div {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-  padding: 8px 10px;
-  border: 1px solid var(--figma-border);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.62);
-}
-
-.setup-stats dt {
-  color: var(--figma-text-secondary);
-  font-size: calc(11px + var(--app-font-size-delta));
-  font-weight: 800;
-  line-height: 16px;
-  text-transform: uppercase;
-}
-
-.setup-stats dd {
-  overflow: hidden;
-  color: var(--figma-text);
-  font-size: calc(14px + var(--app-font-size-delta));
-  font-weight: 700;
-  line-height: 20px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .setup-card-scroll {
   flex: 1 1 auto;
   min-height: 0;
@@ -964,8 +928,7 @@ textarea {
     padding-bottom: 32px;
   }
 
-  .setup-grid,
-  .setup-stats {
+  .setup-grid {
     grid-template-columns: 1fr;
   }
 
@@ -3342,7 +3305,7 @@ textarea {
 }
 
 .editor-th-data:hover {
-  background: rgba(0, 101, 145, 0.08);
+  background: #e8f1f5;
   color: var(--editor-text);
 }
 
@@ -3356,8 +3319,28 @@ textarea {
   padding: 2px 0 4px;
 }
 
+.editor-th-label-input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 3px 6px;
+  border: 1px solid var(--editor-primary);
+  border-radius: 3px;
+  background: #fff;
+  color: var(--editor-text);
+  font: inherit;
+  text-align: center;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 101, 145, 0.18);
+}
+
 .editor-th-data.col-selected {
   box-shadow: inset 0 -2px 0 var(--editor-primary);
+}
+
+.editor-th-data.col-selected .editor-th-label,
+.editor-th-data.col-selected .editor-th-label-input {
+  padding-left: 28px;
 }
 
 .editor-col-insert-hit {
@@ -3418,19 +3401,29 @@ textarea {
 
 .editor-col-del {
   display: none;
-  width: 100%;
-  margin: 2px 0;
-  padding: 3px 6px;
-  border: 1px solid rgba(239, 68, 68, 0.45);
+  position: absolute;
+  top: 50%;
+  left: 6px;
+  z-index: 40;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid rgba(239, 68, 68, 0.35);
   border-radius: 4px;
   background: rgba(239, 68, 68, 0.08);
   color: var(--danger);
-  font-size: calc(9px + var(--app-font-size-delta));
-  font-weight: 800;
+  transform: translateY(-50%);
+}
+
+.editor-col-del svg {
+  width: 12px;
+  height: 12px;
 }
 
 .editor-th-data.col-selected .editor-col-del {
-  display: block;
+  display: flex;
 }
 
 .editor-data-table tbody td {
@@ -3618,7 +3611,7 @@ button.editor-row-link-mark:focus-visible {
 .editor-table-input.cell-notes {
   color: var(--editor-text-secondary);
   font-size: calc(12px + var(--app-font-size-delta));
-  font-style: italic;
+  font-style: normal;
   font-weight: 500;
   line-height: var(--script-compact-line-height);
 }
@@ -3639,7 +3632,7 @@ button.editor-row-link-mark:focus-visible {
 }
 
 .editor-row-insert-band td {
-  height: 10px;
+  height: 18px;
   padding: 0 !important;
   border-top: none !important;
   line-height: 0;
@@ -3694,13 +3687,14 @@ button.editor-row-link-mark:focus-visible {
   z-index: 2;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   border: none;
   border-radius: 50%;
   background: transparent;
   color: transparent;
   font-weight: 800;
+  line-height: 1;
   transform: translateY(-50%);
   transition: all 0.12s;
 }
@@ -3710,27 +3704,6 @@ button.editor-row-link-mark:focus-visible {
   background: var(--editor-primary);
   color: #fff;
   box-shadow: 0 0 0 2px rgba(0, 101, 145, 0.25);
-}
-
-.editor-row-insert-tip {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
-  margin-bottom: 4px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  background: rgba(19, 27, 46, 0.92);
-  color: #fff;
-  font-size: calc(10px + var(--app-font-size-delta));
-  font-weight: 700;
-  opacity: 0;
-  pointer-events: none;
-  white-space: nowrap;
-}
-
-.editor-row-insert-band:hover .editor-row-insert-tip,
-.editor-row-insert-btn:focus-visible .editor-row-insert-tip {
-  opacity: 1;
 }
 
 .sel-popup {
@@ -6227,29 +6200,14 @@ button.editor-row-link-mark:focus-visible {
 }
 
 .requirements-add-btn {
-  display: inline-flex;
-  align-items: center;
+  width: 100%;
   justify-content: center;
-  gap: 8px;
-  align-self: flex-start;
-  height: 36px;
-  padding: 0 14px;
-  border: 1px dashed var(--figma-border);
-  border-radius: 12px;
-  background: transparent;
-  color: var(--figma-text);
-  font-size: calc(14px + var(--app-font-size-delta));
-  font-weight: 600;
-}
-
-.requirements-add-btn svg {
-  width: 14px;
-  height: 14px;
 }
 
 .requirements-add-btn:hover {
   border-color: var(--figma-primary);
   color: var(--figma-primary);
+  background: rgba(0, 101, 145, 0.04);
 }
 
 /* Brand feedback "Argue" control inside the script grid cell */

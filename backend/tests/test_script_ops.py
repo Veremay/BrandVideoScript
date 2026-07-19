@@ -65,6 +65,9 @@ class ScriptOpsTest(unittest.TestCase):
             self.assertEqual(row["cells"][1]["value"], "")
 
     def test_delete_column_removes_matching_cells_and_rejects_last_business_column(self):
+        with self.assertRaises(ValueError):
+            delete_column(sample_script(), "col_duration")
+
         script = delete_column(sample_script(), "col_scene")
 
         self.assertEqual([column["column_id"] for column in script["columns"]], ["col_duration"])
