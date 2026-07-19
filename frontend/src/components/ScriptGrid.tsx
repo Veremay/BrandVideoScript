@@ -5,12 +5,33 @@ import { PointerEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef,
 import { CellHunkDiff, useCellHunkMap } from "@/components/ScriptCellModification";
 import { toggleCommunicationSupport } from "@/lib/api";
 import { analyzeDurations, durationInputValue, isBrandFeedbackColumn } from "@/lib/scriptEditor";
-import type { HunkDecision, ModificationSchemeHunk, Script, ScriptColumn } from "@/lib/types";
+import type { HunkDecision, ModificationSchemeHunk, Script } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
 
 const MIN_COLUMN_WIDTH = 88;
+const INSERTED_COLUMN_MIN_WIDTH = 160;
 const MIN_ROW_HEIGHT = 38;
 const COLUMN_WIDTH_STORAGE_PREFIX = "brandvideo:script-column-widths:";
+const DEFAULT_COLUMN_LABELS: Record<string, string> = {
+  duration: "Duration (s)",
+  scene: "Visual",
+  format: "Format / Script",
+  notes: "Remarks",
+  feedback: "Brand Feedback"
+};
+const LEGACY_DEFAULT_COLUMN_LABELS: Record<string, string[]> = {
+  duration: ["时长", "Seconds"],
+  scene: ["画面"],
+  format: ["形式"],
+  notes: ["备注"],
+  feedback: ["品牌反馈"]
+};
+
+function displayedColumnLabel(column: { key: string; label: string }) {
+  return LEGACY_DEFAULT_COLUMN_LABELS[column.key]?.includes(column.label)
+    ? DEFAULT_COLUMN_LABELS[column.key] ?? column.label
+    : column.label;
+}
 
 function AutoSizeTextarea({
   className,
@@ -83,18 +104,6 @@ function AutoSizeTextarea({
   );
 }
 
-const COLUMN_HEADER_LABELS: Record<string, string> = {
-  duration: "Seconds",
-  scene: "Visual",
-  format: "Format / Script",
-  notes: "Remarks",
-  feedback: "Brand Feedback"
-};
-
-function columnHeaderLabel(column: ScriptColumn) {
-  return COLUMN_HEADER_LABELS[column.key] ?? column.label;
-}
-
 export function ScriptGrid({
   script,
   mode = "creator",
@@ -137,15 +146,20 @@ function ScriptGridBody({
     setProject,
     setMapFocusNodeId,
     setWorkspaceView,
+    undoScript,
     updateCell: storeUpdateCell
   } = useAppStore();
   const updateCell = isShare && onUpdateCell ? onUpdateCell : storeUpdateCell;
   const [selectedColumnId, setSelectedColumnId] = useState<string | null>(null);
+  const [editingColumnId, setEditingColumnId] = useState<string | null>(null);
+  const [editingColumnLabel, setEditingColumnLabel] = useState("");
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const [rowHeights, setRowHeights] = useState<Record<string, number>>({});
   const [argueBusyRowId, setArgueBusyRowId] = useState<string | null>(null);
   const [activeEditingRowId, setActiveEditingRowId] = useState<string | null>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
+  const pendingColumnWidthsRef = useRef<Record<string, number> | null>(null);
 
   const communicationSupportRowIds = useMemo(() => {
     const queueItems = project?.communication_support_queue ?? [];
@@ -178,9 +192,26 @@ function ScriptGridBody({
 
   const columns = useMemo(() => [...script.columns].sort((a, b) => a.order - b.order), [script.columns]);
   const rows = useMemo(() => [...script.rows].sort((a, b) => a.order - b.order), [script.rows]);
+  const columnIdSignature = columns.map((column) => column.column_id).join("|");
+
+  useEffect(() => {
+    if (isShare) return;
+    for (const column of columns) {
+      const englishLabel = DEFAULT_COLUMN_LABELS[column.key];
+      if (englishLabel && LEGACY_DEFAULT_COLUMN_LABELS[column.key]?.includes(column.label)) {
+        renameColumn(column.column_id, englishLabel, false);
+      }
+    }
+  }, [columnIdSignature, isShare, project?._id, renameColumn]);
 
   useEffect(() => {
     if (isShare || !project?._id) return;
+    const pendingWidths = pendingColumnWidthsRef.current;
+    if (pendingWidths && columns.every((column) => Number.isFinite(pendingWidths[column.column_id]))) {
+      pendingColumnWidthsRef.current = null;
+      setColumnWidths(pendingWidths);
+      return;
+    }
     try {
       const saved = window.localStorage.getItem(`${COLUMN_WIDTH_STORAGE_PREFIX}${project._id}`);
       if (!saved) {
@@ -201,7 +232,7 @@ function ScriptGridBody({
     } catch {
       setColumnWidths({});
     }
-  }, [columns, isShare, project?._id]);
+  }, [columnIdSignature, isShare, project?._id]);
 
   function clearSavedColumnWidths() {
     setColumnWidths({});
@@ -266,32 +297,117 @@ function ScriptGridBody({
     return () => document.removeEventListener("mousedown", handleDocumentPointerDown);
   }, []);
 
+  useEffect(() => {
+    if (isShare) return;
+
+    function handleUndoShortcut(event: KeyboardEvent) {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== "z") {
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      if (target?.closest(".editor-th-label-input")) return;
+      const isEditableTarget = target?.matches("input, textarea, [contenteditable='true']") ?? false;
+      if (isEditableTarget && !target?.closest(".script-table-container")) return;
+
+      event.preventDefault();
+      undoScript();
+    }
+
+    window.addEventListener("keydown", handleUndoShortcut);
+    return () => window.removeEventListener("keydown", handleUndoShortcut);
+  }, [isShare, undoScript]);
+
   function handleAddColumn(afterColumnId?: string) {
+    const existingWidths = Object.fromEntries(
+      Array.from(tableRef.current?.querySelectorAll<HTMLTableCellElement>("th[data-column-id]") ?? []).map(
+        (header) => [header.dataset.columnId!, header.getBoundingClientRect().width]
+      )
+    );
+    const existingColumnIds = new Set(columns.map((column) => column.column_id));
     clearSavedColumnWidths();
     insertColumnAfter(afterColumnId, "New Column", false);
+    const insertedColumn = useAppStore
+      .getState()
+      .script?.columns.find((column) => !existingColumnIds.has(column.column_id));
+    if (insertedColumn) {
+      const nextWidths = {
+        ...existingWidths,
+        [insertedColumn.column_id]: INSERTED_COLUMN_MIN_WIDTH
+      };
+      pendingColumnWidthsRef.current = nextWidths;
+      setColumnWidths(nextWidths);
+      if (!isShare && project?._id) {
+        try {
+          window.localStorage.setItem(
+            `${COLUMN_WIDTH_STORAGE_PREFIX}${project._id}`,
+            JSON.stringify(nextWidths)
+          );
+        } catch {
+          // The inserted column still keeps its width for the current session.
+        }
+      }
+    }
   }
 
-  function handleRenameColumn(columnId: string, currentLabel: string) {
+  function startColumnRename(columnId: string, currentLabel: string) {
     const column = columns.find((item) => item.column_id === columnId);
     if (column && isBrandFeedbackColumn(column)) {
       window.alert("The Brand Feedback column cannot be renamed. Brand partners fill it on the share page.");
       return;
     }
-    const label = window.prompt("Rename column", currentLabel)?.trim();
+    setEditingColumnId(columnId);
+    setEditingColumnLabel(currentLabel);
+  }
+
+  function commitColumnRename(columnId: string) {
+    const label = editingColumnLabel.trim();
+    const currentLabel = columns.find((column) => column.column_id === columnId)?.label;
+    setEditingColumnId(null);
     if (!label || label === currentLabel) return;
     renameColumn(columnId, label);
   }
 
   function handleDeleteColumn(columnId: string) {
-    const column = columns.find((item) => item.column_id === columnId);
+    const columnIndex = columns.findIndex((item) => item.column_id === columnId);
+    const column = columns[columnIndex];
+    if (column?.key === "duration") {
+      window.alert("The Duration column cannot be deleted.");
+      return;
+    }
     if (column && isBrandFeedbackColumn(column)) {
       window.alert("The Brand Feedback column cannot be deleted.");
       return;
     }
     if (!window.confirm("Delete this column? Cell values in this column will be removed.")) return;
     try {
+      const existingWidths = Object.fromEntries(
+        Array.from(tableRef.current?.querySelectorAll<HTMLTableCellElement>("th[data-column-id]") ?? []).map(
+          (header) => [header.dataset.columnId!, header.getBoundingClientRect().width]
+        )
+      );
+      const deletedWidth = existingWidths[columnId] ?? columnWidths[columnId] ?? MIN_COLUMN_WIDTH;
+      const widthReceiver = columns[columnIndex + 1] ?? columns[columnIndex - 1];
+      const nextWidths = Object.fromEntries(
+        Object.entries(existingWidths).filter(([existingColumnId]) => existingColumnId !== columnId)
+      );
+      if (widthReceiver) {
+        nextWidths[widthReceiver.column_id] =
+          (nextWidths[widthReceiver.column_id] ?? columnWidths[widthReceiver.column_id] ?? MIN_COLUMN_WIDTH) + deletedWidth;
+      }
+
       deleteColumn(columnId);
-      clearSavedColumnWidths();
+      pendingColumnWidthsRef.current = nextWidths;
+      setColumnWidths(nextWidths);
+      if (!isShare && project?._id) {
+        try {
+          window.localStorage.setItem(
+            `${COLUMN_WIDTH_STORAGE_PREFIX}${project._id}`,
+            JSON.stringify(nextWidths)
+          );
+        } catch {
+          // The adjusted widths still remain active for the current session.
+        }
+      }
       setSelectedColumnId(null);
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "Delete failed");
@@ -432,6 +548,7 @@ function ScriptGridBody({
         <div className="script-table-panel app-scrollbar">
           <table
             className="editor-data-table"
+            ref={tableRef}
             style={lockedTableWidth === undefined ? undefined : { minWidth: lockedTableWidth, width: lockedTableWidth }}
           >
             <thead>
@@ -446,7 +563,7 @@ function ScriptGridBody({
                         handleAddColumn(undefined);
                       }}
                       type="button"
-                      title="Insert column before first"
+                      title="Insert column"
                     >
                       +
                     </button>
@@ -462,18 +579,51 @@ function ScriptGridBody({
                         ? undefined
                         : (event) => {
                             event.stopPropagation();
-                            setSelectedColumnId((current) => (current === column.column_id ? null : column.column_id));
+                            setSelectedColumnId(column.column_id);
                             setSelectedRowId(null);
                           }
                     }
                     style={{ width: columnWidths[column.column_id] }}
                   >
-                    <span
-                      className="editor-th-label"
-                      onDoubleClick={isShare ? undefined : () => handleRenameColumn(column.column_id, column.label)}
-                    >
-                      {columnHeaderLabel(column)}
-                    </span>
+                    {editingColumnId === column.column_id ? (
+                      <input
+                        aria-label="Column name"
+                        autoFocus
+                        className="editor-th-label-input"
+                        onBlur={(event) => {
+                          if (event.currentTarget.dataset.cancel !== "true") commitColumnRename(column.column_id);
+                        }}
+                        onChange={(event) => setEditingColumnLabel(event.target.value)}
+                        onClick={(event) => event.stopPropagation()}
+                        onDoubleClick={(event) => event.stopPropagation()}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            commitColumnRename(column.column_id);
+                          } else if (event.key === "Escape") {
+                            event.currentTarget.dataset.cancel = "true";
+                            setEditingColumnId(null);
+                          }
+                        }}
+                        value={editingColumnLabel}
+                      />
+                    ) : (
+                      <span
+                        className="editor-th-label"
+                        onDoubleClick={
+                          isShare
+                            ? undefined
+                            : (event) => {
+                                event.stopPropagation();
+                                if (selectedColumnId === column.column_id) {
+                                  startColumnRename(column.column_id, displayedColumnLabel(column));
+                                }
+                              }
+                        }
+                      >
+                        {displayedColumnLabel(column)}
+                      </span>
+                    )}
                     {!isShare ? (
                       <>
                         <button
@@ -483,7 +633,7 @@ function ScriptGridBody({
                             handleAddColumn(columns[columnIndex - 1]?.column_id);
                           }}
                           type="button"
-                          title="Insert column to the left"
+                          title="Insert column"
                         >
                           +
                         </button>
@@ -501,16 +651,18 @@ function ScriptGridBody({
                           </button>
                         ) : null}
                         <span className="editor-col-resize-hit" onPointerDown={(event) => startColumnResize(event, column.column_id)} />
-                        {isBrandFeedbackColumn(column) ? null : (
+                        {column.key === "duration" || isBrandFeedbackColumn(column) ? null : (
                           <button
                             className="editor-col-del"
+                            aria-label="Delete column"
                             onClick={(event) => {
                               event.stopPropagation();
                               handleDeleteColumn(column.column_id);
                             }}
+                            title="Delete column"
                             type="button"
                           >
-                            Delete column
+                            <IconTrash />
                           </button>
                         )}
                       </>
@@ -526,9 +678,13 @@ function ScriptGridBody({
                 <tr className="editor-row-insert-band editor-row-insert-first">
                   <td className="editor-row-insert-cell" colSpan={columns.length + 1}>
                     <span className="editor-row-insert-line" />
-                    <button className="editor-row-insert-btn" onClick={() => insertRowAfter(undefined)} type="button">
+                    <button
+                      className="editor-row-insert-btn"
+                      onClick={() => insertRowAfter(undefined)}
+                      title="Insert row before first"
+                      type="button"
+                    >
                       +
-                      <span className="editor-row-insert-tip">Insert row before first</span>
                     </button>
                   </td>
                 </tr>
@@ -569,17 +725,6 @@ function ScriptGridBody({
                   updateCell={updateCell}
                 />
               ))}
-              {!isShare ? (
-                <tr className="editor-row-insert-band">
-                  <td className="editor-row-insert-cell" colSpan={columns.length + 1}>
-                    <span className="editor-row-insert-line" />
-                    <button className="editor-row-insert-btn" onClick={() => insertRowAfter(rows.at(-1)?.row_id)} type="button">
-                      +
-                      <span className="editor-row-insert-tip">Insert row</span>
-                    </button>
-                  </td>
-                </tr>
-              ) : null}
             </tbody>
           </table>
         </div>
@@ -799,9 +944,8 @@ function RowBlock({
           <td className="editor-row-insert-cell" colSpan={columns.length + 1}>
             <span className="editor-row-insert-line" />
             <span className="editor-row-resize-hit" onPointerDown={onResizeRow} title="Drag to resize row height" />
-            <button className="editor-row-insert-btn" onClick={onAddRow} type="button">
+            <button className="editor-row-insert-btn" onClick={onAddRow} title="Insert row" type="button">
               +
-              <span className="editor-row-insert-tip">Insert row below</span>
             </button>
           </td>
         </tr>

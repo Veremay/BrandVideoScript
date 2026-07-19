@@ -137,6 +137,13 @@ export function removeColumn(script: Script, columnId: string): Script {
   if (columns.length <= 1) {
     throw new Error("Keep at least one business column.");
   }
+  const target = columns.find((column) => column.column_id === columnId);
+  if (target?.key === "duration") {
+    throw new Error("The Duration column cannot be deleted.");
+  }
+  if (target && isBrandFeedbackColumn(target)) {
+    throw new Error("The Brand Feedback column cannot be deleted.");
+  }
   const nextColumns = reorder(columns.filter((column) => column.column_id !== columnId));
   return {
     ...script,

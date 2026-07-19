@@ -217,17 +217,6 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
               </div>
             </div>
 
-            <dl className="setup-stats">
-              <div>
-                <dt>Brief</dt>
-                <dd>{project.brief.filename ?? (hasBrief ? "Text uploaded" : "Missing")}</dd>
-              </div>
-              <div>
-                <dt>Status</dt>
-                <dd>{project.brief.parse_status}</dd>
-              </div>
-            </dl>
-
             <div className="setup-card-scroll app-scrollbar">
               {hasRequirements ? (
                 <div className="setup-item-groups">
@@ -297,17 +286,6 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
                 <p>Generate at least one persona. You can edit them later.</p>
               </div>
             </div>
-
-            <dl className="setup-stats">
-              <div>
-                <dt>Personas</dt>
-                <dd>{status.personaCount}</dd>
-              </div>
-              <div>
-                <dt>Active</dt>
-                <dd>{project.active_persona_id ? "Selected" : "Missing"}</dd>
-              </div>
-            </dl>
 
             <div className="setup-card-scroll app-scrollbar">
               {project.personas.length ? (

@@ -101,6 +101,8 @@ def delete_column(script: dict, column_id: str) -> dict:
         raise ValueError("Cannot delete the last business column")
 
     target = next((column for column in columns if column["column_id"] == column_id), None)
+    if target is not None and target.get("key") == "duration":
+        raise ValueError("Cannot delete the duration column")
     if target is not None and target.get("key") == "feedback":
         raise ValueError("Cannot delete the brand feedback column")
 

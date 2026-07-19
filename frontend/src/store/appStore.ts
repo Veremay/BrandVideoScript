@@ -28,6 +28,7 @@ type AppState = {
   };
   mapFocusNodeId: string | null;
   editorSchemeFocusId: string | null;
+  undoStack: Script[];
   setUserId: (userId?: string) => void;
   setProjects: (projects: Project[]) => void;
   setProject: (project: Project | null) => void;
@@ -39,7 +40,8 @@ type AppState = {
   deleteRow: (rowId: string) => void;
   insertColumnAfter: (columnId?: string, label?: string, multiline?: boolean) => void;
   deleteColumn: (columnId: string) => void;
-  renameColumn: (columnId: string, label: string) => void;
+  renameColumn: (columnId: string, label: string, recordUndo?: boolean) => void;
+  undoScript: () => void;
   setSelection: (selection?: { rowId?: string; columnId?: string; text: string }) => void;
   setPersonaPanelOpen: (open: boolean) => void;
   setRequirementsPanelOpen: (open: boolean) => void;
@@ -47,6 +49,12 @@ type AppState = {
   setMapFocusNodeId: (nodeId: string | null) => void;
   setEditorSchemeFocusId: (schemeId: string | null) => void;
 };
+
+const MAX_UNDO_STEPS = 100;
+
+function appendUndoStep(stack: Script[], script: Script) {
+  return [...stack, script].slice(-MAX_UNDO_STEPS);
+}
 
 export const useAppStore = create<AppState>((set) => ({
   projects: [],
@@ -64,6 +72,7 @@ export const useAppStore = create<AppState>((set) => ({
   },
   mapFocusNodeId: null,
   editorSchemeFocusId: null,
+  undoStack: [],
   setUserId: (userId) => set({ userId }),
   setProjects: (projects) => set({ projects: projects.map((p) => normalizeProject(p)!).filter(Boolean) }),
   setProject: (project) =>
@@ -75,7 +84,8 @@ export const useAppStore = create<AppState>((set) => ({
         project: merged,
         script: merged?.current_script ?? null,
         appMode,
-        editor: { saveStatus: "saved" }
+        editor: { saveStatus: "saved" },
+        undoStack: state.project?._id === merged?._id ? state.undoStack : []
       };
     }),
   setScript: (script) => set({ script }),
@@ -84,10 +94,15 @@ export const useAppStore = create<AppState>((set) => ({
       if (!state.script) {
         return state;
       }
+      const currentValue = state.script.rows
+        .find((row) => row.row_id === rowId)
+        ?.cells.find((cell) => cell.column_id === columnId)?.value;
+      if (currentValue === value) return state;
 
       return {
         script: updateCellValue(state.script, rowId, columnId, value),
-        editor: { ...state.editor, saveStatus: "editing" }
+        editor: { ...state.editor, saveStatus: "editing" },
+        undoStack: appendUndoStep(state.undoStack, state.script)
       };
     }),
   setSaveStatus: (saveStatus) =>
@@ -103,7 +118,8 @@ export const useAppStore = create<AppState>((set) => ({
       if (!state.script) return state;
       return {
         script: insertRow(state.script, rowId),
-        editor: { ...state.editor, saveStatus: "editing" }
+        editor: { ...state.editor, saveStatus: "editing" },
+        undoStack: appendUndoStep(state.undoStack, state.script)
       };
     }),
   deleteRow: (rowId) =>
@@ -111,7 +127,8 @@ export const useAppStore = create<AppState>((set) => ({
       if (!state.script) return state;
       return {
         script: removeRow(state.script, rowId),
-        editor: { ...state.editor, saveStatus: "editing" }
+        editor: { ...state.editor, saveStatus: "editing" },
+        undoStack: appendUndoStep(state.undoStack, state.script)
       };
     }),
   insertColumnAfter: (columnId, label = "New Column", multiline = false) =>
@@ -119,7 +136,8 @@ export const useAppStore = create<AppState>((set) => ({
       if (!state.script) return state;
       return {
         script: insertColumn(state.script, columnId, label, multiline),
-        editor: { ...state.editor, saveStatus: "editing" }
+        editor: { ...state.editor, saveStatus: "editing" },
+        undoStack: appendUndoStep(state.undoStack, state.script)
       };
     }),
   deleteColumn: (columnId) =>
@@ -127,14 +145,26 @@ export const useAppStore = create<AppState>((set) => ({
       if (!state.script) return state;
       return {
         script: removeColumn(state.script, columnId),
-        editor: { ...state.editor, saveStatus: "editing" }
+        editor: { ...state.editor, saveStatus: "editing" },
+        undoStack: appendUndoStep(state.undoStack, state.script)
       };
     }),
-  renameColumn: (columnId, label) =>
+  renameColumn: (columnId, label, recordUndo = true) =>
     set((state) => {
       if (!state.script) return state;
       return {
         script: renameColumn(state.script, columnId, label),
+        editor: { ...state.editor, saveStatus: "editing" },
+        undoStack: recordUndo ? appendUndoStep(state.undoStack, state.script) : state.undoStack
+      };
+    }),
+  undoScript: () =>
+    set((state) => {
+      const previousScript = state.undoStack.at(-1);
+      if (!previousScript) return state;
+      return {
+        script: previousScript,
+        undoStack: state.undoStack.slice(0, -1),
         editor: { ...state.editor, saveStatus: "editing" }
       };
     }),
