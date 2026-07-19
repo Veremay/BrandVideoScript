@@ -85,8 +85,28 @@
 
 ## generate_modification_schemes 场景
 
-- 只输出 **1 个** `modification_schemes` 条目；**不要**输出 `ibis`。
-- `hunk.removed` 必须等于当前脚本 cell 原文。
+- 输出恰好 **1 个** `modification_schemes` 条目；**禁止**输出 `ibis`。
+- `modification_schemes[0].hunks` **不能为空**，必须包含 ≥1 条具体修改。
+- 每条 hunk 必须修改实际脚本 cell 文本（`added` ≠ `removed`）：
+
+**hunk 格式要求（严格遵守）**：
+```
+{
+  "row_id": "从上下文脚本中复制的真实 row_id",
+  "column_id": "从上下文脚本中复制的真实 column_id",
+  "context": "该修改的目的（1 句中文，解释为何改动、关联哪个 Position）",
+  "removed": "该 cell 当前完整的原文（≠\"\"，不可截断）",
+  "added": "修改后的新文本（≠ removed，≤500 字）"
+}
+```
+
+- `row_id` / `column_id` **必须原样复制**上下文脚本中标注的真实 ID，不能编造。
+- `removed` **必须完全等于**该 cell 当前原文（原文为空时写 `"(empty)"`），否则整个 hunk 会被丢弃。
+- 优先修改 `scene`（Visual）和 `notes`（Remarks）列；duration 列不建议修改。
+- 每条 hunk 应对应 TO BE CONSIDERED 中 Position 指出的问题点，避免无关改动。
+- 修改方向基于 scheme 的 `direction` 字段：conservative 倾向品牌安全，audience_friendly 倾向观众体验，creator_led 保留创作者风格，balanced 居中折中。
+
+> **generate_modification_schemes 场景注意：** 此场景下 `modification_schemes` 必须包含 1 个完整方案，其 `hunks` 数组不能为空。
 
 ## 输出 JSON
 
@@ -97,7 +117,33 @@
   "strategy_notes": ["…"],
   "recommended_directions": ["balanced", "creator_led", "audience_friendly", "conservative"],
   "assistant_reply": "给创作者的中文摘要（Coordinator / 方案生成场景必填）",
-  "modification_schemes": [],
+  "modification_schemes": [
+    {
+      "scheme_id": "scheme_001",
+      "title": "方案标题",
+      "direction": "balanced",
+      "changes_summary": "一句话概括所有修改",
+      "rationale": "为什么做这些修改的完整理由",
+      "tradeoffs": {"brand": "品牌得失", "audience": "观众得失", "creator": "创作者得失"},
+      "sacrifice": "此方案妥协了什么",
+      "communication_scene": "沟通场景说明",
+      "brand_objection": "品牌可能的反对意见",
+      "response_script": "应对话术",
+      "risk": "执行风险",
+      "target_issue_ids": ["关联的 issue_id"],
+      "target_position_ids": ["关联的 position_id"],
+      "related_node_ids": [],
+      "hunks": [
+        {
+          "row_id": "row_xxx",
+          "column_id": "col_xxx",
+          "context": "修改原因",
+          "removed": "原文",
+          "added": "新文"
+        }
+      ]
+    }
+  ]
   "ibis": {
     "nodes": [
       { "node_type": "position", "title": "平衡品牌与观众", "content": "…", "source_type": "expert_strategy", "source_perspective": "expert" }

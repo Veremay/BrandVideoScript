@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -48,6 +49,7 @@ async def sync_graph_from_script(
     user_id: str,
     *,
     changed_row_ids: list[str] | None = None,
+    progress_queue: asyncio.Queue | None = None,
 ) -> dict[str, Any]:
     """Re-analyze script on Update Map: fresh positions with conflict_tags, then reconcile."""
     project = await get_project(db, project_id, user_id)
@@ -63,6 +65,26 @@ async def sync_graph_from_script(
         changed_row_ids=sorted(row_ids),
     )
 
+    has_persona = bool(project.get("active_persona_id"))
+    has_agent_nodes = any(
+        n.get("created_by") == "agent" for n in project.get("rationale_nodes", [])
+    )
+
+    # Compute total stages for progress reporting
+    total = 5  # snapshot + brand + expert + conflict_tag + save
+    if has_persona:
+        total += 1  # audience
+    if has_agent_nodes:
+        total += 1  # reconcile
+
+    async def _progress(message: str) -> None:
+        if progress_queue is not None:
+            await progress_queue.put({"message": message})
+
+    if progress_queue is not None:
+        await progress_queue.put({"total": total})
+
+    await _progress("Taking snapshot…")
     await snapshot_before_map_update(db, project_id, user_id)
 
     await db.projects.update_one(
@@ -70,13 +92,9 @@ async def sync_graph_from_script(
         {"$set": {"stale.rationale_graph": "generating", "updated_at": now_iso()}},
     )
 
-    has_agent_nodes = any(
-        n.get("created_by") == "agent" for n in project.get("rationale_nodes", [])
-    )
-
     try:
         # Always re-run Brand + Audience on the script; Coordinator assigns conflict_tags.
-        map_pipeline = await run_map_update_pipeline(project, changed_row_ids=row_ids)
+        map_pipeline = await run_map_update_pipeline(project, changed_row_ids=row_ids, progress_queue=progress_queue)
         replace_sources = MAP_UPDATE_REPLACE_SOURCES if has_agent_nodes else None
         nodes, edges, _ = merge_pipeline_into_project_graph(
             project,
@@ -91,6 +109,7 @@ async def sync_graph_from_script(
         issue_reviews: list[dict[str, Any]] = []
 
         if has_agent_nodes:
+            await _progress("Reconciling existing nodes…")
             interim = {
                 **project,
                 "rationale_nodes": nodes,
@@ -108,6 +127,8 @@ async def sync_graph_from_script(
                 pipeline.assistant_reply = reconcile_pipeline.assistant_reply
 
         nodes = prune_singleton_conflict_tags(nodes)
+
+        await _progress("Saving…")
 
         await db.projects.update_one(
             {"_id": project_id, "user_id": user_id},

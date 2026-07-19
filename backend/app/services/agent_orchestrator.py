@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -325,6 +326,7 @@ async def run_map_update_pipeline(
     project: dict[str, Any],
     *,
     changed_row_ids: set[str] | None = None,
+    progress_queue: asyncio.Queue | None = None,
 ) -> AgentPipelineResult:
     """Update Map: Brand + Audience + Expert generate positions; Coordinator assigns conflict_tags.
 
@@ -335,6 +337,10 @@ async def run_map_update_pipeline(
     row_ids = set(changed_row_ids or [])
     log_step("pipeline.map_update", phase="IN", project_id=project_id, changed_row_ids=sorted(row_ids))
 
+    async def _push_progress(message: str) -> None:
+        if progress_queue is not None:
+            await progress_queue.put({"message": message})
+
     pipeline = AgentPipelineResult()
     map_message = (
         "请基于变动脚本行重新分析品牌立场。"
@@ -342,6 +348,7 @@ async def run_map_update_pipeline(
         else "请基于当前完整脚本重新分析品牌立场。"
     )
 
+    await _push_progress("Analyzing brand perspective…")
     log_step("pipeline.map_update.brand_agent", phase="IN", project_id=project_id)
     brand_result = await run_brand_agent(
         project,
@@ -356,6 +363,7 @@ async def run_map_update_pipeline(
 
     audience_result = None
     if project.get("active_persona_id"):
+        await _push_progress("Analyzing audience perspective…")
         log_step("pipeline.map_update.audience_agent", phase="IN", project_id=project_id)
         audience_result = await run_audience_agent(
             project,
@@ -366,6 +374,7 @@ async def run_map_update_pipeline(
         pipeline.audience_result = audience_result
         _extend_graph(pipeline, audience_result)
 
+    await _push_progress("Expert strategy analysis…")
     log_step("pipeline.map_update.expert_agent", phase="IN", project_id=project_id)
     expert_result = await run_expert_for_map_update(
         project,
@@ -381,6 +390,7 @@ async def run_map_update_pipeline(
     # Coordinator conflict tagging: assign conflict_tags to positions; no Issue nodes created.
     new_positions = [n for n in pipeline.proposed_nodes if n.get("node_type") == "position"]
     if new_positions:
+        await _push_progress("Resolving conflicts…")
         log_step("pipeline.map_update.conflict_tagging", phase="IN", project_id=project_id)
         tag_result = await run_conflict_tagging(project, brand_result, audience_result, new_positions)
 

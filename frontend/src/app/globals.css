@@ -848,6 +848,106 @@ textarea {
   color: #ba1a1a;
 }
 
+/* ── Editable requirement card ── */
+.setup-item--editable {
+  gap: 8px;
+}
+
+.setup-item-index {
+  color: var(--figma-text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.setup-confidence-select {
+  padding: 2px 6px;
+  border: 1px solid var(--figma-border);
+  border-radius: 6px;
+  background: var(--figma-bg);
+  color: var(--figma-text);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.setup-item-delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--figma-text-secondary);
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.setup-item-delete:hover {
+  background: rgba(248, 113, 113, 0.12);
+  color: #f87171;
+}
+
+.setup-item-title-input {
+  padding: 5px 8px;
+  border: 1px solid var(--figma-border);
+  border-radius: 6px;
+  background: var(--figma-bg);
+  color: var(--figma-text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  outline: none;
+}
+
+.setup-item-title-input:focus {
+  border-color: var(--figma-primary, #0ea5e9);
+}
+
+.setup-item-content-input,
+.setup-item-reason-input {
+  padding: 5px 8px;
+  border: 1px solid var(--figma-border);
+  border-radius: 6px;
+  background: var(--figma-bg);
+  color: var(--figma-text);
+  font-size: 12px;
+  line-height: 18px;
+  outline: none;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.setup-item-content-input:focus,
+.setup-item-reason-input:focus {
+  border-color: var(--figma-primary, #0ea5e9);
+}
+
+.setup-item-reason-input {
+  font-size: 11px;
+  color: var(--figma-text-secondary);
+}
+
+.setup-add-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px dashed var(--figma-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--figma-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.setup-add-btn:hover {
+  border-color: var(--figma-primary, #0ea5e9);
+  color: var(--figma-primary, #0ea5e9);
+}
+
 .setup-persona-list span {
   color: var(--figma-text-secondary);
   font-size: calc(12px + var(--app-font-size-delta));
@@ -1360,6 +1460,28 @@ textarea {
   cursor: pointer;
   transform: translateX(-50%);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  transition: min-width 0.25s ease, padding 0.25s ease;
+  white-space: nowrap;
+  min-width: 110px;
+  text-align: center;
+}
+
+/* Progress fill inside the button (determinate) */
+.map-update-map-btn > .btn-progress-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--brand-blue, #4f8ef7);
+  opacity: 0.22;
+  transform-origin: left;
+  transition: transform 0.35s ease;
+  z-index: 0;
+  border-radius: 999px;
+}
+
+.map-update-map-btn > .btn-progress-label {
+  position: relative;
+  z-index: 1;
 }
 
 .map-update-map-btn:hover:not(:disabled) {
@@ -1368,8 +1490,10 @@ textarea {
 }
 
 .map-update-map-btn:disabled {
-  opacity: 0.7;
   cursor: wait;
+  opacity: 1;
+  min-width: 220px;
+  padding: 8px 24px;
 }
 
 .map-flow {
@@ -5903,6 +6027,8 @@ button.editor-row-link-mark:focus-visible {
   font-size: calc(12px + var(--app-font-size-delta));
   font-weight: 600;
   cursor: pointer;
+  position: relative;
+  overflow: hidden;
 }
 
 .map-overlay-right .map-consideration-generate-btn {
@@ -5912,9 +6038,25 @@ button.editor-row-link-mark:focus-visible {
   line-height: 1.25;
 }
 
+/* Progress fill inside the button */
+.map-consideration-generate-btn > .btn-progress-fill {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.25);
+  transform-origin: left;
+  transition: transform 0.35s ease;
+  z-index: 0;
+  border-radius: 10px;
+}
+
+.map-consideration-generate-btn > .btn-progress-label {
+  position: relative;
+  z-index: 1;
+}
+
 .map-consideration-generate-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
+  cursor: wait;
+  opacity: 1;
 }
 
 /* ---- Tab bar inside the right overlay panel ---- */
@@ -7074,3 +7216,91 @@ button.editor-row-link-mark:focus-visible {
     min-height: 240px;
   }
 }
+
+/* ── Indeterminate loading progress bar ── */
+.loading-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+
+.loading-progress-bar {
+  width: 100%;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  position: relative;
+}
+
+/* Determinate progress (HTML <progress>) */
+.loading-progress-bar--determinate {
+  -webkit-appearance: none;
+  appearance: none;
+  border: none;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.loading-progress-bar--determinate::-webkit-progress-bar {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+}
+
+.loading-progress-bar--determinate::-webkit-progress-value {
+  background: var(--brand-blue, #4f8ef7);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.loading-progress-bar--determinate::-moz-progress-bar {
+  background: var(--brand-blue, #4f8ef7);
+  border-radius: 2px;
+}
+
+.loading-progress-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 25%,
+    var(--brand-blue, #4f8ef7) 50%,
+    transparent 75%,
+    transparent 100%
+  );
+  animation: loading-sweep 1.6s ease-in-out infinite;
+}
+
+@keyframes loading-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.loading-progress-label {
+  font-size: 11px;
+  color: var(--text-secondary, #a5a5ae);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── Variant: compact inline for button areas ── */
+.loading-progress--inline {
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+}
+
+.loading-progress--inline .loading-progress-bar {
+  flex: 1;
+  max-width: 160px;
+}
+
+/* ── Map update button area ── */

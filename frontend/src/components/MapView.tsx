@@ -30,7 +30,7 @@ import {
   resolveFlowEndpoints,
   visualConnectionToStored
 } from "@/lib/ibisLayout";
-import type { RationaleEdge, RationaleNode, RationaleSourceType } from "@/lib/types";
+import type { Project, RationaleEdge, RationaleNode, RationaleSourceType } from "@/lib/types";
 import { buildIbisNodeLabels } from "@/lib/ibisNodeLabels";
 import {
   createGraphEdge,
@@ -39,13 +39,14 @@ import {
   deleteGraphEdge,
   deleteGraphNode,
   populateIssuePositions,
-  syncMapFromScript,
+  syncMapFromScriptStream,
   fetchProject,
-  generateModificationSchemes,
+  generateModificationSchemesStream,
   toggleGraphConsiderationQueue,
   updateGraphNode
 } from "@/lib/api";
 import { isGraphStaleForUpdateMap } from "@/lib/stale";
+import { useSmoothProgress } from "@/lib/useElapsedTime";
 import { useAppStore } from "@/store/appStore";
 
 type MapNodeType = "issue" | "position" | "argument";
@@ -705,6 +706,18 @@ function MapViewContent() {
   const setWorkspaceView = useAppStore((state) => state.setWorkspaceView);
   const setEditorSchemeFocusId = useAppStore((state) => state.setEditorSchemeFocusId);
   const [generatingSchemes, setGeneratingSchemes] = useState(false);
+  const [generatingProgress, setGeneratingProgress] = useState<{ step: number; total: number; message: string } | null>(null);
+  const [mapSyncProgress, setMapSyncProgress] = useState<{ step: number; total: number; message: string } | null>(null);
+  const smoothMapProgress = useSmoothProgress(
+    mapSyncProgress?.step ?? 0,
+    mapSyncProgress?.total ?? 1,
+    syncingMap
+  );
+  const smoothGeneratingProgress = useSmoothProgress(
+    generatingProgress?.step ?? 0,
+    generatingProgress?.total ?? 1,
+    generatingSchemes
+  );
 
   const considerationPositions = useMemo(() => {
     const queue = new Set(project?.consideration_queue ?? []);
@@ -769,17 +782,31 @@ function MapViewContent() {
       return;
     }
     setGeneratingSchemes(true);
+    setGeneratingProgress(null);
     try {
-      const result = await generateModificationSchemes(project._id, project.user_id, {
+      await generateModificationSchemesStream(project._id, project.user_id, {
         target_position_ids: positionIds,
         message: "Generate modification schemes for adopted positions in TO BE CONSIDERED."
+      }, (event) => {
+        if (event.type === "progress") {
+          setGeneratingProgress({ step: event.step, total: event.total, message: event.message });
+        }
+        if (event.type === "done") {
+          // Animate to 100% before completing
+          setGeneratingProgress((prev) => ({ step: prev?.total ?? 1, total: prev?.total ?? 1, message: "Complete" }));
+          setTimeout(() => {
+            setProject(event.project);
+            const latest = event.schemes[event.schemes.length - 1];
+            if (latest?.scheme_id) {
+              setEditorSchemeFocusId(latest.scheme_id);
+            }
+            setWorkspaceView("editor");
+          }, 400);
+        }
+        if (event.type === "error") {
+          throw new Error(event.message);
+        }
       });
-      setProject(result.project);
-      const latest = result.schemes[result.schemes.length - 1];
-      if (latest?.scheme_id) {
-        setEditorSchemeFocusId(latest.scheme_id);
-      }
-      setWorkspaceView("editor");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to generate modification plan";
       window.alert(`${message} 请稍后重试。`);
@@ -791,6 +818,7 @@ function MapViewContent() {
       }
     } finally {
       setGeneratingSchemes(false);
+      setGeneratingProgress(null);
     }
   }, [
     considerationPositions,
@@ -980,8 +1008,29 @@ function MapViewContent() {
   const handleUpdateMap = useCallback(async () => {
     if (!project?._id || !project.user_id || syncingMap || !canUpdateMap) return;
     setSyncingMap(true);
+    setMapSyncProgress(null);
     try {
-      const updated = await syncMapFromScript(project._id, project.user_id);
+      const updated: Project = await new Promise((resolve, reject) => {
+        let resolved = false;
+        syncMapFromScriptStream(project._id, project.user_id, [], (event) => {
+          if (event.type === "progress") {
+            setMapSyncProgress({ step: event.step, total: event.total, message: event.message });
+          } else if (event.type === "done" && !resolved) {
+            resolved = true;
+            // Animate to 100% before completing
+            setMapSyncProgress((prev) => ({ step: prev?.total ?? 1, total: prev?.total ?? 1, message: "Complete" }));
+            setTimeout(() => resolve(event.project), 400);
+          } else if (event.type === "error" && !resolved) {
+            resolved = true;
+            reject(new Error(event.message));
+          }
+        }).catch((err) => {
+          if (!resolved) {
+            resolved = true;
+            reject(err);
+          }
+        });
+      });
       const nextNodes = updated.rationale_nodes ?? [];
       const nextEdges = updated.rationale_edges ?? [];
       const layouts = computeIbisLayout(nextNodes, nextEdges);
@@ -998,6 +1047,7 @@ function MapViewContent() {
       window.alert(error instanceof Error ? error.message : "Failed to update map");
     } finally {
       setSyncingMap(false);
+      setMapSyncProgress(null);
     }
   }, [canUpdateMap, project, setProject, syncingMap]);
 
@@ -1009,11 +1059,21 @@ function MapViewContent() {
           className="map-update-map-btn"
           disabled={mapSyncing || !canUpdateMap}
           onClick={() => void handleUpdateMap()}
-          title={!canUpdateMap ? (updateMapBlockedReason ?? undefined) : undefined}
+          title={!canUpdateMap ? (updateMapBlockedReason ?? undefined) : mapSyncProgress?.message ?? undefined}
           type="button"
           aria-busy={mapSyncing}
         >
-          {mapSyncing ? "Updating…" : "Update Map"}
+          {mapSyncing && mapSyncProgress ? (
+            <span
+              className="btn-progress-fill"
+              style={{ transform: `scaleX(${smoothMapProgress / 100})` }}
+            />
+          ) : null}
+          <span className="btn-progress-label">
+            {mapSyncing
+              ? `Updating… ${Math.round(smoothMapProgress)}%`
+              : "Update Map"}
+          </span>
         </button>
       ) : null}
       {!emptyGraph && !mapUpdateNeeded && !mapSyncing ? (
@@ -1240,9 +1300,20 @@ function MapViewContent() {
                 className="map-consideration-generate-btn"
                 disabled={!considerationPositions.length || generatingSchemes}
                 onClick={() => void handleGenerateModificationPlan()}
+                title={generatingProgress?.message ?? undefined}
                 type="button"
               >
-                {generatingSchemes ? "Generating…" : "Generate modification plan"}
+                {generatingSchemes && generatingProgress ? (
+                  <span
+                    className="btn-progress-fill"
+                    style={{ transform: `scaleX(${smoothGeneratingProgress / 100})` }}
+                  />
+                ) : null}
+                <span className="btn-progress-label">
+                  {generatingSchemes
+                    ? `Generating… ${Math.round(smoothGeneratingProgress)}%`
+                    : "Generate modification plan"}
+                </span>
               </button>
             </>
           ) : (
