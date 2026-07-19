@@ -41,6 +41,8 @@ async def coordinator_stream(
     payload: CoordinatorStreamRequest,
     db: AsyncIOMotorDatabase = Depends(database_dependency),
 ) -> StreamingResponse:
+    if payload.attachments and payload.mode != "vanilla":
+        raise HTTPException(status_code=400, detail="File attachments are only supported in vanilla mode")
     project = await get_project(db, project_id, payload.user_id.strip())
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -54,6 +56,7 @@ async def coordinator_stream(
             task_type=payload.task_type,
             requested_perspectives=payload.requested_perspectives,
             quotes=[q.model_dump() for q in payload.quotes],
+            attachments=[attachment.model_dump() for attachment in payload.attachments],
             target_node_ids=payload.target_node_ids,
             changed_row_ids=payload.changed_row_ids,
             mode=payload.mode,

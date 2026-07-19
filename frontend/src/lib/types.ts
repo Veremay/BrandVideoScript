@@ -1,6 +1,12 @@
 export type SaveStatus = "saved" | "editing" | "saving" | "failed";
 export type AppMode = "vanilla" | "full";
 
+/** Vanilla Argue → chatbot input injection payload. */
+export type PendingChatDraft = {
+  prompt: string;
+  appendBlock: string;
+};
+
 export type StaleStatus =
   | "up_to_date"
   | "stale_script_changed"
@@ -147,9 +153,17 @@ export type CoordinatorMessage = {
   requested_perspectives: RequestedPerspective[];
   active_persona_id?: string | null;
   quotes: CoordinatorQuote[];
+  attachments?: CoordinatorAttachment[];
   related_node_ids: string[];
   generated_artifact_ids: string[];
   created_at: string;
+};
+
+export type CoordinatorAttachment = {
+  filename: string;
+  content: string;
+  mime_type: string;
+  size: number;
 };
 
 export type ScriptRefLink = {
@@ -340,6 +354,8 @@ export type Project = {
   user_id: string;
   title: string;
   mode?: AppMode;
+  vanilla_setup_stage?: "requirements" | "conflicts" | "complete";
+  vanilla_setup_data?: VanillaSetupData;
   video_category?: VideoCategory;
   platform_context?: PlatformContext;
   brief: Brief;
@@ -366,4 +382,9 @@ export type Project = {
   stale: ArtifactStaleness;
   created_at: string;
   updated_at: string;
+};
+
+export type VanillaSetupData = {
+  brand_requirements: string;
+  conflicts: string;
 };

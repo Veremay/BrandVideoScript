@@ -10,6 +10,7 @@ import { PersonaPanel } from "@/components/PersonaPanel";
 import { RequirementsPanel } from "@/components/RequirementsPanel";
 import { ScriptGrid } from "@/components/ScriptGrid";
 import { ScriptSnapshotsPanel } from "@/components/ScriptSnapshotsPanel";
+import { VanillaSetupContextPanel } from "@/components/VanillaSetupContextPanel";
 import { createShareLink, fetchProjectGraph, saveBrief, saveScript } from "@/lib/api";
 import { useAppStore } from "@/store/appStore";
 
@@ -80,9 +81,11 @@ export function EditorShell() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [snapshotsOpen, setSnapshotsOpen] = useState(false);
   const [communicationOpen, setCommunicationOpen] = useState(false);
+  const [vanillaContextSection, setVanillaContextSection] = useState<"requirements" | "conflicts" | null>(null);
   const [sharing, setSharing] = useState(false);
   const [fontSize, setFontSize] = useState<FontSizePreference>("medium");
   const coordinatorOpen = layout.coordinatorChatOpen;
+  const coordinatorDocked = layout.coordinatorChatDocked;
 
   useEffect(() => {
     const stored = window.localStorage.getItem(FONT_SIZE_STORAGE_KEY);
@@ -241,7 +244,10 @@ export function EditorShell() {
 
   return (
     <RevisionProposalsProvider projectId={project._id} userId={project.user_id}>
-      <main className="app-figma" data-font-size={fontSize}>
+      <main
+        className={`app-figma${isVanilla && coordinatorOpen && coordinatorDocked ? " app-figma--chat-docked" : ""}`}
+        data-font-size={fontSize}
+      >
         <header className="figma-topnav">
           <div className="figma-topnav-left">
             <button className="figma-nav-btn figma-nav-back" onClick={handleBack} type="button">
@@ -274,7 +280,17 @@ export function EditorShell() {
           </div>
 
           <div className="figma-topnav-right">
-            {isVanilla ? null : (
+            {isVanilla ? (
+              <>
+                <button className="figma-nav-btn figma-nav-outline" onClick={() => setVanillaContextSection("requirements")} type="button">
+                  <IconRequirements />
+                  Requirements
+                </button>
+                <button className="figma-nav-btn figma-nav-outline" onClick={() => setVanillaContextSection("conflicts")} type="button">
+                  Conflicts
+                </button>
+              </>
+            ) : (
               <>
                 <input ref={fileInputRef} accept=".md,.txt,text/markdown,text/plain" hidden onChange={handleBriefFile} type="file" />
                 <button
@@ -381,7 +397,7 @@ export function EditorShell() {
               aria-label={coordinatorOpen ? "Close Coordinator Chat" : "Open Coordinator Chat"}
               aria-expanded={coordinatorOpen}
             >
-              <IconLightning />
+              <IconRobot />
             </button>
 
             <CoordinatorChat
@@ -421,6 +437,13 @@ export function EditorShell() {
         )}
 
         <ScriptSnapshotsPanel onClose={() => setSnapshotsOpen(false)} open={snapshotsOpen} />
+        {isVanilla && vanillaContextSection ? (
+          <VanillaSetupContextPanel
+            onClose={() => setVanillaContextSection(null)}
+            open
+            section={vanillaContextSection}
+          />
+        ) : null}
       </main>
     </RevisionProposalsProvider>
   );
@@ -499,10 +522,17 @@ function IconSettings() {
   );
 }
 
-function IconLightning() {
+function IconRobot() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+      <rect x="5" y="9" width="14" height="11" rx="2" />
+      <path d="M12 3v3" />
+      <circle cx="12" cy="3" r="1" fill="currentColor" stroke="none" />
+      <circle cx="9" cy="14" r="1" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="14" r="1" fill="currentColor" stroke="none" />
+      <path d="M9 18h6" />
+      <path d="M3 13v3" />
+      <path d="M21 13v3" />
     </svg>
   );
 }

@@ -4,7 +4,7 @@ import { create } from "zustand";
 
 import { mergeProjectPreservingGraph, normalizeProject } from "@/lib/normalizeProject";
 import { insertColumn, insertRow, removeColumn, removeRow, renameColumn, updateCellValue } from "@/lib/scriptEditor";
-import type { AppMode, Project, SaveStatus, Script } from "@/lib/types";
+import type { AppMode, PendingChatDraft, Project, SaveStatus, Script } from "@/lib/types";
 
 type EditorState = {
   selectedRowId?: string;
@@ -22,12 +22,15 @@ type AppState = {
   editor: EditorState;
   layout: {
     coordinatorChatOpen: boolean;
+    coordinatorChatDocked: boolean;
     personaPanelOpen: boolean;
     requirementsPanelOpen: boolean;
     workspaceView: "editor" | "map";
   };
   mapFocusNodeId: string | null;
   editorSchemeFocusId: string | null;
+  /** One-shot draft to inject into CoordinatorChat input (vanilla Argue). */
+  pendingChatDraft: PendingChatDraft | null;
   undoStack: Script[];
   setUserId: (userId?: string) => void;
   setProjects: (projects: Project[]) => void;
@@ -36,6 +39,8 @@ type AppState = {
   updateCell: (rowId: string, columnId: string, value: string) => void;
   setSaveStatus: (saveStatus: SaveStatus) => void;
   setCoordinatorChatOpen: (open: boolean) => void;
+  setCoordinatorChatDocked: (docked: boolean) => void;
+  setPendingChatDraft: (draft: PendingChatDraft | null) => void;
   insertRowAfter: (rowId?: string) => void;
   deleteRow: (rowId: string) => void;
   insertColumnAfter: (columnId?: string, label?: string, multiline?: boolean) => void;
@@ -66,12 +71,14 @@ export const useAppStore = create<AppState>((set) => ({
   },
   layout: {
     coordinatorChatOpen: false,
+    coordinatorChatDocked: false,
     personaPanelOpen: false,
     requirementsPanelOpen: false,
     workspaceView: "editor"
   },
   mapFocusNodeId: null,
   editorSchemeFocusId: null,
+  pendingChatDraft: null,
   undoStack: [],
   setUserId: (userId) => set({ userId }),
   setProjects: (projects) => set({ projects: projects.map((p) => normalizeProject(p)!).filter(Boolean) }),
@@ -113,6 +120,23 @@ export const useAppStore = create<AppState>((set) => ({
     set((state) => ({
       layout: { ...state.layout, coordinatorChatOpen: open }
     })),
+  setCoordinatorChatDocked: (docked) =>
+    set((state) => ({
+      layout: { ...state.layout, coordinatorChatDocked: docked }
+    })),
+  setPendingChatDraft: (draft) =>
+    set((state) => {
+      if (draft == null) return { pendingChatDraft: null };
+      if (state.pendingChatDraft) {
+        return {
+          pendingChatDraft: {
+            prompt: `${state.pendingChatDraft.prompt.trim()}\n\n${draft.appendBlock}`,
+            appendBlock: draft.appendBlock
+          }
+        };
+      }
+      return { pendingChatDraft: draft };
+    }),
   insertRowAfter: (rowId) =>
     set((state) => {
       if (!state.script) return state;

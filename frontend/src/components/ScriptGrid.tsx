@@ -3,7 +3,7 @@
 import { PointerEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { CellHunkDiff, useCellHunkMap } from "@/components/ScriptCellModification";
-import { toggleCommunicationSupport } from "@/lib/api";
+import { fetchVanillaArguePrompt, toggleCommunicationSupport } from "@/lib/api";
 import { analyzeDurations, durationInputValue, isBrandFeedbackColumn } from "@/lib/scriptEditor";
 import type { HunkDecision, ModificationSchemeHunk, Script } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
@@ -137,18 +137,22 @@ function ScriptGridBody({
 }) {
   const isShare = mode === "share";
   const {
+    appMode,
     deleteColumn,
     deleteRow,
     insertColumnAfter,
     insertRowAfter,
     project,
     renameColumn,
+    setCoordinatorChatOpen,
+    setPendingChatDraft,
     setProject,
     setMapFocusNodeId,
     setWorkspaceView,
     undoScript,
     updateCell: storeUpdateCell
   } = useAppStore();
+  const isVanilla = appMode === "vanilla";
   const updateCell = isShare && onUpdateCell ? onUpdateCell : storeUpdateCell;
   const [selectedColumnId, setSelectedColumnId] = useState<string | null>(null);
   const [editingColumnId, setEditingColumnId] = useState<string | null>(null);
@@ -178,6 +182,26 @@ function ScriptGridBody({
 
   async function handleToggleArgue(rowId: string, columnId: string) {
     if (!project || argueBusyRowId) return;
+
+    if (isVanilla) {
+      setArgueBusyRowId(rowId);
+      try {
+        const { prompt, appendBlock } = await fetchVanillaArguePrompt(
+          project._id,
+          project.user_id,
+          rowId,
+          columnId
+        );
+        setPendingChatDraft({ prompt, appendBlock });
+        setCoordinatorChatOpen(true);
+      } catch (error) {
+        window.alert(error instanceof Error ? error.message : "Failed to fill argue prompt");
+      } finally {
+        setArgueBusyRowId(null);
+      }
+      return;
+    }
+
     const nextInList = !communicationSupportRowIds.has(rowId);
     setArgueBusyRowId(rowId);
     try {
@@ -696,7 +720,7 @@ function ScriptGridBody({
                   argueBusy={!isShare && argueBusyRowId === row.row_id}
                   durationIssueMessages={isShare ? undefined : durationIssueByRowId.get(row.row_id)}
                   durationSegment={durationSegmentByRowId.get(row.row_id)}
-                  feedbackArgued={!isShare && communicationSupportRowIds.has(row.row_id)}
+                  feedbackArgued={!isShare && !isVanilla && communicationSupportRowIds.has(row.row_id)}
                   hunkByCell={hunkByCell}
                   hunkDecisions={hunkDecisions}
                   index={rowIndex}
@@ -728,6 +752,7 @@ function ScriptGridBody({
             </tbody>
           </table>
         </div>
+        {/* Temporarily hidden so the table fills the window
         {!isShare ? (
           <div className="script-table-footer">
             <button className="add-scene-block-btn" onClick={handleAddSceneBlock} type="button">
@@ -736,6 +761,7 @@ function ScriptGridBody({
             </button>
           </div>
         ) : null}
+        */}
       </div>
     </div>
   );
@@ -929,7 +955,7 @@ function RowBlock({
                   title={
                     feedbackArgued
                       ? "On your communication support list — click to remove"
-                      : "Argue this feedback (add to communication support list)"
+                      : "Argue this feedback"
                   }
                 >
                   {argueBusy ? "…" : feedbackArgued ? "Arguing ✓" : "Argue"}

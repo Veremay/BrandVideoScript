@@ -12,10 +12,11 @@ export type ProjectSetupStatus = {
 
 export function getProjectSetupStatus(project: Project): ProjectSetupStatus {
   if ((project.mode ?? project.current_script.settings?.mode) === "vanilla") {
+    const complete = project.vanilla_setup_stage === "complete";
     return {
-      requirementsComplete: true,
-      personaComplete: true,
-      complete: true,
+      requirementsComplete: project.vanilla_setup_stage !== "requirements",
+      personaComplete: complete,
+      complete,
       explicitCount: 0,
       implicitCount: 0,
       personaCount: project.personas.length

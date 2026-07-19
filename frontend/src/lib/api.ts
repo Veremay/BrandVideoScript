@@ -658,6 +658,20 @@ export async function fetchCoordinatorMessages(
   return data.messages;
 }
 
+export async function updateVanillaSetupStage(
+  projectId: string,
+  userId: string,
+  stage: "requirements" | "conflicts" | "complete",
+  data?: Project["vanilla_setup_data"]
+): Promise<Project> {
+  return normalizeProject(
+    await request(`/projects/${projectId}/vanilla-setup`, {
+      method: "PATCH",
+      body: JSON.stringify({ user_id: userId, stage, data })
+    })
+  )!;
+}
+
 export type CoordinatorStreamEvent =
   | { type: "token"; content: string }
   | {
@@ -725,6 +739,7 @@ export async function streamCoordinatorMessage(
     task_type?: "user_message" | "quote_analysis" | "script_delta" | "generate_modification_schemes";
     requested_perspectives?: RequestedPerspective[];
     quotes?: CoordinatorQuote[];
+    attachments?: Array<{ filename: string; content: string; mime_type: string; size: number }>;
     target_node_ids?: string[];
     changed_row_ids?: string[];
     mode?: "full" | "vanilla";
@@ -989,6 +1004,22 @@ export async function toggleCommunicationSupport(
       body: JSON.stringify({ user_id: userId, row_id: rowId, column_id: columnId, in_list: inList })
     })
   )!;
+}
+
+export async function fetchVanillaArguePrompt(
+  projectId: string,
+  userId: string,
+  rowId: string,
+  columnId: string
+): Promise<{ prompt: string; appendBlock: string }> {
+  const data = await request<{ prompt: string; append_block: string }>(
+    `/projects/${projectId}/vanilla/argue-prompt`,
+    {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId, row_id: rowId, column_id: columnId })
+    }
+  );
+  return { prompt: data.prompt, appendBlock: data.append_block };
 }
 
 export async function generateNegotiationPlan(

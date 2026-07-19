@@ -28,6 +28,17 @@ class ProjectUpdateRequest(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=120)
 
 
+class VanillaSetupData(BaseModel):
+    brand_requirements: str = Field(default="", max_length=12000)
+    conflicts: str = Field(default="", max_length=12000)
+
+
+class VanillaSetupUpdateRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    stage: Literal["requirements", "conflicts", "complete"]
+    data: VanillaSetupData | None = None
+
+
 class ScriptPatchRequest(BaseModel):
     user_id: str = Field(min_length=1, max_length=80)
     script: dict[str, Any]
@@ -203,6 +214,8 @@ class ProjectResponse(BaseModel):
     user_id: str
     title: str
     mode: str = "full"
+    vanilla_setup_stage: str = "requirements"
+    vanilla_setup_data: dict[str, str] = Field(default_factory=dict)
     video_category: str = "lifestyle"
     platform_context: str = "other"
     brief: dict[str, Any]
@@ -270,6 +283,13 @@ class CoordinatorQuote(BaseModel):
     script_version_id: str | None = None
 
 
+class CoordinatorAttachment(BaseModel):
+    filename: str = Field(min_length=1, max_length=180)
+    content: str = Field(min_length=1, max_length=20000)
+    mime_type: str = Field(default="text/plain", max_length=120)
+    size: int = Field(ge=0, le=262144)
+
+
 class CoordinatorStreamRequest(BaseModel):
     user_id: str = Field(min_length=1, max_length=80)
     message: str = Field(min_length=1, max_length=4000)
@@ -281,6 +301,7 @@ class CoordinatorStreamRequest(BaseModel):
     ] = "user_message"
     requested_perspectives: list[Literal["brand", "audience", "expert", "comprehensive"]] = Field(default_factory=lambda: ["comprehensive"])
     quotes: list[CoordinatorQuote] = Field(default_factory=list)
+    attachments: list[CoordinatorAttachment] = Field(default_factory=list, max_length=3)
     target_node_ids: list[str] = Field(default_factory=list)
     changed_row_ids: list[str] = Field(default_factory=list)
     # "full": multi-agent IBIS pipeline. "vanilla": single LLM with a system prompt only.
@@ -297,6 +318,7 @@ class CoordinatorMessageResponse(BaseModel):
     requested_perspectives: list[str] = Field(default_factory=list)
     active_persona_id: str | None = None
     quotes: list[dict[str, Any]] = Field(default_factory=list)
+    attachments: list[dict[str, Any]] = Field(default_factory=list)
     related_node_ids: list[str] = Field(default_factory=list)
     generated_artifact_ids: list[str] = Field(default_factory=list)
     created_at: str
@@ -403,6 +425,17 @@ class NegotiationGenerateResponse(BaseModel):
     project: dict[str, Any]
     negotiation_preparation: dict[str, Any] | None = None
     assistant_reply: str = ""
+
+
+class VanillaArguePromptRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    row_id: str = Field(min_length=1)
+    column_id: str = Field(min_length=1)
+
+
+class VanillaArguePromptResponse(BaseModel):
+    prompt: str
+    append_block: str
 
 
 class GraphNodeLayoutItem(BaseModel):

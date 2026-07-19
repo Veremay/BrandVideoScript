@@ -17,6 +17,7 @@ def build_coordinator_message(
     requested_perspectives: list[str] | None = None,
     active_persona_id: str | None = None,
     quotes: list[dict[str, Any]] | None = None,
+    attachments: list[dict[str, Any]] | None = None,
     related_node_ids: list[str] | None = None,
     generated_artifact_ids: list[str] | None = None,
 ) -> dict[str, Any]:
@@ -30,6 +31,7 @@ def build_coordinator_message(
         "requested_perspectives": requested_perspectives or [],
         "active_persona_id": active_persona_id,
         "quotes": quotes or [],
+        "attachments": attachments or [],
         "related_node_ids": related_node_ids or [],
         "generated_artifact_ids": generated_artifact_ids or [],
         "created_at": now_iso(),

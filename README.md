@@ -21,7 +21,7 @@
 **两种项目模式：**
 
 - **Setting 1（full）**：完整流程——Brief 解析 → Persona → IBIS 图 → 脚本创作与多视角反馈
-- **Setting 2（vanilla）**：轻量模式——跳过 Brief/图/Persona，直接进入脚本编辑
+- **Setting 2（vanilla）**：轻量模式——依次填写品牌要求与冲突分析，并可通过 chatbot 辅助梳理后进入脚本编辑
 
 ## 技术栈
 

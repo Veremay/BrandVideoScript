@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from html import escape
 from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -44,6 +45,7 @@ async def stream_coordinator_chat(
     task_type: str = "user_message",
     requested_perspectives: list[str] | None = None,
     quotes: list[dict[str, Any]] | None = None,
+    attachments: list[dict[str, Any]] | None = None,
     target_node_ids: list[str] | None = None,
     changed_row_ids: list[str] | None = None,
     mode: str = "full",
@@ -57,6 +59,7 @@ async def stream_coordinator_chat(
         task_type=task_type,
         requested_perspectives=requested_perspectives,
         quotes=quotes,
+        attachments=[{"filename": item.get("filename"), "mime_type": item.get("mime_type"), "size": item.get("size")} for item in (attachments or [])],
         target_node_ids=target_node_ids,
         changed_row_ids=changed_row_ids,
         mode=mode,
@@ -81,6 +84,7 @@ async def stream_coordinator_chat(
         requested_perspectives=list(perspectives),
         active_persona_id=project.get("active_persona_id"),
         quotes=quotes or [],
+        attachments=attachments or [],
         related_node_ids=target_node_ids or [],
     )
     await save_coordinator_message(db, user_doc)
@@ -217,7 +221,38 @@ def build_vanilla_system_content(project: dict) -> str:
     system = load_prompt("vanilla_system.md")
     script_block = format_script_for_prompt(project)
     heading = "Full current script" if get_settings().prompt_language == "en" else "当前完整脚本"
-    return f"{system}\n\n## {heading}\n{script_block}"
+    setup_data = project.get("vanilla_setup_data") or {}
+    requirements = str(setup_data.get("brand_requirements") or "").strip()
+    conflicts = str(setup_data.get("conflicts") or "").strip()
+    requirements_block = (
+        f"\n\n## Brand requirements provided by the creator\n{requirements}"
+        if requirements
+        else ""
+    )
+    conflicts_block = (
+        f"\n\n## Conflicts and trade-offs identified by the creator\n{conflicts}"
+        if conflicts
+        else ""
+    )
+    return f"{system}{requirements_block}{conflicts_block}\n\n## {heading}\n{script_block}"
+
+
+def _vanilla_message_content(doc: dict[str, Any]) -> str:
+    content = str(doc.get("content") or "").strip()
+    attachment_blocks: list[str] = []
+    for attachment in doc.get("attachments") or []:
+        if not isinstance(attachment, dict):
+            continue
+        filename = escape(str(attachment.get("filename") or "attachment").strip(), quote=True)
+        attachment_content = str(attachment.get("content") or "").strip()
+        if not attachment_content:
+            continue
+        attachment_blocks.append(
+            f'<attached_file name="{filename}">\n{attachment_content}\n</attached_file>'
+        )
+    if not attachment_blocks:
+        return content
+    return "\n\n".join([content, *attachment_blocks]).strip()
 
 
 async def _stream_vanilla_chat(
@@ -238,7 +273,7 @@ async def _stream_vanilla_chat(
     history_messages: list[dict[str, str]] = []
     for doc in history:
         role = doc.get("role")
-        content = (doc.get("content") or "").strip()
+        content = _vanilla_message_content(doc)
         if role in {"user", "assistant"} and content:
             history_messages.append({"role": role, "content": content})
 
