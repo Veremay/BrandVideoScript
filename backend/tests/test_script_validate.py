@@ -37,6 +37,21 @@ class ScriptValidateTest(unittest.TestCase):
         validate_script(normalized)
         self.assertEqual(len(normalized["rows"][0]["cells"]), 2)
 
+    def test_normalize_clears_legacy_duration_range(self):
+        script = default_script()
+        script["rows"][0]["cells"][0]["value"] = "10-15.5"
+
+        normalized = normalize_script(script)
+
+        self.assertEqual(normalized["rows"][0]["cells"][0]["value"], "")
+
+    def test_rejects_invalid_duration_value(self):
+        script = default_script()
+        script["rows"][0]["cells"][0]["value"] = "five"
+
+        with self.assertRaisesRegex(ValueError, "positive number of seconds"):
+            validate_script(script)
+
 
 if __name__ == "__main__":
     unittest.main()

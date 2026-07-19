@@ -1,4 +1,5 @@
 from copy import deepcopy
+from math import isfinite
 
 from app.models.script import BRAND_FEEDBACK_COLUMN_KEY, new_id
 
@@ -226,6 +227,18 @@ def parse_duration(value: str) -> tuple[float, float] | None:
     return start, end
 
 
+def parse_duration_seconds(value: str) -> float | None:
+    """Parse a seconds-only duration."""
+    stripped = value.strip()
+    if not stripped:
+        return None
+    try:
+        seconds = float(stripped)
+    except ValueError:
+        return None
+    return seconds if isfinite(seconds) and seconds > 0 else None
+
+
 def duration_errors(script: dict) -> list[dict]:
     duration_column = next((column for column in script.get("columns", []) if column.get("type") == "duration"), None)
     if not duration_column:
@@ -234,8 +247,8 @@ def duration_errors(script: dict) -> list[dict]:
     errors = []
     for row in _sorted_rows(script):
         value = next((cell.get("value", "") for cell in row.get("cells", []) if cell["column_id"] == duration_column["column_id"]), "")
-        if value and parse_duration(value) is None:
-            errors.append({"row_id": row["row_id"], "message": "Duration must use start-end seconds, for example 0-5"})
+        if value and parse_duration_seconds(value) is None:
+            errors.append({"row_id": row["row_id"], "message": "Duration must be a positive number of seconds, for example 5 or 2.5"})
     return errors
 
 

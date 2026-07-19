@@ -6,6 +6,8 @@ from app.models.script_ops import (
     delete_column,
     delete_row,
     detect_duration_overlaps,
+    duration_errors,
+    parse_duration_seconds,
     rename_column,
 )
 
@@ -21,7 +23,7 @@ def sample_script():
                 "row_id": "row_a",
                 "order": 0,
                 "cells": [
-                    {"column_id": "col_duration", "value": "0-5"},
+                    {"column_id": "col_duration", "value": "5"},
                     {"column_id": "col_scene", "value": "Open"},
                 ],
             },
@@ -29,7 +31,7 @@ def sample_script():
                 "row_id": "row_b",
                 "order": 1,
                 "cells": [
-                    {"column_id": "col_duration", "value": "4-9"},
+                    {"column_id": "col_duration", "value": "5"},
                     {"column_id": "col_scene", "value": "Demo"},
                 ],
             },
@@ -66,7 +68,7 @@ class ScriptOpsTest(unittest.TestCase):
         script = delete_column(sample_script(), "col_scene")
 
         self.assertEqual([column["column_id"] for column in script["columns"]], ["col_duration"])
-        self.assertEqual(script["rows"][0]["cells"], [{"column_id": "col_duration", "value": "0-5"}])
+        self.assertEqual(script["rows"][0]["cells"], [{"column_id": "col_duration", "value": "5"}])
 
         with self.assertRaises(ValueError):
             delete_column(script, "col_duration")
@@ -77,10 +79,27 @@ class ScriptOpsTest(unittest.TestCase):
         self.assertEqual(script["columns"][1]["label"], "Frame")
         self.assertEqual(script["columns"][1]["key"], "scene")
 
-    def test_detect_duration_overlaps_reports_crossing_ranges(self):
+    def test_automatic_duration_ranges_do_not_overlap(self):
         overlaps = detect_duration_overlaps(sample_script())
 
-        self.assertEqual(overlaps, [{"row_ids": ["row_a", "row_b"], "range": "4-5"}])
+        self.assertEqual(overlaps, [])
+
+    def test_duration_seconds_accepts_numbers_only(self):
+        self.assertEqual(parse_duration_seconds("5"), 5)
+        self.assertEqual(parse_duration_seconds("2.5"), 2.5)
+        self.assertIsNone(parse_duration_seconds("10-15"))
+        self.assertIsNone(parse_duration_seconds("0"))
+        self.assertIsNone(parse_duration_seconds("five"))
+
+    def test_duration_errors_requires_positive_seconds(self):
+        script = sample_script()
+        script["rows"][0]["cells"][0]["value"] = "5"
+        script["rows"][1]["cells"][0]["value"] = "oops"
+
+        self.assertEqual(
+            duration_errors(script),
+            [{"row_id": "row_b", "message": "Duration must be a positive number of seconds, for example 5 or 2.5"}],
+        )
 
     def test_update_cell_rejects_brand_feedback_column(self):
         script = sample_script()

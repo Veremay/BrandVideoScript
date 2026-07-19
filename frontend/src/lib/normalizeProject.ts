@@ -1,14 +1,33 @@
-import type { Project, RationaleEdge, RationaleNode } from "@/lib/types";
+import type { Project, RationaleEdge, RationaleNode, Script } from "@/lib/types";
 
 type ProjectPayload = Project & { id?: string };
+
+function clearLegacyDurationRanges(script: Script): Script {
+  const durationColumnIds = new Set(
+    script.columns.filter((column) => column.type === "duration").map((column) => column.column_id)
+  );
+  let changed = false;
+  const rows = script.rows.map((row) => ({
+    ...row,
+    cells: row.cells.map((cell) => {
+      const isLegacyRange = /^\s*\d+(?:\.\d+)?\s*-\s*\d+(?:\.\d+)?\s*$/.test(cell.value);
+      if (!durationColumnIds.has(cell.column_id) || !isLegacyRange) return cell;
+      changed = true;
+      return { ...cell, value: "" };
+    })
+  }));
+  return changed ? { ...script, rows } : script;
+}
 
 export function normalizeProject(raw: ProjectPayload | null): Project | null {
   if (!raw) return null;
 
   const projectId = raw._id || raw.id || "";
+  const currentScript = clearLegacyDurationRanges(raw.current_script);
   return {
     ...raw,
     _id: projectId,
+    current_script: currentScript,
     rationale_nodes: (raw.rationale_nodes ?? []) as RationaleNode[],
     rationale_edges: (raw.rationale_edges ?? []) as RationaleEdge[],
     consideration_queue: raw.consideration_queue ?? raw.negotiation_queue ?? [],
@@ -21,7 +40,7 @@ export function normalizeProject(raw: ProjectPayload | null): Project | null {
     expert_perspective_result: raw.expert_perspective_result ?? null,
     platform_context: raw.platform_context ?? "other",
     video_category: raw.video_category ?? "lifestyle",
-    mode: raw.mode ?? raw.current_script?.settings?.mode ?? "full"
+    mode: raw.mode ?? currentScript.settings?.mode ?? "full"
   };
 }
 

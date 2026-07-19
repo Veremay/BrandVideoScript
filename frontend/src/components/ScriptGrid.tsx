@@ -4,16 +4,17 @@ import { PointerEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef,
 
 import { CellHunkDiff, useCellHunkMap } from "@/components/ScriptCellModification";
 import { toggleCommunicationSupport } from "@/lib/api";
-import { analyzeDurations, isBrandFeedbackColumn } from "@/lib/scriptEditor";
+import { analyzeDurations, durationInputValue, isBrandFeedbackColumn } from "@/lib/scriptEditor";
 import type { HunkDecision, ModificationSchemeHunk, Script, ScriptColumn } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
 
 const MIN_COLUMN_WIDTH = 88;
 const MIN_ROW_HEIGHT = 38;
+const COLUMN_WIDTH_STORAGE_PREFIX = "brandvideo:script-column-widths:";
 
 function AutoSizeTextarea({
   className,
-  minHeight = MIN_ROW_HEIGHT,
+  minHeight,
   onChange,
   style,
   ...props
@@ -23,17 +24,48 @@ function AutoSizeTextarea({
   const syncHeight = useCallback(() => {
     const node = ref.current;
     if (!node) return;
+    const cssMinHeight = Number.parseFloat(
+      getComputedStyle(node).getPropertyValue("--script-cell-min-height")
+    );
+    const effectiveMinHeight = minHeight ?? (Number.isFinite(cssMinHeight) ? cssMinHeight : MIN_ROW_HEIGHT);
     node.style.height = "0px";
-    node.style.height = `${Math.max(minHeight, node.scrollHeight)}px`;
+    node.style.height = `${Math.max(effectiveMinHeight, node.scrollHeight)}px`;
   }, [minHeight]);
 
   useLayoutEffect(() => {
     const node = ref.current;
     if (!node) return;
     syncHeight();
-    const observer = new ResizeObserver(() => syncHeight());
+    let observedWidth = node.getBoundingClientRect().width;
+    let resizeTimer: number | undefined;
+    let fontSizeFrame: number | undefined;
+    const observer = new ResizeObserver((entries) => {
+      const nextWidth = entries[0]?.contentRect.width;
+      // Height changes also notify ResizeObserver. React only to a real width
+      // change so resetting the textarea height cannot create an observer loop.
+      if (nextWidth === undefined || Math.abs(nextWidth - observedWidth) < 0.5) return;
+      observedWidth = nextWidth;
+      window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(syncHeight, 50);
+    });
     observer.observe(node);
-    return () => observer.disconnect();
+    const appRoot = node.closest(".app-figma");
+    const fontSizeObserver = appRoot
+      ? new MutationObserver((mutations) => {
+          if (mutations.some((mutation) => mutation.attributeName === "data-font-size")) {
+            if (fontSizeFrame !== undefined) window.cancelAnimationFrame(fontSizeFrame);
+            fontSizeFrame = window.requestAnimationFrame(syncHeight);
+          }
+        })
+      : null;
+    fontSizeObserver?.observe(appRoot!, { attributes: true, attributeFilter: ["data-font-size"] });
+
+    return () => {
+      observer.disconnect();
+      fontSizeObserver?.disconnect();
+      window.clearTimeout(resizeTimer);
+      if (fontSizeFrame !== undefined) window.cancelAnimationFrame(fontSizeFrame);
+    };
   }, [props.value, syncHeight, className, minHeight]);
 
   return (
@@ -41,7 +73,7 @@ function AutoSizeTextarea({
       ref={ref}
       rows={1}
       className={className}
-      style={{ ...style, minHeight, overflow: "hidden", resize: "none" }}
+      style={{ ...style, ...(minHeight === undefined ? {} : { minHeight }), overflow: "hidden", resize: "none" }}
       onChange={(event) => {
         onChange?.(event);
         syncHeight();
@@ -52,7 +84,7 @@ function AutoSizeTextarea({
 }
 
 const COLUMN_HEADER_LABELS: Record<string, string> = {
-  duration: "Duration",
+  duration: "Seconds",
   scene: "Visual",
   format: "Format / Script",
   notes: "Remarks",
@@ -113,6 +145,7 @@ function ScriptGridBody({
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const [rowHeights, setRowHeights] = useState<Record<string, number>>({});
   const [argueBusyRowId, setArgueBusyRowId] = useState<string | null>(null);
+  const [activeEditingRowId, setActiveEditingRowId] = useState<string | null>(null);
 
   const communicationSupportRowIds = useMemo(() => {
     const queueItems = project?.communication_support_queue ?? [];
@@ -143,11 +176,47 @@ function ScriptGridBody({
     }
   }
 
-  const columns = [...script.columns].sort((a, b) => a.order - b.order);
-  const rows = [...script.rows].sort((a, b) => a.order - b.order);
+  const columns = useMemo(() => [...script.columns].sort((a, b) => a.order - b.order), [script.columns]);
+  const rows = useMemo(() => [...script.rows].sort((a, b) => a.order - b.order), [script.rows]);
+
+  useEffect(() => {
+    if (isShare || !project?._id) return;
+    try {
+      const saved = window.localStorage.getItem(`${COLUMN_WIDTH_STORAGE_PREFIX}${project._id}`);
+      if (!saved) {
+        setColumnWidths({});
+        return;
+      }
+      const parsed = JSON.parse(saved) as Record<string, unknown>;
+      const restored: Record<string, number> = {};
+      for (const column of columns) {
+        const width = parsed[column.column_id];
+        if (typeof width !== "number" || !Number.isFinite(width) || width < MIN_COLUMN_WIDTH) {
+          setColumnWidths({});
+          return;
+        }
+        restored[column.column_id] = width;
+      }
+      setColumnWidths(restored);
+    } catch {
+      setColumnWidths({});
+    }
+  }, [columns, isShare, project?._id]);
+
+  function clearSavedColumnWidths() {
+    setColumnWidths({});
+    if (!isShare && project?._id) {
+      try {
+        window.localStorage.removeItem(`${COLUMN_WIDTH_STORAGE_PREFIX}${project._id}`);
+      } catch {
+        // The table still resets when browser storage is unavailable.
+      }
+    }
+  }
   const durationAnalysis = useMemo(() => analyzeDurations(script), [script]);
-  const { durationIssueByRowId, linkedNodeByRowId } = useMemo(() => {
+  const { durationIssueByRowId, durationSegmentByRowId, linkedNodeByRowId } = useMemo(() => {
     const durationIssueByRowId = new Map<string, string[]>();
+    const durationSegmentByRowId = new Map(durationAnalysis.timeline.map((segment) => [segment.rowId, segment]));
     const linkedNodeByRowId = new Map<string, Array<{ nodeId: string; title: string }>>();
 
     for (const issue of durationAnalysis.issues) {
@@ -169,7 +238,7 @@ function ScriptGridBody({
       }
     }
 
-    return { durationIssueByRowId, linkedNodeByRowId };
+    return { durationIssueByRowId, durationSegmentByRowId, linkedNodeByRowId };
   }, [durationAnalysis.issues, project?.rationale_nodes]);
   const totalSeconds = Math.max(0, ...durationAnalysis.timeline.map((segment) => segment.end));
   const {
@@ -198,6 +267,7 @@ function ScriptGridBody({
   }, []);
 
   function handleAddColumn(afterColumnId?: string) {
+    clearSavedColumnWidths();
     insertColumnAfter(afterColumnId, "New Column", false);
   }
 
@@ -221,6 +291,7 @@ function ScriptGridBody({
     if (!window.confirm("Delete this column? Cell values in this column will be removed.")) return;
     try {
       deleteColumn(columnId);
+      clearSavedColumnWidths();
       setSelectedColumnId(null);
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "Delete failed");
@@ -240,26 +311,49 @@ function ScriptGridBody({
     event.preventDefault();
     event.stopPropagation();
     const startX = event.clientX;
-    const startWidth = columnWidths[columnId] ?? event.currentTarget.parentElement?.getBoundingClientRect().width ?? MIN_COLUMN_WIDTH;
+    const headerRow = event.currentTarget.closest("tr");
+    const headerCells = Array.from(headerRow?.querySelectorAll<HTMLTableCellElement>("th[data-column-id]") ?? []);
+    const lockedWidths = Object.fromEntries(
+      headerCells.map((header) => [header.dataset.columnId!, header.getBoundingClientRect().width])
+    );
+    const startWidth = lockedWidths[columnId] ?? event.currentTarget.parentElement?.getBoundingClientRect().width ?? MIN_COLUMN_WIDTH;
+
+    // Freeze every current column width before resizing. Otherwise a fixed-layout
+    // 100%-wide table redistributes the delta across neighbouring columns.
+    setColumnWidths(lockedWidths);
+    let latestWidths = lockedWidths;
 
     function handleMove(moveEvent: globalThis.PointerEvent) {
-      setColumnWidths((current) => ({
-        ...current,
+      latestWidths = {
+        ...lockedWidths,
         [columnId]: Math.max(MIN_COLUMN_WIDTH, startWidth + moveEvent.clientX - startX)
-      }));
+      };
+      setColumnWidths(latestWidths);
     }
 
     function handleUp() {
       window.removeEventListener("pointermove", handleMove);
       window.removeEventListener("pointerup", handleUp);
+      window.removeEventListener("pointercancel", handleUp);
       document.body.style.removeProperty("cursor");
       document.body.style.removeProperty("user-select");
+      if (!isShare && project?._id) {
+        try {
+          window.localStorage.setItem(
+            `${COLUMN_WIDTH_STORAGE_PREFIX}${project._id}`,
+            JSON.stringify(latestWidths)
+          );
+        } catch {
+          // Resizing remains functional when browser storage is unavailable.
+        }
+      }
     }
 
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
     window.addEventListener("pointermove", handleMove);
     window.addEventListener("pointerup", handleUp);
+    window.addEventListener("pointercancel", handleUp);
   }
 
   function startRowResize(event: PointerEvent<HTMLElement>, rowId: string) {
@@ -293,6 +387,11 @@ function ScriptGridBody({
     insertRowAfter(rows.at(-1)?.row_id);
   }
 
+  const hasLockedColumnWidths = columns.every((column) => Number.isFinite(columnWidths[column.column_id]));
+  const lockedTableWidth = hasLockedColumnWidths
+    ? 64 + columns.reduce((total, column) => total + columnWidths[column.column_id], 0)
+    : undefined;
+
   return (
     <div className={`editor-wrap${isShare ? " editor-wrap--share" : ""}`}>
       {!isShare ? (
@@ -302,10 +401,10 @@ function ScriptGridBody({
             <div className="script-timeline-track">
               {durationAnalysis.timeline.map((segment, index) => (
                 <span
-                  className={`script-timeline-segment${segment.hasOverlap ? " script-timeline-segment--overlap" : ""}`}
+                  className={`script-timeline-segment${segment.hasOverlap ? " script-timeline-segment--overlap" : ""}${activeEditingRowId === segment.rowId ? " script-timeline-segment--active" : ""}`}
                   key={segment.rowId}
                   style={{ left: `${segment.left}%`, width: `${Math.max(segment.width, 0.8)}%` }}
-                  title={`#${index + 1}: ${segment.start}–${segment.end}s`}
+                  title={`#${index + 1}: ${formatClock(segment.start)}–${formatClock(segment.end)}`}
                 />
               ))}
               {durationAnalysis.overlaps.map((overlap) => (
@@ -331,7 +430,10 @@ function ScriptGridBody({
 
       <div className="script-table-container">
         <div className="script-table-panel app-scrollbar">
-          <table className="editor-data-table">
+          <table
+            className="editor-data-table"
+            style={lockedTableWidth === undefined ? undefined : { minWidth: lockedTableWidth, width: lockedTableWidth }}
+          >
             <thead>
               <tr>
                 <th className="editor-th-num col-num">
@@ -353,6 +455,7 @@ function ScriptGridBody({
                 {columns.map((column, columnIndex) => (
                   <th
                     className={`editor-th-data col-${column.key} ${!isShare && selectedColumnId === column.column_id ? "col-selected" : ""}`}
+                    data-column-id={column.column_id}
                     key={column.column_id}
                     onClick={
                       isShare
@@ -436,6 +539,7 @@ function ScriptGridBody({
                   columnWidths={columnWidths}
                   argueBusy={!isShare && argueBusyRowId === row.row_id}
                   durationIssueMessages={isShare ? undefined : durationIssueByRowId.get(row.row_id)}
+                  durationSegment={durationSegmentByRowId.get(row.row_id)}
                   feedbackArgued={!isShare && communicationSupportRowIds.has(row.row_id)}
                   hunkByCell={hunkByCell}
                   hunkDecisions={hunkDecisions}
@@ -452,6 +556,8 @@ function ScriptGridBody({
                     setMapFocusNodeId(nodeId);
                     setWorkspaceView("map");
                   }}
+                  onCellBlur={() => setActiveEditingRowId((current) => (current === row.row_id ? null : current))}
+                  onCellFocus={() => setActiveEditingRowId(row.row_id)}
                   onResizeRow={(event) => startRowResize(event, row.row_id)}
                   onSelectRow={() => {
                     setSelectedRowId(row.row_id);
@@ -506,6 +612,7 @@ function RowBlock({
   columns,
   columnWidths,
   durationIssueMessages,
+  durationSegment,
   feedbackArgued = false,
   hunkByCell,
   hunkDecisions,
@@ -513,6 +620,8 @@ function RowBlock({
   linkedNodes,
   mode = "creator",
   onAddRow,
+  onCellBlur,
+  onCellFocus,
   onDeleteRow,
   onHunkAccept,
   onHunkReject,
@@ -529,6 +638,7 @@ function RowBlock({
   columns: Script["columns"];
   columnWidths: Record<string, number>;
   durationIssueMessages?: string[];
+  durationSegment?: { start: number; end: number };
   feedbackArgued?: boolean;
   hunkByCell: Map<string, ModificationSchemeHunk>;
   hunkDecisions: Record<string, HunkDecision>;
@@ -536,6 +646,8 @@ function RowBlock({
   linkedNodes?: Array<{ nodeId: string; title: string }>;
   mode?: "creator" | "share";
   onAddRow: () => void;
+  onCellBlur: () => void;
+  onCellFocus: () => void;
   onDeleteRow: () => void;
   onHunkAccept: (hunkId: string) => void;
   onHunkReject: (hunkId: string) => void;
@@ -597,19 +709,25 @@ function RowBlock({
           const showHunkDiff = Boolean(hunk && hunkDecision === null);
           const cellReadOnly = isShare ? !brandFeedback : brandFeedback;
 
-          const cellMinHeight = rowHeight ? Math.max(MIN_ROW_HEIGHT, rowHeight) : MIN_ROW_HEIGHT;
+          const cellMinHeight = rowHeight ? Math.max(MIN_ROW_HEIGHT, rowHeight) : undefined;
+          const isDuration = column.type === "duration";
           const commonProps = {
-            value,
-            onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-              updateCell(row.row_id, column.column_id, event.target.value),
+            value: isDuration ? durationInputValue(value) : value,
+            onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+              const nextValue = event.target.value.replace(",", ".");
+              if (isDuration && nextValue !== "" && !/^\d*(?:\.\d*)?$/.test(nextValue)) return;
+              updateCell(row.row_id, column.column_id, nextValue);
+            },
             placeholder: brandFeedback
               ? isShare
                 ? "Enter your feedback for this scene"
                 : "Filled by brand partner via share link"
-              : column.type === "duration"
-                ? "e.g. 0-5"
+              : isDuration
+                ? "e.g. 5"
                 : "",
             readOnly: cellReadOnly,
+            onBlur: onCellBlur,
+            onFocus: onCellFocus,
             title: brandFeedback
               ? isShare
                 ? "Brand feedback — your comments are saved automatically"
@@ -640,7 +758,15 @@ function RowBlock({
                 />
               ) : column.type === "duration" ? (
                 <div className="editor-duration-wrap">
-                  <input className={`editor-table-input editor-duration-input ${hasDurationIssue ? "is-invalid" : ""}`} {...commonProps} />
+                  <div className="editor-duration-input-row">
+                    <input
+                      aria-label={`Scene ${rowMark} duration in seconds`}
+                      className={`editor-table-input editor-duration-input ${hasDurationIssue ? "is-invalid" : ""}`}
+                      inputMode="decimal"
+                      {...commonProps}
+                    />
+                    <span className="editor-duration-unit">s</span>
+                  </div>
                 </div>
               ) : (
                 <AutoSizeTextarea
@@ -686,8 +812,15 @@ function RowBlock({
 
 function formatClock(seconds: number) {
   const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  const remainingSeconds = seconds - mins * 60;
+  const secs = Number.isInteger(remainingSeconds)
+    ? String(remainingSeconds).padStart(2, "0")
+    : remainingSeconds.toFixed(2).replace(/0+$/, "").padStart(4, "0");
+  return `${String(mins).padStart(2, "0")}:${secs}`;
+}
+
+function formatSeconds(seconds: number) {
+  return Number.isInteger(seconds) ? String(seconds) : seconds.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
 }
 
 function IconAddScene() {

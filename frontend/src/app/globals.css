@@ -20,6 +20,10 @@
   --danger: #f87171;
   --danger-dim: rgba(248,113,113,0.12);
   --agents-col-width: 360px;
+  --app-font-size-delta: 0px;
+  --script-cell-min-height: 38px;
+  --script-compact-line-height: 16px;
+  --script-duration-range-line-height: 12px;
 }
 
 *, *::before, *::after {
@@ -37,7 +41,7 @@ body {
   background: var(--bg);
   color: var(--text-primary);
   font-family: Arial, "Microsoft YaHei", sans-serif;
-  font-size: 13px;
+  font-size: calc(13px + var(--app-font-size-delta));
   overflow: hidden;
 }
 
@@ -68,7 +72,7 @@ textarea {
 .formError {
   color: #ba1a1a;
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   line-height: 20px;
 }
 
@@ -78,7 +82,7 @@ textarea {
   background: #ffdad6;
   color: #93000a;
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   line-height: 20px;
 }
 
@@ -112,6 +116,20 @@ textarea {
   --editor-muted-border: var(--figma-muted-border);
   --scrollbar-thumb: var(--editor-border);
   --scrollbar-track: transparent;
+}
+
+.app-figma[data-font-size="small"] {
+  --app-font-size-delta: -1px;
+  --script-cell-min-height: 36px;
+  --script-compact-line-height: 15px;
+  --script-duration-range-line-height: 11px;
+}
+
+.app-figma[data-font-size="large"] {
+  --app-font-size-delta: 2px;
+  --script-cell-min-height: 44px;
+  --script-compact-line-height: 20px;
+  --script-duration-range-line-height: 16px;
 }
 
 .persona-overlay,
@@ -221,7 +239,7 @@ textarea {
   background: var(--figma-bg);
   color: var(--figma-text);
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 16px;
+  font-size: calc(16px + var(--app-font-size-delta));
   line-height: 24px;
 }
 
@@ -247,14 +265,14 @@ textarea {
 .hub-brand-mark {
   color: var(--figma-primary);
   font-family: "Hanken Grotesk", Arial, "Microsoft YaHei", sans-serif;
-  font-size: 32px;
+  font-size: calc(32px + var(--app-font-size-delta));
   font-weight: 700;
   letter-spacing: -0.01em;
   line-height: 40px;
 }
 
 .hub-brand-mark--compact {
-  font-size: 20px;
+  font-size: calc(20px + var(--app-font-size-delta));
   line-height: 28px;
 }
 
@@ -273,7 +291,7 @@ textarea {
 .hub-eyebrow {
   color: var(--figma-primary);
   font-family: "JetBrains Mono", ui-monospace, monospace;
-  font-size: 13px;
+  font-size: calc(13px + var(--app-font-size-delta));
   font-weight: 500;
   letter-spacing: 0.05em;
   line-height: 16px;
@@ -283,20 +301,20 @@ textarea {
 .hub-headline {
   color: var(--figma-text);
   font-family: "Hanken Grotesk", Arial, "Microsoft YaHei", sans-serif;
-  font-size: 32px;
+  font-size: calc(32px + var(--app-font-size-delta));
   font-weight: 600;
   letter-spacing: -0.01em;
   line-height: 40px;
 }
 
 .hub-headline-sm {
-  font-size: 24px;
+  font-size: calc(24px + var(--app-font-size-delta));
   line-height: 32px;
 }
 
 .hub-lead {
   color: var(--figma-text-secondary);
-  font-size: 16px;
+  font-size: calc(16px + var(--app-font-size-delta));
   line-height: 24px;
 }
 
@@ -312,7 +330,7 @@ textarea {
 
 .hub-label {
   color: var(--figma-text-secondary);
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   font-weight: 500;
   line-height: 20px;
 }
@@ -325,7 +343,7 @@ textarea {
   background: var(--figma-input-bg);
   color: var(--figma-text);
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 16px;
+  font-size: calc(16px + var(--app-font-size-delta));
   line-height: 24px;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -401,14 +419,14 @@ textarea {
 
 .hub-project-card-title {
   font-family: "Hanken Grotesk", Arial, "Microsoft YaHei", sans-serif;
-  font-size: 18px;
+  font-size: calc(18px + var(--app-font-size-delta));
   font-weight: 600;
   line-height: 28px;
 }
 
 .hub-project-card-meta {
   color: var(--figma-text-secondary);
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   line-height: 20px;
 }
 
@@ -418,7 +436,7 @@ textarea {
   border-radius: 9999px;
   background: var(--figma-header-bg);
   color: var(--figma-primary);
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   font-weight: 600;
   line-height: 16px;
   text-transform: capitalize;
@@ -458,7 +476,7 @@ textarea {
   border-radius: 1rem;
   background: rgba(255, 255, 255, 0.45);
   color: var(--figma-text-secondary);
-  font-size: 16px;
+  font-size: calc(16px + var(--app-font-size-delta));
   line-height: 24px;
   text-align: center;
 }
@@ -544,20 +562,20 @@ textarea {
 .hub-category-label {
   color: var(--figma-text);
   font-family: "Hanken Grotesk", Arial, "Microsoft YaHei", sans-serif;
-  font-size: 16px;
+  font-size: calc(16px + var(--app-font-size-delta));
   font-weight: 600;
   line-height: 24px;
 }
 
 .hub-category-description {
   color: var(--figma-text-secondary);
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   line-height: 20px;
 }
 
 .hub-loading {
   color: var(--figma-text-secondary);
-  font-size: 16px;
+  font-size: calc(16px + var(--app-font-size-delta));
   line-height: 24px;
 }
 
@@ -598,7 +616,7 @@ textarea {
   border-radius: 10px;
   background: rgba(0, 101, 145, 0.08);
   color: var(--figma-primary);
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   line-height: 20px;
 }
 
@@ -636,7 +654,7 @@ textarea {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.7);
   color: var(--figma-text-secondary);
-  font-size: 13px;
+  font-size: calc(13px + var(--app-font-size-delta));
   font-weight: 700;
   white-space: nowrap;
 }
@@ -700,7 +718,7 @@ textarea {
 .setup-card-header h2 {
   margin: 0 0 6px;
   color: var(--figma-text);
-  font-size: 20px;
+  font-size: calc(20px + var(--app-font-size-delta));
   line-height: 28px;
 }
 
@@ -709,7 +727,7 @@ textarea {
 .setup-empty {
   margin: 0;
   color: var(--figma-text-secondary);
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   line-height: 20px;
 }
 
@@ -721,7 +739,7 @@ textarea {
   border-radius: 999px;
   background: var(--figma-primary);
   color: #fff;
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   font-weight: 800;
 }
 
@@ -745,7 +763,7 @@ textarea {
 
 .setup-stats dt {
   color: var(--figma-text-secondary);
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   font-weight: 800;
   line-height: 16px;
   text-transform: uppercase;
@@ -754,7 +772,7 @@ textarea {
 .setup-stats dd {
   overflow: hidden;
   color: var(--figma-text);
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   font-weight: 700;
   line-height: 20px;
   text-overflow: ellipsis;
@@ -783,7 +801,7 @@ textarea {
 .setup-item-group-title {
   margin: 0;
   color: var(--figma-text-secondary);
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   font-weight: 800;
   line-height: 16px;
   letter-spacing: 0.04em;
@@ -819,14 +837,14 @@ textarea {
 .setup-item strong,
 .setup-persona-list strong {
   color: var(--figma-text);
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   line-height: 20px;
 }
 
 .setup-item p {
   margin: 0;
   color: var(--figma-text);
-  font-size: 13px;
+  font-size: calc(13px + var(--app-font-size-delta));
   line-height: 20px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -834,7 +852,7 @@ textarea {
 
 .setup-item-reason {
   color: var(--figma-text-secondary) !important;
-  font-size: 12px !important;
+  font-size: calc(12px + var(--app-font-size-delta)) !important;
   line-height: 18px !important;
 }
 
@@ -844,7 +862,7 @@ textarea {
   border-radius: 999px;
   background: rgba(19, 27, 46, 0.06);
   color: var(--figma-text-secondary);
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   font-weight: 700;
   line-height: 16px;
   text-transform: capitalize;
@@ -867,7 +885,7 @@ textarea {
 
 .setup-persona-list span {
   color: var(--figma-text-secondary);
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   line-height: 18px;
   white-space: normal;
   overflow-wrap: anywhere;
@@ -895,7 +913,7 @@ textarea {
   display: block;
   margin-bottom: 4px;
   color: var(--figma-text);
-  font-size: 16px;
+  font-size: calc(16px + var(--app-font-size-delta));
   line-height: 24px;
 }
 
@@ -906,7 +924,7 @@ textarea {
   }
 
   .hub-headline {
-    font-size: 24px;
+    font-size: calc(24px + var(--app-font-size-delta));
     line-height: 32px;
   }
 
@@ -990,7 +1008,7 @@ textarea {
 .figma-brand-logo {
   color: var(--figma-primary);
   font-family: "Hanken Grotesk", Arial, "Microsoft YaHei", sans-serif;
-  font-size: 20px;
+  font-size: calc(20px + var(--app-font-size-delta));
   font-weight: 900;
   letter-spacing: -1px;
   line-height: 28px;
@@ -1016,7 +1034,7 @@ textarea {
   background: transparent;
   color: var(--figma-text-secondary);
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   font-weight: 600;
   line-height: 16px;
   white-space: nowrap;
@@ -1048,7 +1066,7 @@ textarea {
   background: transparent;
   color: var(--figma-text-secondary);
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   font-weight: 500;
   line-height: 20px;
   white-space: nowrap;
@@ -1125,7 +1143,7 @@ textarea {
   z-index: 30;
   display: flex;
   flex-direction: column;
-  min-width: 168px;
+  min-width: 216px;
   padding: 4px;
   border: 1px solid var(--figma-border);
   border-radius: 8px;
@@ -1141,7 +1159,7 @@ textarea {
   background: transparent;
   color: var(--figma-text);
   font-family: Inter, Arial, sans-serif;
-  font-size: 13px;
+  font-size: calc(13px + var(--app-font-size-delta));
   font-weight: 500;
   line-height: 16px;
   text-align: left;
@@ -1170,7 +1188,7 @@ textarea {
 .figma-settings-menu-label {
   color: var(--figma-text-secondary);
   font-family: Inter, Arial, sans-serif;
-  font-size: 10px;
+  font-size: calc(10px + var(--app-font-size-delta));
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1216,7 +1234,7 @@ textarea {
 .figma-mode-option-title {
   color: var(--figma-text);
   font-family: Inter, Arial, sans-serif;
-  font-size: 13px;
+  font-size: calc(13px + var(--app-font-size-delta));
   font-weight: 600;
   line-height: 16px;
 }
@@ -1224,7 +1242,7 @@ textarea {
 .figma-mode-option-desc {
   color: var(--figma-text-secondary);
   font-family: Inter, Arial, sans-serif;
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   line-height: 14px;
 }
 
@@ -1234,12 +1252,45 @@ textarea {
   background: var(--figma-border);
 }
 
+.figma-font-size-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--figma-border);
+  border-radius: 6px;
+}
+
+.figma-font-size-option {
+  min-width: 0;
+  padding: 7px 5px;
+  border: none;
+  border-right: 1px solid var(--figma-border);
+  background: transparent;
+  color: var(--figma-text-secondary);
+  font-family: Inter, Arial, sans-serif;
+  font-size: calc(11px + var(--app-font-size-delta));
+  font-weight: 600;
+}
+
+.figma-font-size-option:last-child {
+  border-right: none;
+}
+
+.figma-font-size-option:hover {
+  background: rgba(0, 101, 145, 0.06);
+}
+
+.figma-font-size-option.active {
+  background: rgba(0, 101, 145, 0.12);
+  color: var(--figma-primary);
+}
+
 .figma-brief-tag {
   max-width: 120px;
   overflow: hidden;
   color: var(--figma-text-secondary);
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1253,7 +1304,7 @@ textarea {
   padding: 4px 10px;
   border-radius: 20px;
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 10px;
+  font-size: calc(10px + var(--app-font-size-delta));
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -1291,7 +1342,7 @@ textarea {
 .figma-avatar-fallback {
   color: var(--figma-primary);
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 13px;
+  font-size: calc(13px + var(--app-font-size-delta));
   font-weight: 700;
 }
 
@@ -1340,7 +1391,7 @@ textarea {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.96);
   color: var(--glacier-primary, #006591);
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   font-weight: 700;
   cursor: pointer;
   transform: translateX(-50%);
@@ -1375,7 +1426,7 @@ textarea {
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid var(--figma-border);
   color: var(--figma-text-secondary);
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   transform: translateX(-50%);
   pointer-events: none;
 }
@@ -1437,7 +1488,7 @@ textarea {
   border-radius: 999px;
   background: #b42318;
   color: #fff;
-  font-size: 9px;
+  font-size: calc(9px + var(--app-font-size-delta));
   font-weight: 700;
   line-height: 14px;
 }
@@ -1529,7 +1580,7 @@ textarea {
   display: block;
   margin-top: 2px;
   color: var(--figma-text-secondary);
-  font-size: 9px;
+  font-size: calc(9px + var(--app-font-size-delta));
   font-style: normal;
   font-weight: 500;
   letter-spacing: 0.02em;
@@ -1546,7 +1597,7 @@ textarea {
   pointer-events: none;
   text-align: center;
   color: var(--figma-text-secondary);
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   line-height: 1.5;
 }
 
@@ -1559,7 +1610,7 @@ textarea {
 
 .map-node-label {
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 10px;
+  font-size: calc(10px + var(--app-font-size-delta));
   font-weight: 700;
   letter-spacing: 1px;
   line-height: 15px;
@@ -1592,7 +1643,7 @@ textarea {
   background: rgba(224, 242, 254, 0.95);
   color: #0369a1;
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 9px;
+  font-size: calc(9px + var(--app-font-size-delta));
   font-style: normal;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -1605,7 +1656,7 @@ textarea {
   padding: 2px 6px;
   border-radius: 4px;
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 9px;
+  font-size: calc(9px + var(--app-font-size-delta));
   font-weight: 700;
   letter-spacing: 0.04em;
   line-height: 1.2;
@@ -1653,7 +1704,7 @@ textarea {
   padding: 1px 5px;
   border-radius: 4px;
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 10px;
+  font-size: calc(10px + var(--app-font-size-delta));
   font-weight: 700;
   letter-spacing: 0.02em;
   line-height: 1.2;
@@ -1736,14 +1787,14 @@ textarea {
 }
 
 .map-node-title-input {
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   font-weight: 600;
   line-height: 20px;
 }
 
 .map-node-content-input {
   min-height: 60px;
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   line-height: 19.5px;
   color: var(--figma-text-secondary);
 }
@@ -1776,7 +1827,7 @@ textarea {
   background: transparent;
   color: var(--figma-text-secondary);
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   font-weight: 500;
   line-height: 16px;
   text-align: left;
@@ -1798,7 +1849,7 @@ textarea {
 
 .map-node-title {
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   font-weight: 600;
   line-height: 20px;
   color: var(--figma-text);
@@ -1806,7 +1857,7 @@ textarea {
 
 .map-node-content {
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   line-height: 19.5px;
   color: var(--figma-text-secondary);
 }
@@ -1818,7 +1869,7 @@ textarea {
   padding-top: 4px;
   color: #006591;
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 10px;
+  font-size: calc(10px + var(--app-font-size-delta));
   font-weight: 500;
   line-height: 15px;
 }
@@ -1837,7 +1888,7 @@ textarea {
 
 .map-node-ref code {
   font-family: "JetBrains Mono", Consolas, monospace;
-  font-size: 10px;
+  font-size: calc(10px + var(--app-font-size-delta));
   font-weight: 500;
   line-height: 15px;
   color: #006591;
@@ -1888,7 +1939,7 @@ textarea {
   margin-bottom: 16px;
   border-bottom: 1px solid rgba(0, 101, 145, 0.1);
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   font-weight: 700;
   letter-spacing: -0.35px;
   line-height: 20px;
@@ -1907,7 +1958,7 @@ textarea {
   align-items: center;
   gap: 12px;
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   font-weight: 500;
   line-height: 16px;
   color: var(--figma-text-secondary);
@@ -1977,7 +2028,7 @@ textarea {
   border-bottom: 1px solid rgba(0, 101, 145, 0.1);
   margin-bottom: 4px;
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -1995,7 +2046,7 @@ textarea {
   background: transparent;
   color: var(--figma-text);
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 13px;
+  font-size: calc(13px + var(--app-font-size-delta));
   font-weight: 500;
   line-height: 18px;
   text-align: left;
@@ -2052,7 +2103,7 @@ textarea {
   border-bottom: 1px solid rgba(0, 101, 145, 0.1);
   margin-bottom: 4px;
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -2070,7 +2121,7 @@ textarea {
   background: transparent;
   color: var(--figma-text);
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 13px;
+  font-size: calc(13px + var(--app-font-size-delta));
   font-weight: 500;
   line-height: 18px;
   text-align: left;
@@ -2093,7 +2144,7 @@ textarea {
 .map-legend-hint {
   padding: 8px 10px 4px;
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   line-height: 16px;
   color: var(--figma-text-secondary);
 }
@@ -2208,7 +2259,7 @@ textarea {
 .glacier-title {
   color: var(--glacier-text);
   font-family: "Hanken Grotesk", Arial, "Microsoft YaHei", sans-serif;
-  font-size: 16px;
+  font-size: calc(16px + var(--app-font-size-delta));
   font-weight: 700;
   line-height: 24px;
 }
@@ -2256,7 +2307,7 @@ textarea {
   background: transparent;
   color: var(--glacier-text-secondary);
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   font-weight: 700;
   line-height: 16px;
   cursor: pointer;
@@ -2307,7 +2358,7 @@ textarea {
   height: 32px;
   border-radius: 9999px;
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   font-weight: 700;
 }
 
@@ -2331,7 +2382,7 @@ textarea {
   max-width: calc(100% - 44px);
   padding: 12px 13px;
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   line-height: 20px;
   white-space: pre-wrap;
 }
@@ -2387,7 +2438,7 @@ textarea {
   margin: 0;
   color: var(--glacier-text);
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   font-weight: 700;
   line-height: 20px;
 }
@@ -2403,7 +2454,7 @@ textarea {
   background: var(--glacier-primary);
   color: #fff;
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 10px;
+  font-size: calc(10px + var(--app-font-size-delta));
   font-weight: 700;
   letter-spacing: 0.5px;
   line-height: 15px;
@@ -2413,7 +2464,7 @@ textarea {
   margin: 0;
   color: var(--glacier-text-secondary);
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   line-height: 19.5px;
 }
 
@@ -2425,7 +2476,7 @@ textarea {
   background: transparent;
   color: var(--glacier-text-secondary);
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   font-weight: 700;
   line-height: 16px;
   cursor: pointer;
@@ -2457,7 +2508,7 @@ textarea {
   padding: 9px 8px;
   border-radius: 8px;
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   font-weight: 700;
   line-height: 16px;
   cursor: pointer;
@@ -2484,7 +2535,7 @@ textarea {
   background: transparent;
   color: var(--glacier-text-secondary);
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   font-weight: 700;
   line-height: 16px;
   cursor: pointer;
@@ -2509,7 +2560,7 @@ textarea {
   background: rgba(0, 101, 145, 0.1);
   color: var(--glacier-primary);
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   line-height: 1.45;
 }
 
@@ -2563,7 +2614,7 @@ textarea {
   background: #fff;
   color: var(--glacier-text);
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   line-height: 20px;
   resize: none;
 }
@@ -2669,7 +2720,7 @@ textarea {
 .figma-drawer-title {
   color: var(--figma-text);
   font-family: "Hanken Grotesk", Arial, "Microsoft YaHei", sans-serif;
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   font-weight: 700;
 }
 
@@ -2680,7 +2731,7 @@ textarea {
   border-radius: 6px;
   background: transparent;
   color: var(--figma-text-secondary);
-  font-size: 18px;
+  font-size: calc(18px + var(--app-font-size-delta));
   line-height: 1;
 }
 
@@ -2730,14 +2781,14 @@ textarea {
 
 .share-page-eyebrow {
   color: var(--editor-text-secondary, #666);
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   letter-spacing: 0.04em;
   margin: 0;
   text-transform: uppercase;
 }
 
 .share-page-title {
-  font-size: 24px;
+  font-size: calc(24px + var(--app-font-size-delta));
   font-weight: 600;
   line-height: 1.2;
   margin: 0;
@@ -2745,7 +2796,7 @@ textarea {
 
 .share-page-hint {
   color: var(--editor-text-secondary, #666);
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   line-height: 1.5;
   margin: 0;
 }
@@ -2790,7 +2841,7 @@ textarea {
 .editor-page-subtitle {
   color: var(--editor-text-secondary);
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   line-height: 20px;
 }
 
@@ -2820,7 +2871,7 @@ textarea {
 .logo {
   font-family: Georgia, "Times New Roman", serif;
   font-style: italic;
-  font-size: 18px;
+  font-size: calc(18px + var(--app-font-size-delta));
   color: var(--accent);
   letter-spacing: -0.5px;
   margin-right: 2px;
@@ -2843,7 +2894,7 @@ textarea {
   background: rgba(255,255,255,0.03);
   color: var(--text-secondary);
   font-family: "Courier New", monospace;
-  font-size: 13px;
+  font-size: calc(13px + var(--app-font-size-delta));
 }
 
 .topbar-project-input:focus {
@@ -2856,7 +2907,7 @@ textarea {
   max-width: 120px;
   overflow: hidden;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: calc(10px + var(--app-font-size-delta));
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2875,7 +2926,7 @@ textarea {
   border-radius: 6px;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   font-weight: 700;
   letter-spacing: 0.05em;
   white-space: nowrap;
@@ -2902,7 +2953,7 @@ textarea {
   gap: 5px;
   padding: 3px 10px;
   border-radius: 20px;
-  font-size: 10px;
+  font-size: calc(10px + var(--app-font-size-delta));
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2964,7 +3015,7 @@ textarea {
   flex-shrink: 0;
   color: var(--editor-text);
   font-family: "Hanken Grotesk", Arial, "Microsoft YaHei", sans-serif;
-  font-size: 36px;
+  font-size: calc(36px + var(--app-font-size-delta));
   font-weight: 700;
   letter-spacing: -0.9px;
   line-height: 40px;
@@ -2998,7 +3049,7 @@ textarea {
 
 .editor-toolbar-label {
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: calc(10px + var(--app-font-size-delta));
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -3017,7 +3068,7 @@ textarea {
   border-radius: 4px;
   background: transparent;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   font-weight: 700;
   transition: all 0.15s;
 }
@@ -3057,7 +3108,7 @@ textarea {
   flex-shrink: 0;
   color: var(--editor-text-secondary);
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 10px;
+  font-size: calc(10px + var(--app-font-size-delta));
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -3080,7 +3131,6 @@ textarea {
   min-width: 2px;
   box-sizing: border-box;
   border: 1px solid rgba(0, 101, 145, 0.55);
-  border-radius: 2px;
   background: rgba(0, 101, 145, 0.18);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
 }
@@ -3105,6 +3155,14 @@ textarea {
   background: rgba(0, 101, 145, 0.28);
 }
 
+.script-timeline-segment--active,
+.script-timeline-segment--active:hover {
+  z-index: 1;
+  border-color: var(--editor-primary);
+  background: var(--editor-primary);
+  box-shadow: 0 0 0 2px rgba(0, 101, 145, 0.2);
+}
+
 .script-timeline-segment--overlap:hover {
   border-color: rgba(220, 38, 38, 0.85);
   background: rgba(248, 113, 113, 0.32);
@@ -3127,7 +3185,7 @@ textarea {
   min-width: 44px;
   color: var(--editor-text-secondary);
   font-family: "Courier New", monospace;
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   text-align: right;
 }
 
@@ -3140,7 +3198,7 @@ textarea {
   background: rgba(248, 113, 113, 0.08);
   color: #b91c1c;
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   line-height: 1.45;
 }
 
@@ -3186,7 +3244,7 @@ textarea {
   background: transparent;
   color: var(--editor-text-secondary);
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   font-weight: 700;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
@@ -3220,7 +3278,7 @@ textarea {
   box-shadow: inset 0 -1px 0 var(--editor-border);
   color: var(--editor-text-secondary);
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 10px;
+  font-size: calc(10px + var(--app-font-size-delta));
   font-weight: 900;
   letter-spacing: 0.1em;
   line-height: normal;
@@ -3283,9 +3341,13 @@ textarea {
   z-index: 30;
 }
 
-.editor-th-data:hover,
-.editor-th-data.col-selected {
+.editor-th-data:hover {
   background: rgba(0, 101, 145, 0.08);
+  color: var(--editor-text);
+}
+
+.editor-th-data.col-selected {
+  background: #dcecf3;
   color: var(--editor-text);
 }
 
@@ -3328,7 +3390,7 @@ textarea {
   position: absolute;
   top: 0;
   right: -3px;
-  z-index: 45;
+  z-index: 60;
   width: 6px;
   height: 100%;
   cursor: col-resize;
@@ -3363,7 +3425,7 @@ textarea {
   border-radius: 4px;
   background: rgba(239, 68, 68, 0.08);
   color: var(--danger);
-  font-size: 9px;
+  font-size: calc(9px + var(--app-font-size-delta));
   font-weight: 800;
 }
 
@@ -3409,9 +3471,9 @@ textarea {
   background: transparent;
   color: var(--editor-text-secondary);
   font-family: "Courier New", monospace;
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   font-weight: 700;
-  line-height: 16px;
+  line-height: var(--script-compact-line-height);
 }
 
 .row-has-duration-issue .editor-row-num-btn {
@@ -3476,6 +3538,8 @@ button.editor-row-link-mark:focus-visible {
 
 .editor-duration-wrap {
   display: flex;
+  flex-direction: column;
+  gap: 2px;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
@@ -3483,6 +3547,30 @@ button.editor-row-link-mark:focus-visible {
   border: 1px solid var(--editor-border);
   border-radius: 4px;
   background: var(--editor-header-bg);
+}
+
+.editor-duration-input-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.editor-duration-unit {
+  flex: 0 0 auto;
+  color: var(--editor-text-secondary);
+  font-family: "Courier New", monospace;
+  font-size: calc(11px + var(--app-font-size-delta));
+  font-weight: 700;
+}
+
+.editor-duration-range {
+  overflow: hidden;
+  color: var(--editor-text-secondary);
+  font-family: "Courier New", monospace;
+  font-size: calc(10px + var(--app-font-size-delta));
+  line-height: var(--script-duration-range-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .editor-table-input,
@@ -3494,7 +3582,7 @@ button.editor-row-link-mark:focus-visible {
   background: transparent;
   color: var(--editor-text);
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   line-height: 1.625;
 }
 
@@ -3505,19 +3593,19 @@ button.editor-row-link-mark:focus-visible {
   padding: 0;
   color: var(--editor-primary);
   font-family: "Courier New", monospace;
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   font-weight: 700;
-  line-height: 16px;
+  line-height: var(--script-compact-line-height);
 }
 
 .editor-table-input {
-  min-height: 38px;
+  min-height: var(--script-cell-min-height);
   padding: 0;
 }
 
 .editor-table-cell {
   box-sizing: border-box;
-  min-height: 38px;
+  min-height: var(--script-cell-min-height);
   padding: 0;
   overflow: hidden;
   resize: none;
@@ -3529,10 +3617,10 @@ button.editor-row-link-mark:focus-visible {
 .editor-table-cell.cell-notes,
 .editor-table-input.cell-notes {
   color: var(--editor-text-secondary);
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   font-style: italic;
   font-weight: 500;
-  line-height: 16px;
+  line-height: var(--script-compact-line-height);
 }
 
 .editor-table-input:focus,
@@ -3633,7 +3721,7 @@ button.editor-row-link-mark:focus-visible {
   border-radius: 4px;
   background: rgba(19, 27, 46, 0.92);
   color: #fff;
-  font-size: 10px;
+  font-size: calc(10px + var(--app-font-size-delta));
   font-weight: 700;
   opacity: 0;
   pointer-events: none;
@@ -3671,7 +3759,7 @@ button.editor-row-link-mark:focus-visible {
   border-radius: 5px;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   font-weight: 800;
   white-space: nowrap;
 }
@@ -3783,7 +3871,7 @@ button.editor-row-link-mark:focus-visible {
 
 .panel-name {
   flex: 1;
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   font-weight: 800;
   letter-spacing: 0.06em;
   text-align: left;
@@ -3805,7 +3893,7 @@ button.editor-row-link-mark:focus-visible {
 .panel-badge {
   padding: 2px 7px;
   border-radius: 20px;
-  font-size: 9px;
+  font-size: calc(9px + var(--app-font-size-delta));
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -3863,7 +3951,7 @@ button.editor-row-link-mark:focus-visible {
   border-bottom: 2px solid transparent;
   background: transparent;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: calc(10px + var(--app-font-size-delta));
   font-weight: 800;
   letter-spacing: 0.06em;
   text-align: center;
@@ -3888,7 +3976,7 @@ button.editor-row-link-mark:focus-visible {
   padding: 7px 12px;
   border-bottom: 1px solid var(--border);
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   line-height: 1.5;
 }
 
@@ -3901,7 +3989,7 @@ button.editor-row-link-mark:focus-visible {
   padding: 0;
   border-bottom: 1px solid var(--border);
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   line-height: 1.6;
 }
 
@@ -3928,7 +4016,7 @@ button.editor-row-link-mark:focus-visible {
 .pinned-item-mark {
   flex-shrink: 0;
   margin-top: 3px;
-  font-size: 10px;
+  font-size: calc(10px + var(--app-font-size-delta));
   font-weight: 800;
 }
 
@@ -3948,7 +4036,7 @@ button.editor-row-link-mark:focus-visible {
 .pinned-empty {
   padding: 12px;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
 }
 
 .insight-chip {
@@ -3957,7 +4045,7 @@ button.editor-row-link-mark:focus-visible {
   border-radius: 20px;
   background: rgba(138,138,148,0.1);
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: calc(9px + var(--app-font-size-delta));
   font-weight: 800;
 }
 
@@ -3993,7 +4081,7 @@ button.editor-row-link-mark:focus-visible {
   display: grid;
   gap: 4px;
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: calc(9px + var(--app-font-size-delta));
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -4008,7 +4096,7 @@ button.editor-row-link-mark:focus-visible {
   border-radius: 5px;
   background: var(--surface2);
   color: var(--text-primary);
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
 }
 
 .insight-details input,
@@ -4041,7 +4129,7 @@ button.editor-row-link-mark:focus-visible {
   border-left: 2px solid var(--brand-blue);
   background: var(--brand-blue-dim);
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   line-height: 1.45;
 }
 
@@ -4056,7 +4144,7 @@ button.editor-row-link-mark:focus-visible {
   border-radius: 4px;
   background: var(--danger-dim);
   color: var(--danger);
-  font-size: 10px;
+  font-size: calc(10px + var(--app-font-size-delta));
   font-weight: 800;
 }
 
@@ -4077,7 +4165,7 @@ button.editor-row-link-mark:focus-visible {
   border-radius: 4px;
   background: transparent;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: calc(10px + var(--app-font-size-delta));
   font-weight: 700;
 }
 
@@ -4100,7 +4188,7 @@ button.editor-row-link-mark:focus-visible {
 .persona-label {
   margin-right: 2px;
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: calc(9px + var(--app-font-size-delta));
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -4112,7 +4200,7 @@ button.editor-row-link-mark:focus-visible {
   border-radius: 20px;
   background: transparent;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: calc(10px + var(--app-font-size-delta));
   font-weight: 700;
 }
 
@@ -4125,13 +4213,13 @@ button.editor-row-link-mark:focus-visible {
 .chip.add-chip {
   padding: 0 8px;
   border-style: dashed;
-  font-size: 16px;
+  font-size: calc(16px + var(--app-font-size-delta));
   line-height: 1.8;
 }
 
 .persona-empty-chip {
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: calc(10px + var(--app-font-size-delta));
   font-weight: 700;
 }
 
@@ -4207,7 +4295,7 @@ button.editor-row-link-mark:focus-visible {
 .persona-panel-title {
   color: var(--figma-text);
   font-family: "Hanken Grotesk", Arial, "Microsoft YaHei", sans-serif;
-  font-size: 30px;
+  font-size: calc(30px + var(--app-font-size-delta));
   font-weight: 700;
   letter-spacing: -0.75px;
   line-height: 36px;
@@ -4215,7 +4303,7 @@ button.editor-row-link-mark:focus-visible {
 
 .persona-panel-subtitle {
   color: var(--figma-text-secondary);
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   line-height: 20px;
 }
 
@@ -4230,7 +4318,7 @@ button.editor-row-link-mark:focus-visible {
   background: var(--figma-primary);
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
   color: #fff;
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   font-weight: 600;
   white-space: nowrap;
 }
@@ -4274,7 +4362,7 @@ button.editor-row-link-mark:focus-visible {
 .persona-sidebar-label {
   padding: 0 8px;
   color: var(--figma-text-secondary);
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   font-weight: 700;
   letter-spacing: 1.2px;
   text-transform: uppercase;
@@ -4331,7 +4419,7 @@ button.editor-row-link-mark:focus-visible {
   height: 40px;
   border-radius: 999px;
   background: var(--figma-primary-dim);
-  font-size: 18px;
+  font-size: calc(18px + var(--app-font-size-delta));
   line-height: 1;
 }
 
@@ -4347,7 +4435,7 @@ button.editor-row-link-mark:focus-visible {
 
 .persona-card-name {
   color: var(--figma-text);
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   font-weight: 700;
   line-height: 20px;
 }
@@ -4355,7 +4443,7 @@ button.editor-row-link-mark:focus-visible {
 .persona-card-meta {
   overflow: hidden;
   color: var(--figma-text-secondary);
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   line-height: 16px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -4428,7 +4516,7 @@ button.editor-row-link-mark:focus-visible {
   border: 1px dashed rgba(110, 120, 129, 0.25);
   border-radius: 16px;
   color: var(--figma-text-secondary);
-  font-size: 13px;
+  font-size: calc(13px + var(--app-font-size-delta));
   line-height: 1.5;
 }
 
@@ -4458,7 +4546,7 @@ button.editor-row-link-mark:focus-visible {
 
 .persona-editor-header h2 {
   color: var(--figma-text);
-  font-size: 18px;
+  font-size: calc(18px + var(--app-font-size-delta));
   font-weight: 700;
   line-height: 28px;
 }
@@ -4481,7 +4569,7 @@ button.editor-row-link-mark:focus-visible {
 .persona-field > span {
   padding-left: 4px;
   color: var(--figma-text-secondary);
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -4496,7 +4584,7 @@ button.editor-row-link-mark:focus-visible {
   border-radius: 0;
   background: #fff;
   color: var(--figma-text);
-  font-size: 16px;
+  font-size: calc(16px + var(--app-font-size-delta));
 }
 
 .persona-field input,
@@ -4528,7 +4616,7 @@ button.editor-row-link-mark:focus-visible {
 
 .persona-kv-key {
   color: var(--figma-text-secondary);
-  font-size: 13px;
+  font-size: calc(13px + var(--app-font-size-delta));
   font-weight: 600;
   line-height: 1.4;
   word-break: break-word;
@@ -4536,7 +4624,7 @@ button.editor-row-link-mark:focus-visible {
 
 .persona-kv-sep {
   color: var(--figma-text-secondary);
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   font-weight: 700;
   text-align: center;
 }
@@ -4549,14 +4637,14 @@ button.editor-row-link-mark:focus-visible {
   border: 1px solid rgba(110, 120, 129, 0.18);
   background: #fff;
   color: var(--figma-text);
-  font-size: 15px;
+  font-size: calc(15px + var(--app-font-size-delta));
 }
 
 .persona-kv-empty {
   padding: 12px;
   border: 1px dashed rgba(110, 120, 129, 0.25);
   color: var(--figma-text-secondary);
-  font-size: 13px;
+  font-size: calc(13px + var(--app-font-size-delta));
 }
 
 .persona-demographics {
@@ -4580,7 +4668,7 @@ button.editor-row-link-mark:focus-visible {
   border-radius: 10px;
   background: transparent;
   color: var(--figma-text);
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   font-weight: 600;
 }
 
@@ -4604,7 +4692,7 @@ button.editor-row-link-mark:focus-visible {
 .persona-apply-btn {
   border: 0;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   font-weight: 600;
 }
 
@@ -4637,7 +4725,7 @@ button.editor-row-link-mark:focus-visible {
   border-radius: 12px;
   background: transparent;
   color: var(--figma-text);
-  font-size: 16px;
+  font-size: calc(16px + var(--app-font-size-delta));
 }
 
 .persona-apply-btn {
@@ -4646,7 +4734,7 @@ button.editor-row-link-mark:focus-visible {
   background: var(--figma-primary);
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
   color: #fff;
-  font-size: 16px;
+  font-size: calc(16px + var(--app-font-size-delta));
   font-weight: 700;
 }
 
@@ -4706,7 +4794,7 @@ button.editor-row-link-mark:focus-visible {
 }
 
 .script-snapshots-panel .persona-panel-title {
-  font-size: 24px;
+  font-size: calc(24px + var(--app-font-size-delta));
   line-height: 30px;
 }
 
@@ -4776,7 +4864,7 @@ button.editor-row-link-mark:focus-visible {
 .script-snapshots-reason {
   overflow: hidden;
   color: var(--figma-text, #131b2e);
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -4784,13 +4872,13 @@ button.editor-row-link-mark:focus-visible {
 
 .script-snapshots-time {
   color: var(--figma-text-secondary, #3e4850);
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
 }
 
 .script-snapshots-state {
   flex-shrink: 0;
   color: var(--figma-primary);
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   font-weight: 700;
 }
 
@@ -4801,7 +4889,7 @@ button.editor-row-link-mark:focus-visible {
 .script-snapshots-empty,
 .script-snapshots-error {
   color: var(--figma-text-secondary, #3e4850);
-  font-size: 13px;
+  font-size: calc(13px + var(--app-font-size-delta));
   line-height: 1.5;
   margin: 0;
 }
@@ -4842,7 +4930,7 @@ button.editor-row-link-mark:focus-visible {
 .msg {
   padding: 8px 10px;
   border-radius: 8px;
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   line-height: 1.55;
 }
 
@@ -4870,7 +4958,7 @@ button.editor-row-link-mark:focus-visible {
   overflow: hidden;
   padding: 6px 8px;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   line-height: 1.45;
 }
 
@@ -4912,7 +5000,7 @@ button.editor-row-link-mark:focus-visible {
   border-radius: 6px;
   background: var(--surface2);
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
 }
 
 .send-btn {
@@ -4920,7 +5008,7 @@ button.editor-row-link-mark:focus-visible {
   border: none;
   border-radius: 6px;
   color: #07110f;
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   font-weight: 800;
 }
 
@@ -4962,7 +5050,7 @@ button.editor-row-link-mark:focus-visible {
 .proposal-title {
   flex: 1;
   color: var(--brand-purple);
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   font-weight: 800;
 }
 
@@ -4971,13 +5059,13 @@ button.editor-row-link-mark:focus-visible {
   border-radius: 20px;
   background: var(--accent-dim);
   color: var(--accent);
-  font-size: 9px;
+  font-size: calc(9px + var(--app-font-size-delta));
   font-weight: 800;
 }
 
 .proposal-desc {
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   line-height: 1.55;
 }
 
@@ -4994,7 +5082,7 @@ button.editor-row-link-mark:focus-visible {
   border-radius: 6px;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   font-weight: 800;
 }
 
@@ -5066,7 +5154,7 @@ button.editor-row-link-mark:focus-visible {
 .glacier-plans-status,
 .glacier-plans-stale-banner {
   margin-top: 8px;
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   opacity: 0.85;
 }
 
@@ -5092,7 +5180,7 @@ button.editor-row-link-mark:focus-visible {
 
 .glacier-scheme-detail-title {
   margin: 0 0 8px;
-  font-size: 13px;
+  font-size: calc(13px + var(--app-font-size-delta));
   font-weight: 700;
   color: var(--glacier-text);
 }
@@ -5100,7 +5188,7 @@ button.editor-row-link-mark:focus-visible {
 .glacier-scheme-detail-text,
 .glacier-scheme-detail-meta {
   margin: 0 0 8px;
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   line-height: 1.5;
   color: var(--glacier-text-secondary);
 }
@@ -5123,7 +5211,7 @@ button.editor-row-link-mark:focus-visible {
 
 .glacier-hunk-context {
   margin: 0 0 6px;
-  font-size: 10px;
+  font-size: calc(10px + var(--app-font-size-delta));
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -5134,7 +5222,7 @@ button.editor-row-link-mark:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   line-height: 1.45;
 }
 
@@ -5155,7 +5243,7 @@ button.editor-row-link-mark:focus-visible {
 }
 
 .glacier-hunk-arrow {
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   color: var(--glacier-text-secondary);
 }
 
@@ -5171,7 +5259,7 @@ button.editor-row-link-mark:focus-visible {
   border: 1px solid var(--glacier-border);
   border-radius: 6px;
   background: #fff;
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   font-weight: 600;
   cursor: pointer;
   color: var(--glacier-text-secondary);
@@ -5196,13 +5284,13 @@ button.editor-row-link-mark:focus-visible {
 
 .glacier-plan-meta {
   margin: 0;
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   color: var(--glacier-text-secondary);
 }
 
 .glacier-plans-actions-hint {
   margin: 0 0 8px;
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   color: var(--glacier-text-secondary);
   text-align: center;
 }
@@ -5232,7 +5320,7 @@ button.editor-row-link-mark:focus-visible {
   border: 1px solid var(--glacier-border);
   border-radius: 6px;
   background: #f8f9ff;
-  font-size: 10px;
+  font-size: calc(10px + var(--app-font-size-delta));
   font-weight: 600;
   cursor: pointer;
   color: var(--glacier-text-secondary);
@@ -5246,7 +5334,7 @@ button.editor-row-link-mark:focus-visible {
 
 .glacier-script-preview-note {
   margin: 0 0 10px;
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   line-height: 1.45;
   color: var(--glacier-text-secondary);
 }
@@ -5262,7 +5350,7 @@ button.editor-row-link-mark:focus-visible {
 .glacier-script-preview-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
 }
 
 .glacier-script-preview-table th,
@@ -5309,7 +5397,7 @@ button.editor-row-link-mark:focus-visible {
 
 .glacier-hunk-list-title {
   margin: 12px 0 8px;
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   font-weight: 700;
   color: var(--glacier-text);
 }
@@ -5348,14 +5436,14 @@ button.editor-row-link-mark:focus-visible {
   flex-shrink: 0;
   margin-bottom: 10px;
   padding-bottom: 6px;
-  font-size: 13px;
+  font-size: calc(13px + var(--app-font-size-delta));
   line-height: 18px;
 }
 
 .map-consideration-hint,
 .map-consideration-empty,
 .map-negotiation-empty {
-  font-size: 10px;
+  font-size: calc(10px + var(--app-font-size-delta));
   line-height: 1.35;
   color: var(--figma-text-secondary);
 }
@@ -5386,7 +5474,7 @@ button.editor-row-link-mark:focus-visible {
 
 .map-consideration-list li,
 .map-negotiation-list li {
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
 }
 
 .map-consideration-item {
@@ -5405,7 +5493,7 @@ button.editor-row-link-mark:focus-visible {
 .map-consideration-item-title {
   flex: 1;
   min-width: 0;
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   font-weight: 600;
   line-height: 1.35;
   display: -webkit-box;
@@ -5423,7 +5511,7 @@ button.editor-row-link-mark:focus-visible {
 }
 
 .map-overlay-right .map-consideration-item-title {
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
 }
 
 .map-consideration-generate-btn {
@@ -5435,7 +5523,7 @@ button.editor-row-link-mark:focus-visible {
   border-radius: 10px;
   background: var(--figma-primary, #0ea5e9);
   color: #fff;
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   font-weight: 600;
   cursor: pointer;
 }
@@ -5443,7 +5531,7 @@ button.editor-row-link-mark:focus-visible {
 .map-overlay-right .map-consideration-generate-btn {
   min-height: 20px;
   padding: 12px 14px;
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   line-height: 1.25;
 }
 
@@ -5476,7 +5564,7 @@ button.editor-row-link-mark:focus-visible {
   background: transparent;
   color: var(--figma-text-secondary);
   font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
-  font-size: 10px;
+  font-size: calc(10px + var(--app-font-size-delta));
   font-weight: 700;
   letter-spacing: 0.04em;
   line-height: 1.3;
@@ -5503,7 +5591,7 @@ button.editor-row-link-mark:focus-visible {
   border-radius: 999px;
   background: var(--figma-primary);
   color: #fff;
-  font-size: 9px;
+  font-size: calc(9px + var(--app-font-size-delta));
   font-weight: 800;
   line-height: 1;
 }
@@ -5520,7 +5608,7 @@ button.editor-row-link-mark:focus-visible {
   justify-content: center;
   padding: 16px 8px;
   color: var(--figma-text-secondary);
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   line-height: 1.45;
   text-align: center;
 }
@@ -5579,14 +5667,14 @@ button.editor-row-link-mark:focus-visible {
   justify-content: center;
   padding: 2px 6px;
   border-radius: 4px;
-  font-size: 10px;
+  font-size: calc(10px + var(--app-font-size-delta));
 }
 
 .map-conflict-group-count {
   flex-shrink: 0;
   margin-left: auto;
   color: var(--figma-text-secondary);
-  font-size: 10px;
+  font-size: calc(10px + var(--app-font-size-delta));
   font-weight: 500;
   letter-spacing: 0.02em;
   opacity: 0.8;
@@ -5614,7 +5702,7 @@ button.editor-row-link-mark:focus-visible {
   border-radius: 6px;
   background: transparent;
   color: var(--figma-text);
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   font-weight: 500;
   line-height: 1.4;
   text-align: left;
@@ -5654,7 +5742,7 @@ button.editor-row-link-mark:focus-visible {
   margin-left: 6px;
   color: #0369a1;
   font-style: normal;
-  font-size: 10px;
+  font-size: calc(10px + var(--app-font-size-delta));
   text-transform: uppercase;
 }
 
@@ -5680,24 +5768,24 @@ button.editor-row-link-mark:focus-visible {
 }
 
 .script-modification-bar-label {
-  font-size: 13px;
+  font-size: calc(13px + var(--app-font-size-delta));
   font-weight: 700;
   color: var(--editor-text);
 }
 
 .script-modification-bar-stale {
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   color: #b42318;
 }
 
 .script-modification-bar-summary {
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   color: var(--figma-text-secondary);
 }
 
 .script-modification-bar-message {
   margin: 0;
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
 }
 
 .script-modification-bar-message--error {
@@ -5727,7 +5815,7 @@ button.editor-row-link-mark:focus-visible {
   border: 1px solid rgba(14, 165, 233, 0.35);
   border-radius: 8px;
   background: #fff;
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   font-weight: 600;
   color: #0369a1;
   cursor: pointer;
@@ -5750,7 +5838,7 @@ button.editor-row-link-mark:focus-visible {
   border: 1px solid var(--figma-border);
   border-radius: 8px;
   background: #fff;
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   font-weight: 600;
   cursor: pointer;
 }
@@ -5773,7 +5861,7 @@ button.editor-row-link-mark:focus-visible {
 
 .script-modification-bar-desc {
   margin: 0;
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   color: var(--figma-text-secondary);
   line-height: 1.4;
 }
@@ -5785,7 +5873,7 @@ button.editor-row-link-mark:focus-visible {
   border-radius: 8px;
   background: #fef3f2;
   color: #b42318;
-  font-size: 13px;
+  font-size: calc(13px + var(--app-font-size-delta));
   line-height: 1.4;
 }
 
@@ -5807,7 +5895,7 @@ button.editor-row-link-mark:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 13px;
+  font-size: calc(13px + var(--app-font-size-delta));
   line-height: 1.45;
 }
 
@@ -5847,7 +5935,7 @@ button.editor-row-link-mark:focus-visible {
   border-radius: 6px;
   background: #fff;
   color: var(--editor-text);
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   font-weight: 600;
   line-height: 1.2;
   cursor: pointer;
@@ -5891,19 +5979,19 @@ button.editor-row-link-mark:focus-visible {
 }
 
 .editor-modification-title {
-  font-size: 15px;
+  font-size: calc(15px + var(--app-font-size-delta));
   font-weight: 700;
   color: var(--figma-text);
 }
 
 .editor-modification-stale,
 .editor-modification-error {
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   color: #b42318;
 }
 
 .editor-modification-status {
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   color: #027a48;
 }
 
@@ -5918,7 +6006,7 @@ button.editor-row-link-mark:focus-visible {
   border: 1px solid var(--figma-border);
   border-radius: 8px;
   background: #fff;
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   font-weight: 600;
   color: var(--figma-text-secondary);
   cursor: pointer;
@@ -5935,7 +6023,7 @@ button.editor-row-link-mark:focus-visible {
 }
 
 .editor-modification-summary {
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   color: var(--figma-text-secondary);
 }
 
@@ -5952,7 +6040,7 @@ button.editor-row-link-mark:focus-visible {
   border-radius: 10px;
   border: 1px solid var(--figma-border);
   background: #fff;
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   font-weight: 600;
   cursor: pointer;
 }
@@ -6003,7 +6091,7 @@ button.editor-row-link-mark:focus-visible {
   border-radius: 10px;
   background: transparent;
   color: var(--figma-text-secondary);
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   font-weight: 600;
 }
 
@@ -6022,7 +6110,7 @@ button.editor-row-link-mark:focus-visible {
   padding: 0 6px;
   border-radius: 999px;
   background: rgba(19, 27, 46, 0.06);
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   font-weight: 700;
 }
 
@@ -6039,7 +6127,7 @@ button.editor-row-link-mark:focus-visible {
 .requirements-empty {
   margin: 0;
   color: var(--figma-text-secondary);
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   line-height: 22px;
 }
 
@@ -6068,7 +6156,7 @@ button.editor-row-link-mark:focus-visible {
 
 .requirement-card-index {
   color: var(--figma-text-secondary);
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   font-weight: 700;
 }
 
@@ -6078,7 +6166,7 @@ button.editor-row-link-mark:focus-visible {
   gap: 8px;
   margin-left: auto;
   color: var(--figma-text-secondary);
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   font-weight: 600;
 }
 
@@ -6089,7 +6177,7 @@ button.editor-row-link-mark:focus-visible {
   border-radius: 8px;
   background: #fff;
   color: var(--figma-text);
-  font-size: 13px;
+  font-size: calc(13px + var(--app-font-size-delta));
 }
 
 .requirement-delete-btn {
@@ -6120,7 +6208,7 @@ button.editor-row-link-mark:focus-visible {
 
 .requirement-field span {
   color: var(--figma-text-secondary);
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   font-weight: 600;
 }
 
@@ -6133,7 +6221,7 @@ button.editor-row-link-mark:focus-visible {
   background: #fff;
   color: var(--figma-text);
   font: inherit;
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   line-height: 20px;
   resize: vertical;
 }
@@ -6150,7 +6238,7 @@ button.editor-row-link-mark:focus-visible {
   border-radius: 12px;
   background: transparent;
   color: var(--figma-text);
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   font-weight: 600;
 }
 
@@ -6180,7 +6268,7 @@ button.editor-row-link-mark:focus-visible {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.92);
   color: var(--figma-text);
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   font-weight: 600;
   cursor: pointer;
   opacity: 0.6;
@@ -6236,7 +6324,7 @@ button.editor-row-link-mark:focus-visible {
 .comm-hint,
 .comm-empty {
   margin: 0;
-  font-size: 13px;
+  font-size: calc(13px + var(--app-font-size-delta));
   line-height: 1.5;
   color: var(--figma-text-muted, #6b7280);
 }
@@ -6267,7 +6355,7 @@ button.editor-row-link-mark:focus-visible {
 .comm-column-title {
   margin: 0;
   color: var(--figma-text);
-  font-size: 13px;
+  font-size: calc(13px + var(--app-font-size-delta));
   font-weight: 700;
 }
 
@@ -6289,7 +6377,7 @@ button.editor-row-link-mark:focus-visible {
 
 .comm-brief-field span {
   color: var(--figma-text);
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   font-weight: 700;
 }
 
@@ -6301,7 +6389,7 @@ button.editor-row-link-mark:focus-visible {
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.78);
   color: var(--figma-text);
-  font-size: 13px;
+  font-size: calc(13px + var(--app-font-size-delta));
   line-height: 1.5;
   resize: vertical;
 }
@@ -6335,13 +6423,13 @@ button.editor-row-link-mark:focus-visible {
 
 .comm-card-text {
   margin: 0;
-  font-size: 13px;
+  font-size: calc(13px + var(--app-font-size-delta));
   line-height: 1.5;
   color: var(--figma-text);
 }
 
 .comm-card-meta {
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   color: var(--figma-text-muted, #6b7280);
 }
 
@@ -6353,14 +6441,14 @@ button.editor-row-link-mark:focus-visible {
 
 .comm-plan-title {
   margin: 0;
-  font-size: 15px;
+  font-size: calc(15px + var(--app-font-size-delta));
   font-weight: 700;
   color: var(--figma-text);
 }
 
 .comm-plan-subtitle {
   margin: 0;
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -6369,7 +6457,7 @@ button.editor-row-link-mark:focus-visible {
 
 .comm-plan-intent {
   margin: 0;
-  font-size: 13px;
+  font-size: calc(13px + var(--app-font-size-delta));
   line-height: 1.6;
   color: var(--figma-text);
 }
@@ -6381,7 +6469,7 @@ button.editor-row-link-mark:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 13px;
+  font-size: calc(13px + var(--app-font-size-delta));
   line-height: 1.5;
   color: var(--figma-text);
 }
@@ -6398,21 +6486,21 @@ button.editor-row-link-mark:focus-visible {
 
 .comm-dispute-summary {
   margin: 0;
-  font-size: 13px;
+  font-size: calc(13px + var(--app-font-size-delta));
   font-weight: 600;
   color: var(--figma-text);
 }
 
 .comm-dispute-row {
   margin: 0;
-  font-size: 13px;
+  font-size: calc(13px + var(--app-font-size-delta));
   line-height: 1.5;
   color: var(--figma-text);
 }
 
 .comm-dispute-label {
   display: block;
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -6441,7 +6529,7 @@ button.editor-row-link-mark:focus-visible {
   border-radius: 6px;
   background: #fff;
   color: var(--figma-text-secondary);
-  font-size: 11px;
+  font-size: calc(11px + var(--app-font-size-delta));
   font-weight: 600;
   cursor: pointer;
   transition: background 0.12s, color 0.12s, border-color 0.12s;
@@ -6473,14 +6561,14 @@ button.editor-row-link-mark:focus-visible {
   border-radius: 999px;
   background: var(--figma-primary);
   color: #fff;
-  font-size: 10px;
+  font-size: calc(10px + var(--app-font-size-delta));
   font-weight: 700;
   line-height: 1;
 }
 
 .comm-dispute-feedback-label {
   flex: 1;
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   font-weight: 600;
   color: var(--figma-text-secondary);
   line-height: 1.4;
@@ -6535,7 +6623,7 @@ button.editor-row-link-mark:focus-visible {
 
 .comm-dispute-reply-text {
   margin: 0;
-  font-size: 13px;
+  font-size: calc(13px + var(--app-font-size-delta));
   line-height: 1.6;
   color: var(--figma-text);
 }
@@ -6546,7 +6634,7 @@ button.editor-row-link-mark:focus-visible {
   border-radius: 6px;
   background: rgba(180, 83, 9, 0.06);
   border: 1px solid rgba(180, 83, 9, 0.12);
-  font-size: 12px;
+  font-size: calc(12px + var(--app-font-size-delta));
   line-height: 1.45;
   color: #92400e;
 }
@@ -6570,7 +6658,7 @@ button.editor-row-link-mark:focus-visible {
   border-radius: 12px;
   background: var(--figma-primary);
   color: #fff;
-  font-size: 14px;
+  font-size: calc(14px + var(--app-font-size-delta));
   font-weight: 600;
   cursor: pointer;
 }

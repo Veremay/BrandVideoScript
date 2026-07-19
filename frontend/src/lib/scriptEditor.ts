@@ -155,13 +155,19 @@ export function renameColumn(script: Script, columnId: string, label: string): S
   };
 }
 
-export function parseDuration(value: string): [number, number] | null {
-  const [startText, endText] = value.split("-").map((part) => part.trim());
-  if (!startText || !endText) return null;
-  const start = Number(startText);
-  const end = Number(endText);
-  if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end <= start) return null;
-  return [start, end];
+/** Parse a seconds-only duration. Legacy start-end ranges are intentionally unsupported. */
+export function parseDurationSeconds(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const seconds = Number(trimmed);
+  if (Number.isFinite(seconds) && seconds > 0) return seconds;
+  return null;
+}
+
+/** Old start-end values are cleared instead of being reinterpreted as durations. */
+export function durationInputValue(value: string): string {
+  return /^\s*\d+(?:\.\d+)?\s*-\s*\d+(?:\.\d+)?\s*$/.test(value) ? "" : value;
 }
 
 function formatSeconds(value: number) {
@@ -178,17 +184,25 @@ export function analyzeDurations(script: Script): {
     return { issues: [], overlaps: [], timeline: [] };
   }
 
+  let cursor = 0;
   const ranges = sortedRows(script)
     .map((row) => {
       const value = row.cells.find((cell) => cell.column_id === durationColumn.column_id)?.value ?? "";
-      const parsed = parseDuration(value);
-      return parsed ? { rowId: row.row_id, start: parsed[0], end: parsed[1] } : value ? { rowId: row.row_id, invalid: true } : null;
+      const inputValue = durationInputValue(value);
+      const seconds = parseDurationSeconds(inputValue);
+      if (seconds !== null) {
+        const start = cursor;
+        const end = start + seconds;
+        cursor = end;
+        return { rowId: row.row_id, start, end };
+      }
+      return inputValue ? { rowId: row.row_id, invalid: true } : null;
     })
     .filter(Boolean) as Array<{ rowId: string; start?: number; end?: number; invalid?: boolean }>;
 
   const issues: DurationIssue[] = ranges
     .filter((range) => range.invalid)
-    .map((range) => ({ rowIds: [range.rowId], message: "Duration must use start-end seconds, e.g. 0-5." }));
+    .map((range) => ({ rowIds: [range.rowId], message: "Enter a positive number of seconds, e.g. 5 or 2.5." }));
 
   const validRanges = ranges.filter((range) => range.start !== undefined && range.end !== undefined) as Array<{
     rowId: string;
@@ -196,57 +210,17 @@ export function analyzeDurations(script: Script): {
     end: number;
   }>;
 
-  const overlapped = new Set<string>();
-  const overlapRanges: Array<{ start: number; end: number }> = [];
-  for (let index = 0; index < validRanges.length; index += 1) {
-    for (const candidate of validRanges.slice(index + 1)) {
-      const start = Math.max(validRanges[index].start, candidate.start);
-      const end = Math.min(validRanges[index].end, candidate.end);
-      if (start < end) {
-        overlapped.add(validRanges[index].rowId);
-        overlapped.add(candidate.rowId);
-        overlapRanges.push({ start, end });
-        issues.push({
-          rowIds: [validRanges[index].rowId, candidate.rowId],
-          message: "Duration overlaps with another segment.",
-          range: `${formatSeconds(start)}-${formatSeconds(end)}`
-        });
-      }
-    }
-  }
-
   const maxEnd = Math.max(1, ...validRanges.map((range) => range.end));
   return {
     issues,
-    overlaps: mergeRanges(overlapRanges).map((range) => ({
-      start: range.start,
-      end: range.end,
-      left: (range.start / maxEnd) * 100,
-      width: ((range.end - range.start) / maxEnd) * 100
-    })),
+    overlaps: [],
     timeline: validRanges.map((range) => ({
       rowId: range.rowId,
       start: range.start,
       end: range.end,
       left: (range.start / maxEnd) * 100,
       width: ((range.end - range.start) / maxEnd) * 100,
-      hasOverlap: overlapped.has(range.rowId)
+      hasOverlap: false
     }))
   };
-}
-
-function mergeRanges(ranges: Array<{ start: number; end: number }>) {
-  const sorted = [...ranges].sort((a, b) => a.start - b.start || a.end - b.end);
-  const merged: Array<{ start: number; end: number }> = [];
-
-  for (const range of sorted) {
-    const previous = merged.at(-1);
-    if (!previous || range.start > previous.end) {
-      merged.push({ ...range });
-    } else {
-      previous.end = Math.max(previous.end, range.end);
-    }
-  }
-
-  return merged;
 }
