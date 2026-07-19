@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 
 import { createEmptyInsight, insightsFromProject, toApiBrandInsights } from "@/lib/brandRequirements";
-import { parseBriefStream, provisionPersonasFromAnalytics, saveBrief, updateBrandRequirements } from "@/lib/api";
+import { parseBriefStream, provisionPersonasFromAnalytics, saveBrief } from "@/lib/api";
 import { getProjectSetupStatus } from "@/lib/projectSetup";
 import type { BrandInsight, BrandInsightCategory, BrandInsightConfidence, PlatformContext } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
@@ -71,19 +71,43 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
 
   async function handleSaveRequirements() {
     if (!project) return;
+    const currentProject = project;
     setSavingRequirements(true);
     setError(null);
+
+    const payload = toApiBrandInsights([...localExplicit, ...localImplicit]);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
     try {
-      const payload = toApiBrandInsights([...localExplicit, ...localImplicit]);
-      const saved = await updateBrandRequirements(project._id, project.user_id, { brand_insights: payload });
+      const response = await fetch(
+        `http://localhost:8000/api/projects/${currentProject._id}/brand/requirements`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: currentProject.user_id, brand_insights: payload }),
+          signal: controller.signal,
+        }
+      );
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || `Save failed (${response.status})`);
+      }
+
+      const saved = await response.json();
       setProject(saved);
       const next = insightsFromProject(saved);
       setLocalExplicit(next.explicit);
       setLocalImplicit(next.implicit);
     } catch (err) {
-      console.error("Save requirements failed", err);
-      setError(err instanceof Error ? err.message : "Save failed");
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setError("Save timed out. Please try again.");
+      } else {
+        setError(err instanceof Error ? err.message : "Save failed");
+      }
     } finally {
+      clearTimeout(timeoutId);
       setSavingRequirements(false);
     }
   }
