@@ -23,6 +23,7 @@ export function ShareScriptView({ token }: { token: string }) {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const pendingSave = useRef<{ rowId: string; columnId: string; value: string } | null>(null);
   const saveTimer = useRef<number | null>(null);
+  const editRevision = useRef(0);
 
   useEffect(() => {
     if (!token) {
@@ -47,6 +48,7 @@ export function ShareScriptView({ token }: { token: string }) {
   }, []);
 
   function handleUpdateCell(rowId: string, columnId: string, value: string) {
+    editRevision.current += 1;
     setScript((current) => {
       if (!current) return current;
       return {
@@ -68,15 +70,21 @@ export function ShareScriptView({ token }: { token: string }) {
     saveTimer.current = window.setTimeout(() => {
       const pending = pendingSave.current;
       if (!pending) return;
+      const savingRevision = editRevision.current;
 
       setSaveStatus("saving");
       saveShareFeedback(token, pending.rowId, pending.columnId, pending.value)
         .then((result) => {
+          // Ignore an older response when the reviewer continued typing while
+          // the request was in flight. The later edit owns the next save timer.
+          if (editRevision.current !== savingRevision) return;
           setScript(result.script);
           pendingSave.current = null;
           setSaveStatus("saved");
         })
-        .catch(() => setSaveStatus("failed"));
+        .catch(() => {
+          if (editRevision.current === savingRevision) setSaveStatus("failed");
+        });
     }, SAVE_DELAY_MS);
   }
 

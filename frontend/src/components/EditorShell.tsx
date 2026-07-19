@@ -19,6 +19,14 @@ const MapView = dynamic(() => import("@/components/MapView").then((mod) => mod.M
 });
 
 const SAVE_DELAY_MS = 700;
+const FONT_SIZE_STORAGE_KEY = "brandvideo:font-size";
+type FontSizePreference = "small" | "medium" | "large";
+
+const FONT_SIZE_OPTIONS: Array<{ value: FontSizePreference; label: string }> = [
+  { value: "small", label: "Small" },
+  { value: "medium", label: "Medium" },
+  { value: "large", label: "Large" }
+];
 
 async function copyTextToClipboard(text: string): Promise<boolean> {
   try {
@@ -73,7 +81,15 @@ export function EditorShell() {
   const [snapshotsOpen, setSnapshotsOpen] = useState(false);
   const [communicationOpen, setCommunicationOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [fontSize, setFontSize] = useState<FontSizePreference>("medium");
   const coordinatorOpen = layout.coordinatorChatOpen;
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(FONT_SIZE_STORAGE_KEY);
+    if (stored === "small" || stored === "medium" || stored === "large") {
+      setFontSize(stored);
+    }
+  }, []);
 
   useEffect(() => {
     if (!project || !script) return;
@@ -89,9 +105,18 @@ export function EditorShell() {
       setSaveStatus("saving");
       try {
         const savedProject = await saveScript(project._id, project.user_id, script);
+
+        // The request may finish after the user has typed again. In that case the
+        // response contains an older script snapshot and must not replace the
+        // newer controlled-input value in the store. The newer edit has already
+        // scheduled its own save through this effect.
+        if (useAppStore.getState().script !== script) return;
+
         setProject(savedProject);
         setSaveStatus("saved");
       } catch {
+        // Do not mark a newer edit as failed because an older save request failed.
+        if (useAppStore.getState().script !== script) return;
         setSaveStatus("failed");
       }
     }, SAVE_DELAY_MS);
@@ -162,6 +187,11 @@ export function EditorShell() {
     setSnapshotsOpen(true);
   }
 
+  function handleFontSizeChange(nextFontSize: FontSizePreference) {
+    setFontSize(nextFontSize);
+    window.localStorage.setItem(FONT_SIZE_STORAGE_KEY, nextFontSize);
+  }
+
   async function persistBrief(text: string, filename?: string) {
     if (!project) return;
     setParsingBrief(true);
@@ -211,7 +241,7 @@ export function EditorShell() {
 
   return (
     <RevisionProposalsProvider projectId={project._id} userId={project.user_id}>
-      <main className="app-figma">
+      <main className="app-figma" data-font-size={fontSize}>
         <header className="figma-topnav">
           <div className="figma-topnav-left">
             <button className="figma-nav-btn figma-nav-back" onClick={handleBack} type="button">
@@ -288,6 +318,23 @@ export function EditorShell() {
                     <div className="figma-mode-static">
                       <span className="figma-mode-option-title">{isVanilla ? "Setting 2" : "Setting 1"}</span>
                       <span className="figma-mode-option-desc">Set when this script was created</span>
+                    </div>
+                  </div>
+                  <div className="figma-settings-menu-divider" />
+                  <div className="figma-settings-menu-section">
+                    <span className="figma-settings-menu-label">Font Size</span>
+                    <div className="figma-font-size-options" role="group" aria-label="Page font size">
+                      {FONT_SIZE_OPTIONS.map((option) => (
+                        <button
+                          aria-pressed={fontSize === option.value}
+                          className={`figma-font-size-option${fontSize === option.value ? " active" : ""}`}
+                          key={option.value}
+                          onClick={() => handleFontSizeChange(option.value)}
+                          type="button"
+                        >
+                          {option.label}
+                        </button>
+                      ))}
                     </div>
                   </div>
                   <div className="figma-settings-menu-divider" />
