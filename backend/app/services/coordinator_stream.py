@@ -221,7 +221,20 @@ def build_vanilla_system_content(project: dict) -> str:
     system = load_prompt("vanilla_system.md")
     script_block = format_script_for_prompt(project)
     heading = "Full current script" if get_settings().prompt_language == "en" else "当前完整脚本"
-    return f"{system}\n\n## {heading}\n{script_block}"
+    setup_data = project.get("vanilla_setup_data") or {}
+    requirements = str(setup_data.get("brand_requirements") or "").strip()
+    conflicts = str(setup_data.get("conflicts") or "").strip()
+    requirements_block = (
+        f"\n\n## Brand requirements provided by the creator\n{requirements}"
+        if requirements
+        else ""
+    )
+    conflicts_block = (
+        f"\n\n## Conflicts and trade-offs identified by the creator\n{conflicts}"
+        if conflicts
+        else ""
+    )
+    return f"{system}{requirements_block}{conflicts_block}\n\n## {heading}\n{script_block}"
 
 
 def _vanilla_message_content(doc: dict[str, Any]) -> str:

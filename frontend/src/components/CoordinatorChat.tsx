@@ -73,7 +73,18 @@ type CoordinatorChatProps = {
   userId?: string;
   scriptVersionId?: string | null;
   mode?: "full" | "vanilla";
+  embedded?: boolean;
+  initialDraft?: string;
+  messageTag?: string;
 };
+
+function taggedMessagePrefix(tag: string) {
+  return `[VANILLA_SETUP:${tag}]`;
+}
+
+function visibleMessageContent(content: string) {
+  return content.replace(/^\[VANILLA_SETUP:[A-Z_]+\]\s*/, "");
+}
 
 export function CoordinatorChat({
   open,
@@ -86,7 +97,10 @@ export function CoordinatorChat({
   projectId,
   userId,
   scriptVersionId,
-  mode = "full"
+  mode = "full",
+  embedded = false,
+  initialDraft,
+  messageTag
 }: CoordinatorChatProps) {
   const isVanilla = mode === "vanilla";
   const welcome = isVanilla ? WELCOME_VANILLA : WELCOME_FULL;
@@ -124,6 +138,11 @@ export function CoordinatorChat({
     setTab("chat");
     setPendingChatDraft(null);
   }, [open, pendingChatDraft, setPendingChatDraft]);
+
+  useEffect(() => {
+    if (!open || !initialDraft) return;
+    setDraft(initialDraft);
+  }, [open, initialDraft]);
 
   useEffect(() => {
     if (!open || !projectId || !userId) return;
@@ -235,6 +254,7 @@ export function CoordinatorChat({
     const text = draft.trim() || (attachments.length ? "Please review the attached file(s)." : "");
     if (!text || streaming || !projectId || !userId) return;
     const sentAttachments = attachments;
+    const persistedText = messageTag ? `${taggedMessagePrefix(messageTag)}\n${text}` : text;
 
     const quotes =
       selectedText && selectedText.trim()
@@ -292,7 +312,7 @@ export function CoordinatorChat({
         projectId,
         userId,
         {
-          message: text,
+          message: persistedText,
           task_type: taskType,
           requested_perspectives: ["comprehensive"],
           quotes,
@@ -394,11 +414,11 @@ export function CoordinatorChat({
 
   return (
     <>
-      {!docked ? (
+      {!embedded && !docked ? (
         <button className="glacier-backdrop" onClick={onClose} type="button" aria-label="Close Coordinator Chat" />
       ) : null}
       <aside
-        className={`glacier-assistant${docked ? " glacier-assistant--docked" : ""}`}
+        className={`glacier-assistant${docked || embedded ? " glacier-assistant--docked" : ""}${embedded ? " glacier-assistant--embedded" : ""}`}
         aria-label="Coordinator Agent Chat"
         onDragEnter={handleAttachmentDragEnter}
         onDragLeave={handleAttachmentDragLeave}
@@ -429,7 +449,7 @@ export function CoordinatorChat({
               </span>
               <span className="glacier-title">{isVanilla ? "AI Assistant" : "Coordinator Agent"}</span>
             </div>
-            <div className="glacier-header-actions">
+            {!embedded ? <div className="glacier-header-actions">
               <button
                 className="glacier-close"
                 onClick={() => setCoordinatorChatDocked(!docked)}
@@ -442,7 +462,7 @@ export function CoordinatorChat({
               <button className="glacier-close" onClick={onClose} type="button" aria-label="Close">
                 <IconClose />
               </button>
-            </div>
+            </div> : null}
           </div>
           <div className="glacier-tabs" role="tablist" aria-label="Assistant views">
             <button
@@ -495,7 +515,7 @@ export function CoordinatorChat({
                   ) : (
                     <div className="glacier-msg-row glacier-msg-row--user" key={message.message_id}>
                       <div className="glacier-bubble glacier-bubble--user">
-                        <span>{message.content}</span>
+                        <span>{visibleMessageContent(message.content)}</span>
                         {message.attachments?.length ? (
                           <span className="glacier-message-attachments">
                             {message.attachments.map((attachment, index) => (

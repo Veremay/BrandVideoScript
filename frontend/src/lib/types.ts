@@ -354,6 +354,8 @@ export type Project = {
   user_id: string;
   title: string;
   mode?: AppMode;
+  vanilla_setup_stage?: "requirements" | "conflicts" | "complete";
+  vanilla_setup_data?: VanillaSetupData;
   video_category?: VideoCategory;
   platform_context?: PlatformContext;
   brief: Brief;
@@ -380,4 +382,9 @@ export type Project = {
   stale: ArtifactStaleness;
   created_at: string;
   updated_at: string;
+};
+
+export type VanillaSetupData = {
+  brand_requirements: string;
+  conflicts: string;
 };

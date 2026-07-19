@@ -6,6 +6,7 @@ import { EditorShell } from "@/components/EditorShell";
 import { ProjectList } from "@/components/ProjectList";
 import { ProjectSetup } from "@/components/ProjectSetup";
 import { UserGate } from "@/components/UserGate";
+import { VanillaProjectSetup } from "@/components/VanillaProjectSetup";
 import { enterUser, fetchProject, fetchProjects } from "@/lib/api";
 import { getProjectSetupStatus } from "@/lib/projectSetup";
 import { useAppStore } from "@/store/appStore";
@@ -76,7 +77,16 @@ export default function Home() {
       return <ProjectList />;
     }
 
-    if (setupProjectId === project._id) {
+    if (setupProjectId === project._id || !getProjectSetupStatus(project).complete) {
+      const isVanilla = (project.mode ?? project.current_script.settings?.mode) === "vanilla";
+      if (isVanilla) {
+        return (
+          <VanillaProjectSetup
+            onBack={handleSetupBack}
+            onEnterEditor={() => setSetupProjectId(null)}
+          />
+        );
+      }
       return (
         <ProjectSetup
           onBack={handleSetupBack}

@@ -704,7 +704,7 @@ textarea {
 
 .setup-card-header {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 14px;
   align-items: flex-start;
   flex-shrink: 0;
@@ -729,6 +729,7 @@ textarea {
   color: var(--figma-text-secondary);
   font-size: calc(14px + var(--app-font-size-delta));
   line-height: 20px;
+  overflow-wrap: anywhere;
 }
 
 .setup-card-index {
@@ -1549,6 +1550,157 @@ textarea {
   text-transform: none;
 }
 
+.vanilla-setup-page {
+  --chat-dock-width: min(420px, 92vw);
+  height: 100vh;
+  overflow: hidden;
+  padding-right: var(--chat-dock-width);
+  box-sizing: border-box;
+}
+
+.vanilla-setup-main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(920px, 100%);
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: 0 auto;
+  padding: 28px 28px 24px;
+  overflow: auto;
+  box-sizing: border-box;
+}
+
+.vanilla-setup-header {
+  flex-shrink: 0;
+}
+
+.vanilla-setup-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: stretch;
+  gap: 16px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.vanilla-setup-card {
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  padding: 20px;
+}
+
+.vanilla-setup-main > .setup-footer {
+  margin-top: auto;
+  flex-shrink: 0;
+}
+
+.vanilla-setup-card-input {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 180px;
+  resize: none;
+  box-sizing: border-box;
+  padding: 14px;
+  border: 1px solid var(--figma-border);
+  border-radius: 10px;
+  outline: none;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--figma-text);
+  font: inherit;
+  font-size: calc(14px + var(--app-font-size-delta));
+  line-height: 21px;
+}
+
+.vanilla-setup-card-input:focus {
+  border-color: var(--figma-primary);
+  box-shadow: 0 0 0 3px rgba(0, 101, 145, 0.1);
+}
+
+.vanilla-setup-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.vanilla-auto-save-status {
+  color: var(--figma-text-secondary);
+  font-size: calc(12px + var(--app-font-size-delta));
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.vanilla-auto-save-status.is-saving,
+.vanilla-auto-save-status.is-pending {
+  color: var(--figma-primary);
+}
+
+.vanilla-auto-save-status.is-failed {
+  color: #ba1a1a;
+}
+
+.vanilla-context-panel {
+  width: min(720px, calc(100vw - 64px));
+}
+
+.vanilla-context-body {
+  min-height: 240px;
+  max-height: min(560px, calc(100vh - 220px));
+  overflow-y: auto;
+  padding: 0 40px 40px;
+}
+
+.vanilla-context-body p {
+  margin: 0;
+  padding: 20px;
+  border: 1px solid var(--figma-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--figma-text);
+  font-size: calc(15px + var(--app-font-size-delta));
+  line-height: 24px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Setup page reuses glacier-assistant--docked; override lives after --docked below. */
+
+@media (max-width: 820px) {
+  .vanilla-setup-page {
+    height: auto;
+    min-height: 100vh;
+    overflow: auto;
+    padding-right: 0;
+  }
+
+  .vanilla-setup-main {
+    width: min(100% - 32px, 640px);
+    height: auto;
+    padding: 24px 16px 16px;
+  }
+
+  .vanilla-setup-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .vanilla-setup-footer-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .glacier-assistant--embedded {
+    position: relative;
+    inset: auto;
+    width: min(100% - 32px, 640px);
+    height: 620px;
+    margin: 0 auto 24px;
+    border: 1px solid rgba(0, 101, 145, 0.2);
+    border-radius: 16px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  }
+}
+
 .map-node-meta {
   display: flex;
   align-items: center;
@@ -2211,6 +2363,11 @@ textarea {
   box-shadow: -12px 0 40px rgba(0, 0, 0, 0.08);
 }
 
+/* Setup has no topnav — fill the full viewport height. */
+.glacier-assistant--docked.glacier-assistant--embedded {
+  top: 0;
+}
+
 .app-figma--chat-docked {
   --chat-dock-width: min(420px, 92vw);
 }
@@ -2864,6 +3021,10 @@ textarea {
     width: min(100vw, 420px);
     height: auto;
     max-height: none;
+  }
+
+  .glacier-assistant--docked.glacier-assistant--embedded {
+    top: 0;
   }
 
   .app-figma--chat-docked {

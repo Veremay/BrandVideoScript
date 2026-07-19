@@ -47,9 +47,19 @@ PERSONA_MUTABLE_FIELDS = (
 )
 
 
+def default_vanilla_setup_data() -> dict[str, str]:
+    return {"brand_requirements": "", "conflicts": ""}
+
+
 def serialize_project(document: dict) -> dict:
     document["_id"] = str(document["_id"])
     document.setdefault("mode", "full")
+    document.setdefault("vanilla_setup_stage", "requirements")
+    setup_data = document.get("vanilla_setup_data") or {}
+    document["vanilla_setup_data"] = {
+        "brand_requirements": str(setup_data.get("brand_requirements") or ""),
+        "conflicts": str(setup_data.get("conflicts") or ""),
+    }
     script = document.get("current_script")
     if isinstance(script, dict):
         script.setdefault(
@@ -327,6 +337,8 @@ async def create_project(
         "user_id": user_id,
         "title": title,
         "mode": mode,
+        "vanilla_setup_stage": "requirements",
+        "vanilla_setup_data": default_vanilla_setup_data(),
         "video_category": video_category,
         "brief": {
             "filename": None,
@@ -404,6 +416,40 @@ async def update_project(
             before={"title": project.get("title")},
             after={"title": title},
         )
+    return await get_project(db, project_id, user_id)
+
+
+async def update_vanilla_setup_stage(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    stage: str,
+    data: dict[str, str] | None = None,
+) -> dict | None:
+    project = await get_project(db, project_id, user_id)
+    if project is None:
+        return None
+    mode = project.get("mode") or (project.get("current_script") or {}).get("settings", {}).get("mode")
+    if mode != "vanilla":
+        raise ValueError("Setup stages are only available in vanilla mode")
+    allowed_transitions = {
+        "requirements": {"requirements", "conflicts"},
+        "conflicts": {"conflicts", "complete"},
+        "complete": {"complete"},
+    }
+    current = project.get("vanilla_setup_stage", "requirements")
+    if stage not in allowed_transitions.get(current, set()):
+        raise ValueError(f"Cannot move vanilla setup from {current} to {stage}")
+    update = {"vanilla_setup_stage": stage, "updated_at": now_iso()}
+    if data is not None:
+        update["vanilla_setup_data"] = {
+            **default_vanilla_setup_data(),
+            **data,
+        }
+    await db.projects.update_one(
+        {"_id": project_id, "user_id": user_id},
+        {"$set": update},
+    )
     return await get_project(db, project_id, user_id)
 
 

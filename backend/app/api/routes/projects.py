@@ -24,6 +24,7 @@ from app.models.schemas import (
     ScriptColumnCreateRequest,
     ScriptColumnUpdateRequest,
     ProjectUpdateRequest,
+    VanillaSetupUpdateRequest,
     ScriptPatchRequest,
     ScriptRowCreateRequest,
     ScriptSnapshotCreateRequest,
@@ -58,6 +59,7 @@ from app.repositories.projects import (
     update_persona,
     update_script_column,
     update_project,
+    update_vanilla_setup_stage,
 )
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -146,6 +148,27 @@ async def update(
     db: AsyncIOMotorDatabase = Depends(database_dependency),
 ) -> dict:
     project = await update_project(db, project_id, payload.user_id.strip(), title=payload.title.strip() if payload.title else None)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
+@router.patch("/{project_id}/vanilla-setup", response_model=ProjectResponse)
+async def update_vanilla_setup(
+    project_id: str,
+    payload: VanillaSetupUpdateRequest,
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> dict:
+    try:
+        project = await update_vanilla_setup_stage(
+            db,
+            project_id,
+            payload.user_id.strip(),
+            payload.stage,
+            payload.data.model_dump() if payload.data is not None else None,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
     return project

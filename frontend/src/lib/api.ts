@@ -638,6 +638,20 @@ export async function fetchCoordinatorMessages(
   return data.messages;
 }
 
+export async function updateVanillaSetupStage(
+  projectId: string,
+  userId: string,
+  stage: "requirements" | "conflicts" | "complete",
+  data?: Project["vanilla_setup_data"]
+): Promise<Project> {
+  return normalizeProject(
+    await request(`/projects/${projectId}/vanilla-setup`, {
+      method: "PATCH",
+      body: JSON.stringify({ user_id: userId, stage, data })
+    })
+  )!;
+}
+
 export type CoordinatorStreamEvent =
   | { type: "token"; content: string }
   | {

@@ -10,6 +10,7 @@ import { PersonaPanel } from "@/components/PersonaPanel";
 import { RequirementsPanel } from "@/components/RequirementsPanel";
 import { ScriptGrid } from "@/components/ScriptGrid";
 import { ScriptSnapshotsPanel } from "@/components/ScriptSnapshotsPanel";
+import { VanillaSetupContextPanel } from "@/components/VanillaSetupContextPanel";
 import { createShareLink, fetchProjectGraph, saveBrief, saveScript } from "@/lib/api";
 import { useAppStore } from "@/store/appStore";
 
@@ -80,6 +81,7 @@ export function EditorShell() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [snapshotsOpen, setSnapshotsOpen] = useState(false);
   const [communicationOpen, setCommunicationOpen] = useState(false);
+  const [vanillaContextSection, setVanillaContextSection] = useState<"requirements" | "conflicts" | null>(null);
   const [sharing, setSharing] = useState(false);
   const [fontSize, setFontSize] = useState<FontSizePreference>("medium");
   const coordinatorOpen = layout.coordinatorChatOpen;
@@ -278,7 +280,17 @@ export function EditorShell() {
           </div>
 
           <div className="figma-topnav-right">
-            {isVanilla ? null : (
+            {isVanilla ? (
+              <>
+                <button className="figma-nav-btn figma-nav-outline" onClick={() => setVanillaContextSection("requirements")} type="button">
+                  <IconRequirements />
+                  Requirements
+                </button>
+                <button className="figma-nav-btn figma-nav-outline" onClick={() => setVanillaContextSection("conflicts")} type="button">
+                  Conflicts
+                </button>
+              </>
+            ) : (
               <>
                 <input ref={fileInputRef} accept=".md,.txt,text/markdown,text/plain" hidden onChange={handleBriefFile} type="file" />
                 <button
@@ -425,6 +437,13 @@ export function EditorShell() {
         )}
 
         <ScriptSnapshotsPanel onClose={() => setSnapshotsOpen(false)} open={snapshotsOpen} />
+        {isVanilla && vanillaContextSection ? (
+          <VanillaSetupContextPanel
+            onClose={() => setVanillaContextSection(null)}
+            open
+            section={vanillaContextSection}
+          />
+        ) : null}
       </main>
     </RevisionProposalsProvider>
   );

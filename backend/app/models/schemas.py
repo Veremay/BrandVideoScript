@@ -28,6 +28,17 @@ class ProjectUpdateRequest(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=120)
 
 
+class VanillaSetupData(BaseModel):
+    brand_requirements: str = Field(default="", max_length=12000)
+    conflicts: str = Field(default="", max_length=12000)
+
+
+class VanillaSetupUpdateRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    stage: Literal["requirements", "conflicts", "complete"]
+    data: VanillaSetupData | None = None
+
+
 class ScriptPatchRequest(BaseModel):
     user_id: str = Field(min_length=1, max_length=80)
     script: dict[str, Any]
@@ -203,6 +214,8 @@ class ProjectResponse(BaseModel):
     user_id: str
     title: str
     mode: str = "full"
+    vanilla_setup_stage: str = "requirements"
+    vanilla_setup_data: dict[str, str] = Field(default_factory=dict)
     video_category: str = "lifestyle"
     platform_context: str = "other"
     brief: dict[str, Any]
