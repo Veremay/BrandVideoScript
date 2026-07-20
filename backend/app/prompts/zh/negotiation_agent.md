@@ -18,13 +18,14 @@
 ## 要求
 
 1. **每一条待协商反馈都必须有一个 `open_disputes` 条目**，`issue_node_id` 原样回传该反馈的 `node_id`。
-2. `brand_feedback`：用一句话概括品牌方的反馈要点。
-3. **`reply`（必填，绝对不能为空）**：一段可直接复制发送给品牌方的回复消息（2–4 句中文），语气友好但坚定，解释创作选择并引用观众视角或创作意图作为支撑。不要用模板化的开场白（如"尊敬的品牌方"），直接用平实自然的沟通语气。**注意：这个字段以前叫 `our_position`，现在改为 `reply`，请务必填写。**
-4. `fallback`：如果品牌方坚持，可以做出的让步。一句话。没有明确的让步空间就写"暂不让步"。
-5. `talking_points`：1–2 条回复中隐含的关键论点（供创作者理解，不需要冗长展开）。
-6. `design_intent`：一句话概括当前脚本的整体创作意图。
-7. `recommended_communication_order`：建议的沟通顺序（`issue_node_id` 列表，先易后难）。
-8. **只输出 JSON**，不要创建任何 IBIS 节点（不要输出 `ibis`）。
+2. `open_disputes` 数组请尽早输出；**每个 dispute 对象内字段顺序必须为**：`issue_node_id` → `brand_feedback` → `reply` → `fallback` → `talking_points`（便于流式解析 `reply`）。
+3. `brand_feedback`：用一句话概括品牌方的反馈要点。
+4. **`reply`（必填，绝对不能为空）**：一段可直接复制发送给品牌方的回复消息（2–4 句中文），语气友好但坚定，解释创作选择并引用观众视角或创作意图作为支撑。不要用模板化的开场白（如"尊敬的品牌方"），直接用平实自然的沟通语气。**注意：这个字段以前叫 `our_position`，现在改为 `reply`，请务必填写。**
+5. `fallback`：如果品牌方坚持，可以做出的让步。一句话。没有明确的让步空间就写"暂不让步"。
+6. `talking_points`：1–2 条回复中隐含的关键论点（供创作者理解，不需要冗长展开）。
+7. `design_intent`：一句话概括当前脚本的整体创作意图。
+8. `recommended_communication_order`：建议的沟通顺序（`issue_node_id` 列表，先易后难）。
+9. **只输出 JSON**，不要创建任何 IBIS 节点（不要输出 `ibis`）。
 
 ## 输出 JSON
 

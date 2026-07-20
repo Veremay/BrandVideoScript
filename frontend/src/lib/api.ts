@@ -1042,6 +1042,109 @@ export async function generateNegotiationPlan(
   return { ...data, project: normalizeProject(data.project)! };
 }
 
+export type NegotiationStreamEvent =
+  | { type: "progress"; message: string }
+  | { type: "reply_token"; dispute_index: number; content: string }
+  | {
+      type: "dispute_meta";
+      dispute_index: number;
+      issue_node_id: string;
+      brand_feedback: string;
+    }
+  | {
+      type: "dispute_ready";
+      dispute_index: number;
+      issue_node_id: string;
+      brand_feedback: string;
+      reply: string;
+    }
+  | {
+      type: "done";
+      project: Project;
+      negotiation_preparation: NegotiationPreparation | null;
+      assistant_reply: string;
+    }
+  | { type: "error"; message: string };
+
+function parseNegotiationSseBlock(block: string): NegotiationStreamEvent | null {
+  let event = "message";
+  let data = "";
+  for (const line of block.split("\n")) {
+    if (line.startsWith("event:")) event = line.slice(6).trim();
+    if (line.startsWith("data:")) data = line.slice(5).trim();
+  }
+  if (!data) return null;
+  const payload = JSON.parse(data) as Record<string, unknown>;
+  if (event === "progress") return { type: "progress", message: String(payload.message ?? "") };
+  if (event === "reply_token") {
+    return {
+      type: "reply_token",
+      dispute_index: Number(payload.dispute_index ?? 0),
+      content: String(payload.content ?? "")
+    };
+  }
+  if (event === "dispute_meta") {
+    return {
+      type: "dispute_meta",
+      dispute_index: Number(payload.dispute_index ?? 0),
+      issue_node_id: String(payload.issue_node_id ?? ""),
+      brand_feedback: String(payload.brand_feedback ?? "")
+    };
+  }
+  if (event === "dispute_ready") {
+    return {
+      type: "dispute_ready",
+      dispute_index: Number(payload.dispute_index ?? 0),
+      issue_node_id: String(payload.issue_node_id ?? ""),
+      brand_feedback: String(payload.brand_feedback ?? ""),
+      reply: String(payload.reply ?? "")
+    };
+  }
+  if (event === "done") {
+    return {
+      type: "done",
+      project: normalizeProject(payload.project as Project)!,
+      negotiation_preparation: (payload.negotiation_preparation ?? null) as NegotiationPreparation | null,
+      assistant_reply: String(payload.assistant_reply ?? "")
+    };
+  }
+  if (event === "error") return { type: "error", message: String(payload.message ?? "Negotiation generation failed") };
+  return null;
+}
+
+export async function generateNegotiationPlanStream(
+  projectId: string,
+  userId: string,
+  message: string | undefined,
+  onEvent: (event: NegotiationStreamEvent) => void
+): Promise<void> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), AGENT_PIPELINE_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/projects/${projectId}/negotiation/generate/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId, message: message ?? null }),
+      signal: controller.signal
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `Negotiation generation failed: ${response.status}`);
+    }
+    await readSseStream(response, parseNegotiationSseBlock, onEvent);
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new Error(
+        `Negotiation generation timed out after ${Math.round(AGENT_PIPELINE_TIMEOUT_MS / 60000)} minutes. The backend may still be processing — refresh and check the plan.`
+      );
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 export async function createShareLink(
   projectId: string,
   userId: string

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import json
+from collections.abc import AsyncIterator
 from typing import Any
 
 from app.services.agent_context import assert_context_isolation, build_agent_context
@@ -12,9 +14,11 @@ from app.services.agent_llm import (
     format_script_for_prompt,
     script_excerpt_for_rows,
 )
+from app.services.llm_client import LLMClient, extract_json_object
 from app.services.llm_errors import LLMInvocationError
-from app.services.pipeline_log import log_step
-from app.services.prompt_loader import load_prompt
+from app.services.negotiation_json_stream import IncrementalReplyExtractor
+from app.services.pipeline_log import log_llm_mock, log_step
+from app.services.prompt_loader import load_prompt, render_prompt
 from app.services.tools.expert_kb import domain_case_retriever, script_structure_kb
 from app.models.choice_history import format_choice_history_for_prompt
 from app.models.modification_scheme_ops import (
@@ -1262,3 +1266,181 @@ async def run_expert_generate_negotiation(
         open_disputes=len(prep.get("open_disputes") or []),
     )
     return result
+
+
+def _negotiation_context_blocks(
+    project: dict[str, Any],
+    *,
+    message: str | None,
+    support_nodes: list[dict[str, Any]],
+    stance_nodes: list[dict[str, Any]],
+) -> str:
+    disputes_block = "\n".join(
+        f"- node_id={n.get('node_id')} | 反馈：{str(n.get('content', n.get('title', '')))[:200]} | "
+        f"对应脚本行：{', '.join(ref.get('row_id', '') for ref in (n.get('linked_script_refs') or []))}"
+        for n in support_nodes
+    ) or "（创作者尚未把任何品牌反馈加入沟通支持清单）"
+
+    stances_block = "\n".join(
+        f"- node_id={n.get('node_id')} | {n.get('title', '')} | {str(n.get('content', ''))[:160]}"
+        for n in stance_nodes
+    ) or "（TO BE CONSIDERED 列表为空，请基于脚本与图整体推断创作者立场）"
+
+    return "\n\n".join(
+        [
+            "## 场景\ngenerate_negotiation — 为创作者生成与品牌方协商的沟通方案",
+            f"## 创作者说明\n{message or '请帮助我准备与品牌方就以下反馈进行协商的方案'}",
+            f"## 待协商的品牌反馈（communication support list，每条对应一个 open_dispute）\n{disputes_block}",
+            f"## 创作者采纳的立场（TO BE CONSIDERED，用于支撑协商话术）\n{stances_block}",
+            f"## Creator choice trajectory\n{format_choice_history_for_prompt(project.get('choice_history'))}",
+            f"## 品牌视角结论\n{perspective_result_json(project.get('brand_perspective_result') or {})}",
+            f"## 观众视角结论\n{perspective_result_json(project.get('audience_perspective_result') or {})}",
+            f"## 已有节点\n{existing_nodes_summary(project)}",
+            f"## 当前脚本\n{format_script_for_prompt(project)}",
+        ]
+    )
+
+
+def _negotiation_llm_messages(context_block: str) -> list[dict[str, str]]:
+    system = render_prompt(
+        load_prompt("negotiation_agent.md"),
+        {"IBIS_TYPES": load_prompt("ibis_types.md")},
+    )
+    user = f"根据以下上下文完成分析并输出 JSON。\n\n{context_block}"
+    return [
+        {"role": "system", "content": system},
+        {"role": "user", "content": user},
+    ]
+
+
+async def run_expert_generate_negotiation_stream(
+    project: dict[str, Any],
+    *,
+    message: str | None = None,
+) -> AsyncIterator[dict[str, Any]]:
+    """Stream negotiation generation: reply_token / dispute_ready events, then final result dict.
+
+    Final event shape: ``{"type": "result", "assistant_reply": ..., "negotiation_preparation": ...}``.
+    """
+    context = build_agent_context("expert", project)
+    assert_context_isolation("expert", context)
+
+    project_id = str(context.get("project_id") or project.get("_id") or "")
+    script_version_id = context.get("current_script_version_id")
+
+    support_nodes = _support_feedback_nodes(project)
+    stance_nodes = _consideration_stance_nodes(project)
+    related_issue_ids = [n.get("node_id") for n in support_nodes if n.get("node_id")]
+
+    log_step(
+        "expert_agent.generate_negotiation_stream",
+        phase="IN",
+        project_id=project_id,
+        support_nodes=[n.get("node_id") for n in support_nodes],
+        stance_nodes=[n.get("node_id") for n in stance_nodes],
+    )
+
+    context_block = _negotiation_context_blocks(
+        project,
+        message=message,
+        support_nodes=support_nodes,
+        stance_nodes=stance_nodes,
+    )
+    messages = _negotiation_llm_messages(context_block)
+
+    def mock() -> dict[str, Any]:
+        return _mock_negotiation_preparation(
+            project,
+            support_nodes=support_nodes,
+            stance_nodes=stance_nodes,
+        )
+
+    extractor = IncrementalReplyExtractor()
+    client = LLMClient()
+    collected: list[str] = []
+
+    if client.settings.siliconflow_api_key:
+        try:
+            async for token in client.stream_tokens(
+                messages=messages,
+                task_type="expert_generate_negotiation",
+                complexity="high",
+                mock=False,
+            ):
+                collected.append(token)
+                for event in extractor.feed(token):
+                    yield {
+                        "type": event.kind,
+                        "dispute_index": event.dispute_index,
+                        "content": event.content,
+                        "issue_node_id": event.issue_node_id,
+                        "brand_feedback": event.brand_feedback,
+                        "reply": event.reply,
+                    }
+        except Exception as exc:
+            log_llm_mock(
+                "expert_generate_negotiation",
+                reason=f"LLM stream failed, raising error: {type(exc).__name__}: {exc!r}",
+            )
+            raise LLMInvocationError(task_type="expert_generate_negotiation", cause=exc) from exc
+        raw_text = "".join(collected)
+    else:
+        log_llm_mock("expert_generate_negotiation", reason="no API key (stream mock)")
+        payload_mock = mock()
+        raw_text = json.dumps(payload_mock, ensure_ascii=False)
+        for index in range(0, len(raw_text), 12):
+            chunk = raw_text[index : index + 12]
+            collected.append(chunk)
+            for event in extractor.feed(chunk):
+                yield {
+                    "type": event.kind,
+                    "dispute_index": event.dispute_index,
+                    "content": event.content,
+                    "issue_node_id": event.issue_node_id,
+                    "brand_feedback": event.brand_feedback,
+                    "reply": event.reply,
+                }
+            await asyncio.sleep(0.02)
+
+    try:
+        payload = extract_json_object(raw_text)
+    except (json.JSONDecodeError, ValueError):
+        if not client.settings.siliconflow_api_key:
+            payload = mock()
+        else:
+            payload = await client.complete_json_via_stream(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Fix the JSON syntax only. Output valid JSON object, nothing else.",
+                    },
+                    {"role": "user", "content": raw_text},
+                ],
+                task_type="coordinator_structured",
+                complexity="normal",
+                mock=False,
+            )
+
+    payload.pop("ibis", None)
+    prep_payload = payload.get("negotiation_preparation")
+    if not isinstance(prep_payload, dict):
+        prep_payload = payload
+    prep = build_negotiation_preparation(
+        prep_payload,
+        project_id=project_id,
+        script_version_id=script_version_id,
+        related_issue_ids=related_issue_ids,
+    )
+    result = {
+        "type": "result",
+        "assistant_reply": payload.get("assistant_reply", ""),
+        "negotiation_preparation": prep,
+        "tool_calls_used": ["negotiation_writer"],
+    }
+    log_step(
+        "expert_agent.generate_negotiation_stream",
+        phase="OUT",
+        project_id=project_id,
+        open_disputes=len(prep.get("open_disputes") or []),
+    )
+    yield result

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.db.mongo import database_dependency
@@ -15,6 +16,7 @@ from app.models.schemas import (
 from app.repositories.graph import toggle_communication_support
 from app.repositories.negotiation import generate_negotiation_preparation
 from app.repositories.projects import get_project
+from app.services.negotiation_stream import stream_generate_negotiation
 from app.services.vanilla_argue import (
     assert_feedback_column,
     build_vanilla_argue_append_block,
@@ -94,6 +96,24 @@ async def post_generate_negotiation(
         )
     except ValueError as exc:
         raise HTTPException(status_code=404 if "not found" in str(exc).lower() else 400, detail=str(exc)) from exc
+
+
+@router.post("/negotiation/generate/stream")
+async def post_generate_negotiation_stream(
+    project_id: str,
+    payload: NegotiationGenerateRequest,
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> StreamingResponse:
+    return StreamingResponse(
+        stream_generate_negotiation(
+            db,
+            project_id,
+            payload.user_id.strip(),
+            message=payload.message,
+        ),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.get("/negotiation", response_model=NegotiationGenerateResponse)

@@ -2,8 +2,10 @@
 
 import { useMemo, useState } from "react";
 
-import { generateNegotiationPlan, toggleCommunicationSupport } from "@/lib/api";
+import { CoordinatorMarkdown } from "@/components/CoordinatorMarkdown";
+import { generateNegotiationPlanStream, toggleCommunicationSupport } from "@/lib/api";
 import { buildIbisNodeLabels } from "@/lib/ibisNodeLabels";
+import type { NegotiationDispute, NegotiationPreparation } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
 
 type CommunicationTab = "argue" | "plan";
@@ -15,6 +17,22 @@ type ArgueItem = {
   rowId: string;
   columnId: string;
 };
+
+type StreamingDispute = {
+  issue_node_id: string;
+  brand_feedback: string;
+  reply: string;
+};
+
+function emptyDispute(): StreamingDispute {
+  return { issue_node_id: "", brand_feedback: "", reply: "" };
+}
+
+function ensureDisputeSlot(disputes: StreamingDispute[], index: number): StreamingDispute[] {
+  const next = [...disputes];
+  while (next.length <= index) next.push(emptyDispute());
+  return next;
+}
 
 type CommunicationPanelProps = {
   open: boolean;
@@ -31,6 +49,9 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
   const [generating, setGenerating] = useState(false);
   const [busyNodeId, setBusyNodeId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [streamDisputes, setStreamDisputes] = useState<StreamingDispute[]>([]);
+  const [streamingDisputeIndex, setStreamingDisputeIndex] = useState<number | null>(null);
+  const [streamProgress, setStreamProgress] = useState<string | null>(null);
 
   const argueItems = useMemo(() => {
     const queueItems = project?.communication_support_queue ?? [];
@@ -78,6 +99,36 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
 
   const considerationCount = project?.consideration_queue?.length ?? 0;
   const plan = project?.negotiation_preparation ?? null;
+  const displayPlan: NegotiationPreparation | null = generating
+    ? {
+        prep_id: "streaming",
+        project_id: projectId ?? "",
+        title: plan?.title || "Brand communication plan",
+        based_on_script_version_id: plan?.based_on_script_version_id ?? null,
+        design_intent: plan?.design_intent ?? "",
+        satisfied_brand_needs: plan?.satisfied_brand_needs ?? [],
+        open_disputes: streamDisputes.map(
+          (item): NegotiationDispute => ({
+            issue_node_id: item.issue_node_id,
+            brand_feedback: item.brand_feedback,
+            reply: item.reply,
+            fallback: "",
+            summary: item.brand_feedback,
+            our_position: item.reply,
+            acceptable_concession: "",
+            non_negotiable_line: "",
+            talking_points: [],
+            related_node_ids: item.issue_node_id ? [item.issue_node_id] : [],
+            related_script_refs: []
+          })
+        ),
+        recommended_communication_order: [],
+        related_issue_ids: [],
+        status: "draft",
+        created_at: "",
+        updated_at: ""
+      }
+    : plan;
   const hasArgumentBrief = argumentBrief.trim().length > 0;
   const isFullMode = (project?.mode ?? project?.current_script.settings?.mode ?? "full") === "full";
   const ibisNodeLabels = useMemo(
@@ -109,18 +160,69 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
     if (!projectId || !userId || generating) return;
     setGenerating(true);
     setError(null);
+    setStreamDisputes([]);
+    setStreamingDisputeIndex(null);
+    setStreamProgress("Generating…");
+    setTab("plan");
     try {
-      const { project: updated } = await generateNegotiationPlan(
+      await generateNegotiationPlanStream(
         projectId,
         userId,
-        hasArgumentBrief ? argumentBrief.trim() : undefined
+        hasArgumentBrief ? argumentBrief.trim() : undefined,
+        (event) => {
+          if (event.type === "progress") {
+            setStreamProgress(event.message || "Generating…");
+          }
+          if (event.type === "reply_token") {
+            setStreamingDisputeIndex(event.dispute_index);
+            setStreamDisputes((current) => {
+              const next = ensureDisputeSlot(current, event.dispute_index);
+              next[event.dispute_index] = {
+                ...next[event.dispute_index],
+                reply: next[event.dispute_index].reply + event.content
+              };
+              return next;
+            });
+          }
+          if (event.type === "dispute_meta") {
+            setStreamDisputes((current) => {
+              const next = ensureDisputeSlot(current, event.dispute_index);
+              next[event.dispute_index] = {
+                ...next[event.dispute_index],
+                issue_node_id: event.issue_node_id || next[event.dispute_index].issue_node_id,
+                brand_feedback: event.brand_feedback || next[event.dispute_index].brand_feedback
+              };
+              return next;
+            });
+          }
+          if (event.type === "dispute_ready") {
+            setStreamDisputes((current) => {
+              const next = ensureDisputeSlot(current, event.dispute_index);
+              next[event.dispute_index] = {
+                issue_node_id: event.issue_node_id || next[event.dispute_index].issue_node_id,
+                brand_feedback: event.brand_feedback || next[event.dispute_index].brand_feedback,
+                reply: event.reply || next[event.dispute_index].reply
+              };
+              return next;
+            });
+          }
+          if (event.type === "done") {
+            setProject(event.project);
+            setStreamingDisputeIndex(null);
+            setStreamProgress(null);
+            setStreamDisputes([]);
+          }
+          if (event.type === "error") {
+            setError(event.message);
+          }
+        }
       );
-      setProject(updated);
-      setTab("plan");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate negotiation plan");
     } finally {
       setGenerating(false);
+      setStreamingDisputeIndex(null);
+      setStreamProgress(null);
     }
   }
 
@@ -225,20 +327,22 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
             </div>
           ) : (
             <div className="comm-plan">
-              {plan ? (
+              {streamProgress ? <p className="comm-hint">{streamProgress}</p> : null}
+              {displayPlan && displayPlan.open_disputes.length > 0 ? (
                 <>
                   <section className="comm-plan-section">
-                    <h3 className="comm-plan-title">{plan.title}</h3>
-                    {plan.design_intent ? <p className="comm-plan-intent">{plan.design_intent}</p> : null}
+                    <h3 className="comm-plan-title">{displayPlan.title}</h3>
+                    {displayPlan.design_intent ? <p className="comm-plan-intent">{displayPlan.design_intent}</p> : null}
                   </section>
 
                   <section className="comm-plan-section">
                     <div className="comm-plan-header-row">
-                      <h4 className="comm-plan-subtitle">Reply messages ({plan.open_disputes.length})</h4>
+                      <h4 className="comm-plan-subtitle">Reply messages ({displayPlan.open_disputes.length})</h4>
                       <button
                         className="comm-copy-all-btn"
+                        disabled={generating}
                         onClick={() => {
-                          const allReplies = plan.open_disputes
+                          const allReplies = displayPlan.open_disputes
                             .map((d, i) => {
                               const reply = d.reply || d.our_position || d.summary || "(No content)";
                               const feedback = d.brand_feedback || d.summary || `Feedback #${i + 1}`;
@@ -254,21 +358,25 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
                         <IconCopy /> Copy all
                       </button>
                     </div>
-                    {plan.open_disputes.map((dispute, index) => {
+                    {displayPlan.open_disputes.map((dispute, index) => {
                       // Robust fallback chain: new fields → legacy fields → hardcoded placeholder
-                      const replyText = dispute.reply || dispute.our_position || dispute.summary || "(No reply generated — please regenerate)";
+                      const rawReply = dispute.reply || dispute.our_position || "";
+                      const replyText =
+                        rawReply ||
+                        (generating ? "" : dispute.summary || "(No reply generated — please regenerate)");
                       const feedbackText = dispute.brand_feedback || dispute.summary || `Feedback #${index + 1}`;
                       const fallbackText = dispute.fallback || dispute.acceptable_concession || "";
                       const talkingPoints = dispute.talking_points || [];
                       const basedOnNodes = [...new Set(dispute.related_node_ids || [])]
                         .map((nodeId) => ({ node: ibisNodesById.get(nodeId), code: ibisNodeLabels.get(nodeId) }))
                         .filter((item): item is { node: NonNullable<typeof item.node>; code: string } => Boolean(item.node && item.code));
+                      const isAnimating = generating && streamingDisputeIndex === index;
 
                       return (
-                        <article className="comm-dispute" key={dispute.issue_node_id || index}>
+                        <article className="comm-dispute" key={dispute.issue_node_id || `stream-${index}`}>
                           <div className="comm-dispute-head">
                             <span className="comm-dispute-index">#{index + 1}</span>
-                            <span className="comm-dispute-feedback-label">{feedbackText}</span>
+                            <span className="comm-dispute-feedback-label">{feedbackText || (generating ? "…" : "")}</span>
                           </div>
 
                           <div className="comm-dispute-reply-box">
@@ -276,6 +384,7 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
                               <span className="comm-dispute-label">Reply</span>
                               <button
                                 className="comm-copy-btn"
+                                disabled={generating || !replyText}
                                 onClick={() => void navigator.clipboard.writeText(replyText)}
                                 type="button"
                                 title="Copy reply"
@@ -283,7 +392,13 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
                                 <IconCopy />
                               </button>
                             </div>
-                            <p className="comm-dispute-reply-text">{replyText}</p>
+                            <div className="comm-dispute-reply-text">
+                              {replyText ? (
+                                <CoordinatorMarkdown content={replyText} isAnimating={isAnimating} />
+                              ) : generating ? (
+                                "…"
+                              ) : null}
+                            </div>
                             {isFullMode && basedOnNodes.length > 0 ? (
                               <div className="comm-dispute-basis" aria-label="IBIS nodes used for this reply">
                                 <span>Based on IBIS</span>
@@ -322,8 +437,9 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
                 </>
               ) : (
                 <p className="comm-empty">
-                  No negotiation plan yet. Add feedback to the Argue List, then generate a plan that aggregates the
-                  brand, audience, and creator perspectives.
+                  {generating
+                    ? "Generating reply messages…"
+                    : "No negotiation plan yet. Add feedback to the Argue List, then generate a plan that aggregates the brand, audience, and creator perspectives."}
                 </p>
               )}
             </div>

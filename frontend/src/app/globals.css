@@ -7311,6 +7311,8 @@ button.editor-row-link-mark:focus-visible {
   font-size: calc(13px + var(--app-font-size-delta));
   line-height: 1.6;
   color: var(--figma-text);
+  white-space: normal;
+  word-break: break-word;
 }
 
 .comm-dispute-basis {
