@@ -15,6 +15,10 @@ type AssistantTab = "chat" | "plans";
 const MAX_ATTACHMENTS = 3;
 const MAX_ATTACHMENT_BYTES = 262_144;
 const MAX_ATTACHMENT_CHARS = 20_000;
+const VANILLA_QUICK_REPLIES = [
+  "Help me analyze brand requirements",
+  "Help me analyze potential conflicts"
+] as const;
 const SUPPORTED_ATTACHMENT_EXTENSIONS = new Set([
   "txt", "md", "markdown", "csv", "json", "xml", "yaml", "yml", "srt", "vtt",
   "html", "css", "js", "jsx", "ts", "tsx", "py"
@@ -251,8 +255,9 @@ export function CoordinatorChat({
     void addAttachmentFiles(Array.from(event.dataTransfer.files));
   }
 
-  async function handleSend() {
-    const text = draft.trim() || (attachments.length ? "Please review the attached file(s)." : "");
+  async function handleSend(overrideText?: string) {
+    const text =
+      (overrideText ?? draft).trim() || (attachments.length ? "Please review the attached file(s)." : "");
     if (!text || streaming || !projectId || !userId) return;
     const sentAttachments = attachments;
     const persistedText = messageTag ? `${taggedMessagePrefix(messageTag)}\n${text}` : text;
@@ -588,6 +593,21 @@ export function CoordinatorChat({
             </div>
           ) : null}
           {isVanilla && attachmentError ? <p className="glacier-attachment-error">{attachmentError}</p> : null}
+          {isVanilla ? (
+            <div className="glacier-quick-replies" aria-label="Suggested prompts">
+              {VANILLA_QUICK_REPLIES.map((reply) => (
+                <button
+                  className="glacier-quick-reply"
+                  disabled={streaming}
+                  key={reply}
+                  onClick={() => void handleSend(reply)}
+                  type="button"
+                >
+                  {reply}
+                </button>
+              ))}
+            </div>
+          ) : null}
           <div className="glacier-input-wrap">
             {isVanilla ? (
               <>

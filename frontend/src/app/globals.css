@@ -3162,6 +3162,38 @@ textarea {
   line-height: 16px;
 }
 
+.glacier-quick-replies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.glacier-quick-reply {
+  max-width: 100%;
+  padding: 7px 11px;
+  border: 1px solid var(--glacier-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--glacier-primary);
+  font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
+  font-size: calc(12px + var(--app-font-size-delta));
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.glacier-quick-reply:hover:not(:disabled) {
+  border-color: var(--glacier-primary);
+  background: rgba(0, 101, 145, 0.08);
+}
+
+.glacier-quick-reply:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .glacier-message-attachments {
   display: flex;
   flex-wrap: wrap;
