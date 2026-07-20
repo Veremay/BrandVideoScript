@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { CoordinatorMarkdown } from "@/components/CoordinatorMarkdown";
 import { RevisionProposalsActions, RevisionProposalsList } from "@/components/RevisionProposalsPanel";
 import { fetchCoordinatorMessages, streamCoordinatorMessage } from "@/lib/api";
 import { resolveCoordinatorTaskType } from "@/lib/coordinatorIntent";
@@ -497,14 +498,21 @@ export function CoordinatorChat({
           <div className="glacier-body app-scrollbar">
             {tab === "chat" ? (
               <div className="glacier-chat-thread" ref={threadRef} role="log" aria-live="polite">
-                {messages.map((message) =>
-                  message.role === "assistant" ? (
+                {messages.map((message, index) => {
+                  const isActiveStream =
+                    streaming && message.role === "assistant" && index === messages.length - 1;
+
+                  return message.role === "assistant" ? (
                     <div className="glacier-msg-row glacier-msg-row--assistant" key={message.message_id}>
                       <span className="glacier-avatar glacier-avatar--bot" aria-hidden="true">
                         <IconRobot />
                       </span>
                       <div className="glacier-bubble glacier-bubble--assistant">
-                        {message.content || (streaming ? "…" : "")}
+                        {message.content ? (
+                          <CoordinatorMarkdown content={message.content} isAnimating={isActiveStream} />
+                        ) : isActiveStream ? (
+                          "…"
+                        ) : null}
                         {message.related_node_ids.length > 0 ? (
                           <p className="glacier-related-nodes">
                             Related nodes: {message.related_node_ids.join(", ")}
@@ -531,8 +539,8 @@ export function CoordinatorChat({
                         {userInitial}
                       </span>
                     </div>
-                  )
-                )}
+                  );
+                })}
                 {streamError ? <p className="glacier-stream-error">{streamError}</p> : null}
               </div>
             ) : (
