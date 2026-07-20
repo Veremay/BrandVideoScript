@@ -203,7 +203,6 @@ export function VanillaProjectSetup({ onBack, onEnterEditor }: VanillaProjectSet
 
       <CoordinatorChat
         embedded
-        initialDraft={assistantFocus === "requirements" ? REQUIREMENTS_PROMPT : CONFLICTS_PROMPT}
         messageTag={assistantFocus === "requirements" ? "REQUIREMENTS" : "CONFLICTS"}
         mode="vanilla"
         onClose={() => undefined}
@@ -229,6 +228,8 @@ type SetupPanelProps = {
 };
 
 function SetupPanel({ complete, description, index, label, onAskAssistant, onChange, placeholder, value }: SetupPanelProps) {
+  const canAskAssistant = Boolean(value.trim());
+
   return (
     <article className={`setup-card vanilla-setup-card${complete ? " is-complete" : ""}`}>
       <div className="setup-card-header">
@@ -246,7 +247,12 @@ function SetupPanel({ complete, description, index, label, onAskAssistant, onCha
         value={value}
       />
       <div className="setup-actions">
-        <button className="figma-nav-btn figma-nav-outline" onClick={onAskAssistant} type="button">
+        <button
+          className="figma-nav-btn figma-nav-outline"
+          disabled={!canAskAssistant}
+          onClick={onAskAssistant}
+          type="button"
+        >
           Ask AI to review
         </button>
       </div>
