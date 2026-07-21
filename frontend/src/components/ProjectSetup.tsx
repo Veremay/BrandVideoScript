@@ -3,7 +3,14 @@
 import { useMemo, useRef, useState } from "react";
 
 import { createEmptyInsight, insightsFromProject, toApiBrandInsights } from "@/lib/brandRequirements";
-import { parseBriefStream, provisionPersonasFromAnalytics, saveBrief } from "@/lib/api";
+import {
+  createPersona,
+  parseBriefStream,
+  provisionPersonasFromAnalytics,
+  saveBrief,
+  setActivePersona
+} from "@/lib/api";
+import { getPersonaEmoji } from "@/lib/personaEmoji";
 import { getProjectSetupStatus } from "@/lib/projectSetup";
 import type { BrandInsight, BrandInsightCategory, BrandInsightConfidence, PlatformContext } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
@@ -19,6 +26,8 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
   const [uploadingBrief, setUploadingBrief] = useState(false);
   const [parsingBrief, setParsingBrief] = useState(false);
   const [generatingPersonas, setGeneratingPersonas] = useState(false);
+  const [creatingPersona, setCreatingPersona] = useState(false);
+  const [activatingPersonaId, setActivatingPersonaId] = useState<string | null>(null);
   const [savingRequirements, setSavingRequirements] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,7 +55,8 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
   const status = getProjectSetupStatus(project);
   const hasBrief = Boolean(project.brief.text?.trim() || project.brief.filename);
   const hasRequirements = localExplicit.length > 0 || localImplicit.length > 0;
-  const busy = uploadingBrief || parsingBrief || generatingPersonas;
+  const personaBusy = generatingPersonas || creatingPersona || activatingPersonaId !== null;
+  const busy = uploadingBrief || parsingBrief || personaBusy;
 
   function updateLocalInsight(
     list: BrandInsight[],
@@ -180,6 +190,36 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
     }
   }
 
+  async function handleAddPersona() {
+    if (!project) return;
+    setCreatingPersona(true);
+    setError(null);
+    try {
+      const savedProject = await createPersona(project._id, project.user_id, {
+        name: "New Audience Persona"
+      });
+      setProject(savedProject);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create persona");
+    } finally {
+      setCreatingPersona(false);
+    }
+  }
+
+  async function handleActivatePersona(personaId: string) {
+    if (!project || project.active_persona_id === personaId) return;
+    setActivatingPersonaId(personaId);
+    setError(null);
+    try {
+      const savedProject = await setActivePersona(project._id, project.user_id, personaId);
+      setProject(savedProject);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not set active persona");
+    } finally {
+      setActivatingPersonaId(null);
+    }
+  }
+
   return (
     <main className="app-hub setup-page">
       <div className="setup-shell">
@@ -283,33 +323,61 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
               <span className="setup-card-index">2</span>
               <div>
                 <h2>Persona Provisioning</h2>
-                <p>Generate at least one persona. You can edit them later.</p>
+                <p>Load defaults or add manually. Click a persona to set it active — at least one active persona is required.</p>
               </div>
             </div>
 
             <div className="setup-card-scroll app-scrollbar">
               {project.personas.length ? (
-                <ul className="setup-persona-list">
-                  {project.personas.map((persona) => (
-                    <li key={persona.persona_id}>
-                      <strong>{persona.name}</strong>
-                      <span>{persona.job || persona.explanation || "Audience persona"}</span>
-                    </li>
-                  ))}
+                <ul className="vanilla-setup-persona-list">
+                  {project.personas.map((persona) => {
+                    const isActive = project.active_persona_id === persona.persona_id;
+                    return (
+                      <li key={persona.persona_id}>
+                        <button
+                          className={`vanilla-setup-persona-item${isActive ? " is-active" : ""}`}
+                          disabled={personaBusy}
+                          onClick={() => void handleActivatePersona(persona.persona_id)}
+                          type="button"
+                        >
+                          <span className="vanilla-setup-persona-avatar" aria-hidden="true">
+                            {getPersonaEmoji(persona)}
+                          </span>
+                          <span className="vanilla-setup-persona-copy">
+                            <strong>{persona.name}</strong>
+                            <span>{persona.job || persona.explanation || "Audience persona"}</span>
+                          </span>
+                          {isActive ? <span className="vanilla-setup-persona-badge">Active</span> : null}
+                        </button>
+                      </li>
+                    );
+                  })}
                 </ul>
               ) : (
-                <p className="setup-empty">No personas generated yet.</p>
+                <p className="setup-empty">No personas yet. Load from analytics or add one manually.</p>
               )}
             </div>
 
             <div className="setup-actions">
+              <button
+                className="figma-nav-btn figma-nav-outline"
+                disabled={personaBusy || uploadingBrief || parsingBrief}
+                onClick={() => void handleAddPersona()}
+                type="button"
+              >
+                {creatingPersona ? "Adding…" : "Add New"}
+              </button>
               <button
                 className="figma-nav-btn figma-nav-primary"
                 disabled={busy}
                 onClick={() => void handleGeneratePersonas()}
                 type="button"
               >
-                {generatingPersonas ? "Generating..." : status.personaComplete ? "Regenerate Personas" : "Generate Personas"}
+                {generatingPersonas
+                  ? "Loading…"
+                  : status.personaComplete
+                    ? "Reload From Analytics"
+                    : "From Analytics"}
               </button>
             </div>
           </article>
