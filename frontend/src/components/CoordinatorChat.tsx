@@ -15,10 +15,8 @@ type AssistantTab = "chat" | "plans";
 const MAX_ATTACHMENTS = 3;
 const MAX_ATTACHMENT_BYTES = 262_144;
 const MAX_ATTACHMENT_CHARS = 20_000;
-const VANILLA_QUICK_REPLIES = [
-  "Help me analyze brand requirements",
-  "Help me analyze potential conflicts"
-] as const;
+const VANILLA_SETUP_QUICK_REPLIES = ["Help me analyze brand requirements"] as const;
+const VANILLA_EDITOR_QUICK_REPLIES = ["Help me analyze potential conflicts"] as const;
 const SUPPORTED_ATTACHMENT_EXTENSIONS = new Set([
   "txt", "md", "markdown", "csv", "json", "xml", "yaml", "yml", "srt", "vtt",
   "html", "css", "js", "jsx", "ts", "tsx", "py"
@@ -595,7 +593,7 @@ export function CoordinatorChat({
           {isVanilla && attachmentError ? <p className="glacier-attachment-error">{attachmentError}</p> : null}
           {isVanilla ? (
             <div className="glacier-quick-replies" aria-label="Suggested prompts">
-              {VANILLA_QUICK_REPLIES.map((reply) => (
+              {(embedded ? VANILLA_SETUP_QUICK_REPLIES : VANILLA_EDITOR_QUICK_REPLIES).map((reply) => (
                 <button
                   className="glacier-quick-reply"
                   disabled={streaming}
