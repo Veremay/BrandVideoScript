@@ -326,6 +326,7 @@ export function MapView() {
 function MapViewContent() {
   const project = useAppStore((state) => state.project);
   const setProject = useAppStore((state) => state.setProject);
+  const appMode = useAppStore((state) => state.appMode);
   const mapFocusNodeId = useAppStore((state) => state.mapFocusNodeId);
   const setMapFocusNodeId = useAppStore((state) => state.setMapFocusNodeId);
   // Superseded nodes survive only in snapshots; never render them on the canvas.
@@ -997,8 +998,10 @@ function MapViewContent() {
   const canUpdateMap = hasRequirements && hasPersona;
   const mapUpdateNeeded = isGraphStaleForUpdateMap(project?.stale);
   const mapSyncing = syncingMap || project?.stale?.rationale_graph === "generating";
+  const allowEmptyScriptMap = appMode === "full";
   const showUpdateMapButton =
-    hasScriptContent && (mapUpdateNeeded || mapSyncing || (emptyGraph && canUpdateMap));
+    (hasScriptContent || allowEmptyScriptMap) &&
+    (mapUpdateNeeded || mapSyncing || (emptyGraph && canUpdateMap));
   const updateMapBlockedReason = !hasRequirements
     ? "Add brand requirements (parse Brief or edit Requirements) before updating the map."
     : !hasPersona
@@ -1084,7 +1087,7 @@ function MapViewContent() {
       {emptyGraph ? (
         <div className="map-empty-state">
           <p>
-            {!hasScriptContent
+            {!hasScriptContent && !allowEmptyScriptMap
               ? "Write script content in the editor first, then come back to build the map."
               : !hasRequirements && !hasPersona
                 ? "Parse a Brief to extract requirements and provision Personas, then click Update Map to build the graph."
@@ -1092,7 +1095,9 @@ function MapViewContent() {
                   ? "Parse a Brief or add requirements in the Requirements panel, then click Update Map."
                   : !hasPersona
                     ? "Provision at least one Persona, then click Update Map to detect conflicts from the script."
-                    : "Edit the script, requirements, or persona, then click Update Map to refresh the graph."}
+                    : !hasScriptContent && allowEmptyScriptMap
+                      ? "Script is empty — Update Map will build the graph from requirements and persona. You can add script content later."
+                      : "Edit the script, requirements, or persona, then click Update Map to refresh the graph."}
           </p>
         </div>
       ) : null}
