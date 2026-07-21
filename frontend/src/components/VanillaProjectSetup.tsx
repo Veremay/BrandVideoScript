@@ -20,18 +20,14 @@ type VanillaProjectSetupProps = {
 
 const REQUIREMENTS_PROMPT =
   "Help me clarify the Brand Requirements panel. Ask focused questions, flag ambiguity, and suggest a concise version I can paste back into the panel.";
-const CONFLICTS_PROMPT =
-  "Help me identify conflicts and trade-offs in the brand requirements. Ask focused questions and suggest a concise analysis I can paste back into the Conflicts panel.";
 
 export function VanillaProjectSetup({ onBack, onEnterEditor }: VanillaProjectSetupProps) {
   const { project, setPendingChatDraft, setProject } = useAppStore();
-  const [formData, setFormData] = useState<VanillaSetupData>({
-    brand_requirements: project?.vanilla_setup_data?.brand_requirements ?? "",
-    conflicts: project?.vanilla_setup_data?.conflicts ?? ""
-  });
-  const formDataRef = useRef(formData);
-  formDataRef.current = formData;
-  const [assistantFocus, setAssistantFocus] = useState<"requirements" | "conflicts">("requirements");
+  const [requirements, setRequirements] = useState(
+    project?.vanilla_setup_data?.brand_requirements ?? ""
+  );
+  const requirementsRef = useRef(requirements);
+  requirementsRef.current = requirements;
   const [savingAction, setSavingAction] = useState<"enter" | null>(null);
   const [dirty, setDirty] = useState(false);
   const [autoSaveState, setAutoSaveState] = useState<"saved" | "pending" | "saving" | "failed">("saved");
@@ -43,25 +39,21 @@ export function VanillaProjectSetup({ onBack, onEnterEditor }: VanillaProjectSet
   useEffect(() => {
     if (!project || !dirty || savingAction) return;
     const timeoutId = window.setTimeout(async () => {
-      const dataToSave = {
-        brand_requirements: formData.brand_requirements.trim(),
-        conflicts: formData.conflicts.trim()
+      const dataToSave: VanillaSetupData = {
+        brand_requirements: requirements.trim(),
+        conflicts: project.vanilla_setup_data?.conflicts?.trim() ?? ""
       };
       setAutoSaveState("saving");
       try {
-        const currentStage = project.vanilla_setup_stage === "conflicts" ? "conflicts" : "requirements";
         const savedProject = await updateVanillaSetupStage(
           project._id,
           project.user_id,
-          currentStage,
+          "requirements",
           dataToSave
         );
         setProject(savedProject);
-        const latestData = {
-          brand_requirements: formDataRef.current.brand_requirements.trim(),
-          conflicts: formDataRef.current.conflicts.trim()
-        };
-        const isLatest = JSON.stringify(latestData) === JSON.stringify(dataToSave);
+        const latestRequirements = requirementsRef.current.trim();
+        const isLatest = latestRequirements === dataToSave.brand_requirements;
         setDirty(!isLatest);
         setAutoSaveState(isLatest ? "saved" : "pending");
       } catch (err) {
@@ -70,41 +62,38 @@ export function VanillaProjectSetup({ onBack, onEnterEditor }: VanillaProjectSet
       }
     }, 700);
     return () => window.clearTimeout(timeoutId);
-  }, [dirty, formData, project?._id, project?.user_id, project?.vanilla_setup_stage, savingAction, setProject]);
+  }, [dirty, requirements, project, savingAction, setProject]);
 
   if (!project) return null;
 
   const currentProject = project;
-  const requirementsComplete = Boolean(formData.brand_requirements.trim());
-  const conflictsComplete = Boolean(formData.conflicts.trim());
+  const requirementsComplete = Boolean(requirements.trim());
   const personaComplete = Boolean(
     project.personas.length > 0 &&
       project.active_persona_id &&
       project.personas.some((persona) => persona.persona_id === project.active_persona_id)
   );
-  // Persona is optional — Enter Editor only requires requirements + conflicts.
-  const setupComplete = requirementsComplete && conflictsComplete;
+  // Conflicts are configured later in the editor — Enter Editor only needs requirements.
+  const setupComplete = requirementsComplete;
   const personaBusy = provisioningPersonas || creatingPersona || activatingPersonaId !== null;
 
-  function updateField(field: keyof VanillaSetupData, value: string) {
-    setFormData((current) => ({ ...current, [field]: value }));
+  function updateRequirements(value: string) {
+    setRequirements(value);
     setDirty(true);
     setAutoSaveState("pending");
     setError(null);
   }
 
-  function askAssistant(focus: "requirements" | "conflicts") {
-    setAssistantFocus(focus);
-    const value = focus === "requirements" ? formData.brand_requirements : formData.conflicts;
-    const basePrompt = focus === "requirements" ? REQUIREMENTS_PROMPT : CONFLICTS_PROMPT;
-    const prompt = value.trim() ? `${basePrompt}\n\nMy current notes:\n${value.trim()}` : basePrompt;
+  function askAssistant() {
+    const value = requirements.trim();
+    const prompt = value ? `${REQUIREMENTS_PROMPT}\n\nMy current notes:\n${value}` : REQUIREMENTS_PROMPT;
     setPendingChatDraft({ prompt, appendBlock: prompt });
   }
 
   function normalizedData(): VanillaSetupData {
     return {
-      brand_requirements: formData.brand_requirements.trim(),
-      conflicts: formData.conflicts.trim()
+      brand_requirements: requirements.trim(),
+      conflicts: currentProject.vanilla_setup_data?.conflicts?.trim() ?? ""
     };
   }
 
@@ -160,18 +149,9 @@ export function VanillaProjectSetup({ onBack, onEnterEditor }: VanillaProjectSet
     setDirty(false);
     setError(null);
     try {
-      let savedProject = currentProject;
-      if (savedProject.vanilla_setup_stage !== "conflicts") {
-        savedProject = await updateVanillaSetupStage(
-          savedProject._id,
-          savedProject.user_id,
-          "conflicts",
-          normalizedData()
-        );
-      }
-      savedProject = await updateVanillaSetupStage(
-        savedProject._id,
-        savedProject.user_id,
+      const savedProject = await updateVanillaSetupStage(
+        currentProject._id,
+        currentProject.user_id,
         "complete",
         normalizedData()
       );
@@ -193,7 +173,8 @@ export function VanillaProjectSetup({ onBack, onEnterEditor }: VanillaProjectSet
             <p className="hub-eyebrow">Project Setup</p>
             <h1 className="hub-headline">{project.title}</h1>
             <p className="hub-lead">
-              Complete requirements and conflicts to enter the editor. Persona is optional and used as chat context when set.
+              Complete brand requirements to enter the editor. Persona is optional. Configure conflicts later from the
+              editor toolbar.
             </p>
           </div>
           <button className="figma-nav-btn figma-nav-outline" disabled={savingAction !== null} onClick={onBack} type="button">
@@ -208,22 +189,36 @@ export function VanillaProjectSetup({ onBack, onEnterEditor }: VanillaProjectSet
           <span className="setup-progress-line" />
           <SetupBadge complete={personaComplete} label="Persona" />
           <span className="setup-progress-line" />
-          <SetupBadge complete={conflictsComplete} label="Conflicts" />
-          <span className="setup-progress-line" />
           <SetupBadge complete={false} label="Editor" />
         </section>
 
         <section className="setup-grid vanilla-setup-grid">
-          <SetupPanel
-            complete={requirementsComplete}
-            description="Write the brand goals, messages, rules, and constraints the script should follow."
-            index="1"
-            label="Brand Requirements"
-            onAskAssistant={() => askAssistant("requirements")}
-            onChange={(value) => updateField("brand_requirements", value)}
-            placeholder="Brand goals, required messages, tone or visual rules, CTA, claims to avoid..."
-            value={formData.brand_requirements}
-          />
+          <article className={`setup-card vanilla-setup-card${requirementsComplete ? " is-complete" : ""}`}>
+            <div className="setup-card-header">
+              <span className="setup-card-index">1</span>
+              <div>
+                <h2>Brand Requirements</h2>
+                <p>Write the brand goals, messages, rules, and constraints the script should follow.</p>
+              </div>
+            </div>
+            <textarea
+              aria-label="Brand Requirements"
+              className="vanilla-setup-card-input"
+              onChange={(event) => updateRequirements(event.target.value)}
+              placeholder="Brand goals, required messages, tone or visual rules, CTA, claims to avoid..."
+              value={requirements}
+            />
+            <div className="setup-actions">
+              <button
+                className="figma-nav-btn figma-nav-outline"
+                disabled={!requirementsComplete}
+                onClick={askAssistant}
+                type="button"
+              >
+                Ask AI to review
+              </button>
+            </div>
+          </article>
 
           <article className={`setup-card vanilla-setup-card${personaComplete ? " is-complete" : ""}`}>
             <div className="setup-card-header">
@@ -288,17 +283,6 @@ export function VanillaProjectSetup({ onBack, onEnterEditor }: VanillaProjectSet
               </button>
             </div>
           </article>
-
-          <SetupPanel
-            complete={conflictsComplete}
-            description="Write competing requirements, unresolved tensions, and what should take priority."
-            index="3"
-            label="Conflicts & Trade-offs"
-            onAskAssistant={() => askAssistant("conflicts")}
-            onChange={(value) => updateField("conflicts", value)}
-            placeholder="Product detail vs. runtime, brand visibility vs. natural tone, priority decisions..."
-            value={formData.conflicts}
-          />
         </section>
 
         <footer className="setup-footer">
@@ -307,9 +291,9 @@ export function VanillaProjectSetup({ onBack, onEnterEditor }: VanillaProjectSet
             <p>
               {setupComplete
                 ? personaComplete
-                  ? "Requirements and conflicts are ready. Active persona will be used in chat context."
-                  : "Requirements and conflicts are ready. You can enter now — add a persona later if needed."
-                : "Fill in both Requirements and Conflicts before entering the editor. Persona is optional."}
+                  ? "Requirements are ready. Active persona will be used in chat. Configure conflicts from the editor toolbar."
+                  : "Requirements are ready. You can enter now — add a persona or conflicts later if needed."
+                : "Fill in Brand Requirements before entering the editor. Persona is optional."}
             </p>
           </div>
           <div className="vanilla-setup-footer-actions">
@@ -336,7 +320,7 @@ export function VanillaProjectSetup({ onBack, onEnterEditor }: VanillaProjectSet
 
       <CoordinatorChat
         embedded
-        messageTag={assistantFocus === "requirements" ? "REQUIREMENTS" : "CONFLICTS"}
+        messageTag="REQUIREMENTS"
         mode="vanilla"
         onClose={() => undefined}
         open
@@ -346,50 +330,6 @@ export function VanillaProjectSetup({ onBack, onEnterEditor }: VanillaProjectSet
         userInitial={project.title.slice(0, 1).toUpperCase()}
       />
     </main>
-  );
-}
-
-type SetupPanelProps = {
-  complete: boolean;
-  description: string;
-  index: string;
-  label: string;
-  onAskAssistant: () => void;
-  onChange: (value: string) => void;
-  placeholder: string;
-  value: string;
-};
-
-function SetupPanel({ complete, description, index, label, onAskAssistant, onChange, placeholder, value }: SetupPanelProps) {
-  const canAskAssistant = Boolean(value.trim());
-
-  return (
-    <article className={`setup-card vanilla-setup-card${complete ? " is-complete" : ""}`}>
-      <div className="setup-card-header">
-        <span className="setup-card-index">{index}</span>
-        <div>
-          <h2>{label}</h2>
-          <p>{description}</p>
-        </div>
-      </div>
-      <textarea
-        aria-label={label}
-        className="vanilla-setup-card-input"
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        value={value}
-      />
-      <div className="setup-actions">
-        <button
-          className="figma-nav-btn figma-nav-outline"
-          disabled={!canAskAssistant}
-          onClick={onAskAssistant}
-          type="button"
-        >
-          Ask AI to review
-        </button>
-      </div>
-    </article>
   );
 }
 

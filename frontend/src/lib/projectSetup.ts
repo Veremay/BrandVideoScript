@@ -13,16 +13,14 @@ export type ProjectSetupStatus = {
 export function getProjectSetupStatus(project: Project): ProjectSetupStatus {
   if ((project.mode ?? project.current_script.settings?.mode) === "vanilla") {
     const requirementsComplete = Boolean(project.vanilla_setup_data?.brand_requirements?.trim());
-    const conflictsComplete = Boolean(project.vanilla_setup_data?.conflicts?.trim());
     const personaCount = project.personas.length;
     const activePersonaExists = Boolean(
       project.active_persona_id &&
         project.personas.some((persona) => persona.persona_id === project.active_persona_id)
     );
     const personaComplete = personaCount > 0 && activePersonaExists;
-    // Persona is optional for vanilla — editor unlocks with requirements + conflicts.
-    const complete =
-      project.vanilla_setup_stage === "complete" || (requirementsComplete && conflictsComplete);
+    // Conflicts are edited in the editor toolbar — not part of setup gate.
+    const complete = project.vanilla_setup_stage === "complete" || requirementsComplete;
 
     return {
       requirementsComplete,

@@ -433,7 +433,7 @@ async def update_vanilla_setup_stage(
     if mode != "vanilla":
         raise ValueError("Setup stages are only available in vanilla mode")
     allowed_transitions = {
-        "requirements": {"requirements", "conflicts"},
+        "requirements": {"requirements", "conflicts", "complete"},
         "conflicts": {"conflicts", "complete"},
         "complete": {"complete"},
     }

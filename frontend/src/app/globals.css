@@ -1701,7 +1701,7 @@ textarea {
 }
 
 .vanilla-setup-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-content: stretch;
   gap: 16px;
   flex: 1 1 auto;
@@ -1858,6 +1858,36 @@ textarea {
   max-height: min(560px, calc(100vh - 220px));
   overflow-y: auto;
   padding: 0 40px 40px;
+}
+
+.vanilla-context-editor {
+  display: block;
+  width: 100%;
+  min-height: 280px;
+  box-sizing: border-box;
+  padding: 14px;
+  border: 1px solid var(--figma-border);
+  border-radius: 12px;
+  outline: none;
+  resize: vertical;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--figma-text);
+  font: inherit;
+  font-size: calc(15px + var(--app-font-size-delta));
+  line-height: 24px;
+  white-space: pre-wrap;
+}
+
+.vanilla-context-editor:focus {
+  border-color: var(--figma-primary);
+  box-shadow: 0 0 0 3px rgba(0, 101, 145, 0.1);
+}
+
+.vanilla-context-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .vanilla-context-body p {

@@ -1,5 +1,9 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
+
+import { updateVanillaSetupStage } from "@/lib/api";
+import type { VanillaSetupData } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
 
 type VanillaSetupSection = "requirements" | "conflicts";
@@ -12,29 +16,114 @@ type VanillaSetupContextPanelProps = {
 
 export function VanillaSetupContextPanel({ onClose, open, section }: VanillaSetupContextPanelProps) {
   const project = useAppStore((state) => state.project);
-  if (!open || !project) return null;
-
-  const requirements = project.vanilla_setup_data?.brand_requirements?.trim() ?? "";
-  const conflicts = project.vanilla_setup_data?.conflicts?.trim() ?? "";
+  const setProject = useAppStore((state) => state.setProject);
   const isRequirements = section === "requirements";
   const title = isRequirements ? "Brand Requirements" : "Conflicts & Trade-offs";
-  const content = isRequirements ? requirements : conflicts;
+  const fieldKey: keyof VanillaSetupData = isRequirements ? "brand_requirements" : "conflicts";
+  const storedValue = project?.vanilla_setup_data?.[fieldKey] ?? "";
+
+  const [draft, setDraft] = useState(storedValue);
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const [dirty, setDirty] = useState(false);
+  const [saveState, setSaveState] = useState<"saved" | "pending" | "saving" | "failed">("saved");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setDraft(storedValue);
+    draftRef.current = storedValue;
+    setDirty(false);
+    setSaveState("saved");
+    setError(null);
+  }, [open, section, storedValue, project?._id]);
+
+  useEffect(() => {
+    if (!open || !project || !dirty) return;
+    const timeoutId = window.setTimeout(async () => {
+      const nextValue = draftRef.current;
+      const data: VanillaSetupData = {
+        brand_requirements:
+          fieldKey === "brand_requirements"
+            ? nextValue.trim()
+            : project.vanilla_setup_data?.brand_requirements?.trim() ?? "",
+        conflicts:
+          fieldKey === "conflicts" ? nextValue.trim() : project.vanilla_setup_data?.conflicts?.trim() ?? ""
+      };
+      setSaveState("saving");
+      try {
+        const stage =
+          project.vanilla_setup_stage === "requirements" || project.vanilla_setup_stage === "conflicts"
+            ? project.vanilla_setup_stage
+            : "complete";
+        const saved = await updateVanillaSetupStage(project._id, project.user_id, stage, data);
+        setProject(saved);
+        const latest = draftRef.current;
+        const savedField = fieldKey === "brand_requirements" ? data.brand_requirements : data.conflicts;
+        const isLatest = latest.trim() === savedField;
+        setDirty(!isLatest);
+        setSaveState(isLatest ? "saved" : "pending");
+      } catch (err) {
+        setSaveState("failed");
+        setError(err instanceof Error ? err.message : "Could not save");
+      }
+    }, 700);
+    return () => window.clearTimeout(timeoutId);
+  }, [dirty, draft, fieldKey, open, project, setProject]);
+
+  if (!open || !project) return null;
+
+  const placeholder = isRequirements
+    ? "Brand goals, required messages, tone or visual rules, CTA, claims to avoid..."
+    : "Product detail vs. runtime, brand visibility vs. natural tone, priority decisions...";
+  const subtitle = isRequirements
+    ? "Used as context by the AI assistant. Changes save automatically."
+    : "Capture competing requirements and trade-offs. Used as chat context. Changes save automatically.";
 
   return (
     <div className="persona-overlay" role="presentation">
       <button aria-label={`Close ${title}`} className="persona-overlay-backdrop" onClick={onClose} type="button" />
-      <section aria-labelledby="vanilla-context-title" aria-modal="true" className="persona-panel vanilla-context-panel" role="dialog">
+      <section
+        aria-labelledby="vanilla-context-title"
+        aria-modal="true"
+        className="persona-panel vanilla-context-panel"
+        role="dialog"
+      >
         <button aria-label="Close" className="persona-panel-close" onClick={onClose} type="button">
           <IconClose />
         </button>
         <header className="persona-panel-header">
           <div className="persona-panel-heading">
             <h1 className="persona-panel-title" id="vanilla-context-title">{title}</h1>
-            <p className="persona-panel-subtitle">Captured during project setup and used as context by the AI assistant.</p>
+            <p className="persona-panel-subtitle">{subtitle}</p>
           </div>
         </header>
         <div className="vanilla-context-body app-scrollbar">
-          <p>{content || "No content was provided during setup."}</p>
+          <textarea
+            aria-label={title}
+            className="vanilla-context-editor"
+            onChange={(event) => {
+              setDraft(event.target.value);
+              setDirty(true);
+              setSaveState("pending");
+              setError(null);
+            }}
+            placeholder={placeholder}
+            rows={14}
+            value={draft}
+          />
+          <div className="vanilla-context-footer">
+            <span className={`vanilla-auto-save-status is-${saveState}`}>
+              {saveState === "saving"
+                ? "Saving..."
+                : saveState === "pending"
+                  ? "Changes pending"
+                  : saveState === "failed"
+                    ? "Save failed"
+                    : "Saved automatically"}
+            </span>
+            {error ? <p className="setup-alert setup-alert-error">{error}</p> : null}
+          </div>
         </div>
       </section>
     </div>
