@@ -1701,7 +1701,7 @@ textarea {
 }
 
 .vanilla-setup-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-content: stretch;
   gap: 16px;
   flex: 1 1 auto;
@@ -1713,6 +1713,91 @@ textarea {
   height: 100%;
   overflow: hidden;
   padding: 20px;
+}
+
+.vanilla-setup-persona-body {
+  flex: 1 1 auto;
+  min-height: 140px;
+  max-height: 100%;
+  overflow-y: auto;
+  margin-bottom: 12px;
+}
+
+.vanilla-setup-persona-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vanilla-setup-persona-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--figma-border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--figma-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.vanilla-setup-persona-item:hover:not(:disabled) {
+  border-color: var(--figma-primary);
+}
+
+.vanilla-setup-persona-item.is-active {
+  border-color: var(--figma-primary);
+  background: rgba(0, 101, 145, 0.08);
+}
+
+.vanilla-setup-persona-item:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.vanilla-setup-persona-avatar {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: rgba(0, 101, 145, 0.1);
+  font-size: 16px;
+}
+
+.vanilla-setup-persona-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.vanilla-setup-persona-copy strong,
+.vanilla-setup-persona-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vanilla-setup-persona-copy span {
+  color: var(--figma-text-secondary);
+  font-size: calc(12px + var(--app-font-size-delta));
+}
+
+.vanilla-setup-persona-badge {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--figma-primary);
+  color: #fff;
+  font-size: calc(10px + var(--app-font-size-delta));
+  font-weight: 700;
 }
 
 .vanilla-setup-main > .setup-footer {

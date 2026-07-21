@@ -286,6 +286,10 @@ export function EditorShell() {
                   <IconRequirements />
                   Requirements
                 </button>
+                <button className="figma-nav-btn figma-nav-outline" onClick={handlePersonasClick} type="button">
+                  <IconPersonas />
+                  Personas
+                </button>
                 <button className="figma-nav-btn figma-nav-outline" onClick={() => setVanillaContextSection("conflicts")} type="button">
                   Conflicts
                 </button>
@@ -390,6 +394,7 @@ export function EditorShell() {
 
         {isVanilla ? (
           <>
+            <PersonaPanel onClose={() => setPersonaPanelOpen(false)} open={layout.personaPanelOpen} />
             <button
               className={`figma-fab ${coordinatorOpen ? "figma-fab--open" : ""}`}
               onClick={handleFabClick}

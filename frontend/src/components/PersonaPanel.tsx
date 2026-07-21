@@ -60,7 +60,7 @@ function personaSubtitle(persona: Persona): string {
 }
 
 export function PersonaPanel({ open, onClose }: PersonaPanelProps) {
-  const { project, setProject } = useAppStore();
+  const { project, setProject, appMode } = useAppStore();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pendingActiveId, setPendingActiveId] = useState<string | null>(null);
   const [draft, setDraft] = useState<PersonaDraft>(EMPTY_DRAFT);
@@ -160,7 +160,7 @@ export function PersonaPanel({ open, onClose }: PersonaPanelProps) {
       const platform = (currentProject.platform_context ?? "xiaohongshu") as PlatformContext;
       const result = await provisionPersonasFromAnalytics(currentProject._id, currentProject.user_id, {
         platform_context: platform,
-        run_audience_parse: true
+        run_audience_parse: appMode === "full"
       });
       if (result.project) {
         setProject(result.project);

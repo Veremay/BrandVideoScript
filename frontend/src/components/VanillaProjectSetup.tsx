@@ -3,8 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 
 import { CoordinatorChat } from "@/components/CoordinatorChat";
-import { updateVanillaSetupStage } from "@/lib/api";
-import type { VanillaSetupData } from "@/lib/types";
+import {
+  createPersona,
+  provisionPersonasFromAnalytics,
+  setActivePersona,
+  updateVanillaSetupStage
+} from "@/lib/api";
+import { getPersonaEmoji } from "@/lib/personaEmoji";
+import type { PlatformContext, VanillaSetupData } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
 
 type VanillaProjectSetupProps = {
@@ -30,6 +36,9 @@ export function VanillaProjectSetup({ onBack, onEnterEditor }: VanillaProjectSet
   const [dirty, setDirty] = useState(false);
   const [autoSaveState, setAutoSaveState] = useState<"saved" | "pending" | "saving" | "failed">("saved");
   const [error, setError] = useState<string | null>(null);
+  const [provisioningPersonas, setProvisioningPersonas] = useState(false);
+  const [creatingPersona, setCreatingPersona] = useState(false);
+  const [activatingPersonaId, setActivatingPersonaId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!project || !dirty || savingAction) return;
@@ -68,7 +77,14 @@ export function VanillaProjectSetup({ onBack, onEnterEditor }: VanillaProjectSet
   const currentProject = project;
   const requirementsComplete = Boolean(formData.brand_requirements.trim());
   const conflictsComplete = Boolean(formData.conflicts.trim());
+  const personaComplete = Boolean(
+    project.personas.length > 0 &&
+      project.active_persona_id &&
+      project.personas.some((persona) => persona.persona_id === project.active_persona_id)
+  );
+  // Persona is optional — Enter Editor only requires requirements + conflicts.
   const setupComplete = requirementsComplete && conflictsComplete;
+  const personaBusy = provisioningPersonas || creatingPersona || activatingPersonaId !== null;
 
   function updateField(field: keyof VanillaSetupData, value: string) {
     setFormData((current) => ({ ...current, [field]: value }));
@@ -90,6 +106,52 @@ export function VanillaProjectSetup({ onBack, onEnterEditor }: VanillaProjectSet
       brand_requirements: formData.brand_requirements.trim(),
       conflicts: formData.conflicts.trim()
     };
+  }
+
+  async function handleProvisionPersonas() {
+    setProvisioningPersonas(true);
+    setError(null);
+    try {
+      const platform = (currentProject.platform_context ?? "xiaohongshu") as PlatformContext;
+      const result = await provisionPersonasFromAnalytics(currentProject._id, currentProject.user_id, {
+        platform_context: platform,
+        run_audience_parse: false
+      });
+      setProject(result.project);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Persona provisioning failed");
+    } finally {
+      setProvisioningPersonas(false);
+    }
+  }
+
+  async function handleAddPersona() {
+    setCreatingPersona(true);
+    setError(null);
+    try {
+      const savedProject = await createPersona(currentProject._id, currentProject.user_id, {
+        name: "New Audience Persona"
+      });
+      setProject(savedProject);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create persona");
+    } finally {
+      setCreatingPersona(false);
+    }
+  }
+
+  async function handleActivatePersona(personaId: string) {
+    if (currentProject.active_persona_id === personaId) return;
+    setActivatingPersonaId(personaId);
+    setError(null);
+    try {
+      const savedProject = await setActivePersona(currentProject._id, currentProject.user_id, personaId);
+      setProject(savedProject);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not set active persona");
+    } finally {
+      setActivatingPersonaId(null);
+    }
   }
 
   async function enterEditor() {
@@ -130,7 +192,9 @@ export function VanillaProjectSetup({ onBack, onEnterEditor }: VanillaProjectSet
           <div className="setup-header-copy">
             <p className="hub-eyebrow">Project Setup</p>
             <h1 className="hub-headline">{project.title}</h1>
-            <p className="hub-lead">Complete requirements and conflict analysis before entering the editor.</p>
+            <p className="hub-lead">
+              Complete requirements and conflicts to enter the editor. Persona is optional and used as chat context when set.
+            </p>
           </div>
           <button className="figma-nav-btn figma-nav-outline" disabled={savingAction !== null} onClick={onBack} type="button">
             Back to Projects
@@ -141,6 +205,8 @@ export function VanillaProjectSetup({ onBack, onEnterEditor }: VanillaProjectSet
 
         <section className="setup-progress" aria-label="Setup progress">
           <SetupBadge complete={requirementsComplete} label="Requirements" />
+          <span className="setup-progress-line" />
+          <SetupBadge complete={personaComplete} label="Persona" />
           <span className="setup-progress-line" />
           <SetupBadge complete={conflictsComplete} label="Conflicts" />
           <span className="setup-progress-line" />
@@ -158,10 +224,75 @@ export function VanillaProjectSetup({ onBack, onEnterEditor }: VanillaProjectSet
             placeholder="Brand goals, required messages, tone or visual rules, CTA, claims to avoid..."
             value={formData.brand_requirements}
           />
+
+          <article className={`setup-card vanilla-setup-card${personaComplete ? " is-complete" : ""}`}>
+            <div className="setup-card-header">
+              <span className="setup-card-index">2</span>
+              <div>
+                <h2>Audience Persona</h2>
+                <p>Optional. Load analytics defaults or add manually — used as chatbot context when active.</p>
+              </div>
+            </div>
+
+            <div className="vanilla-setup-persona-body app-scrollbar">
+              {project.personas.length ? (
+                <ul className="vanilla-setup-persona-list">
+                  {project.personas.map((persona) => {
+                    const isActive = project.active_persona_id === persona.persona_id;
+                    return (
+                      <li key={persona.persona_id}>
+                        <button
+                          className={`vanilla-setup-persona-item${isActive ? " is-active" : ""}`}
+                          disabled={personaBusy}
+                          onClick={() => void handleActivatePersona(persona.persona_id)}
+                          type="button"
+                        >
+                          <span className="vanilla-setup-persona-avatar" aria-hidden="true">
+                            {getPersonaEmoji(persona)}
+                          </span>
+                          <span className="vanilla-setup-persona-copy">
+                            <strong>{persona.name}</strong>
+                            <span>{persona.job || persona.explanation || "Audience persona"}</span>
+                          </span>
+                          {isActive ? <span className="vanilla-setup-persona-badge">Active</span> : null}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p className="setup-empty">No personas yet. Load from analytics or add one manually.</p>
+              )}
+            </div>
+
+            <div className="setup-actions">
+              <button
+                className="figma-nav-btn figma-nav-outline"
+                disabled={personaBusy}
+                onClick={() => void handleAddPersona()}
+                type="button"
+              >
+                {creatingPersona ? "Adding…" : "Add New"}
+              </button>
+              <button
+                className="figma-nav-btn figma-nav-primary"
+                disabled={personaBusy}
+                onClick={() => void handleProvisionPersonas()}
+                type="button"
+              >
+                {provisioningPersonas
+                  ? "Loading…"
+                  : personaComplete
+                    ? "Reload From Analytics"
+                    : "From Analytics"}
+              </button>
+            </div>
+          </article>
+
           <SetupPanel
             complete={conflictsComplete}
             description="Write competing requirements, unresolved tensions, and what should take priority."
-            index="2"
+            index="3"
             label="Conflicts & Trade-offs"
             onAskAssistant={() => askAssistant("conflicts")}
             onChange={(value) => updateField("conflicts", value)}
@@ -175,8 +306,10 @@ export function VanillaProjectSetup({ onBack, onEnterEditor }: VanillaProjectSet
             <strong>{setupComplete ? "Setup complete" : "Setup required"}</strong>
             <p>
               {setupComplete
-                ? "Both panels are complete. You can enter the editor now."
-                : "Fill in both Requirements and Conflicts before entering the editor."}
+                ? personaComplete
+                  ? "Requirements and conflicts are ready. Active persona will be used in chat context."
+                  : "Requirements and conflicts are ready. You can enter now — add a persona later if needed."
+                : "Fill in both Requirements and Conflicts before entering the editor. Persona is optional."}
             </p>
           </div>
           <div className="vanilla-setup-footer-actions">

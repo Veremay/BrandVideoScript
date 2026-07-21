@@ -234,7 +234,60 @@ def build_vanilla_system_content(project: dict) -> str:
         if conflicts
         else ""
     )
-    return f"{system}{requirements_block}{conflicts_block}\n\n## {heading}\n{script_block}"
+    persona_block = _format_vanilla_persona_block(project)
+    return f"{system}{requirements_block}{persona_block}{conflicts_block}\n\n## {heading}\n{script_block}"
+
+
+def _format_vanilla_persona_block(project: dict) -> str:
+    active_id = project.get("active_persona_id")
+    personas = project.get("personas") or []
+    active = None
+    if active_id:
+        for persona in personas:
+            if isinstance(persona, dict) and persona.get("persona_id") == active_id:
+                active = persona
+                break
+    if active is None and len(personas) == 1 and isinstance(personas[0], dict):
+        active = personas[0]
+    if not isinstance(active, dict):
+        return ""
+
+    name = str(active.get("name") or "").strip()
+    job = str(active.get("job") or "").strip()
+    explanation = str(active.get("explanation") or "").strip()
+    reason = str(active.get("reason") or "").strip()
+    experiences = [
+        str(item).strip()
+        for item in (active.get("personal_experiences") or [])
+        if str(item).strip()
+    ][:10]
+    characteristics = active.get("characteristic_values") or {}
+    char_lines = []
+    if isinstance(characteristics, dict):
+        for key, value in list(characteristics.items())[:12]:
+            label = str(key).strip()
+            text = str(value).strip()
+            if label and text:
+                char_lines.append(f"- {label}: {text}")
+
+    lines = ["\n\n## Active audience persona"]
+    if name:
+        lines.append(f"- Name: {name}")
+    if job:
+        lines.append(f"- Job / role: {job}")
+    if explanation:
+        lines.append(f"- Profile: {explanation}")
+    if reason:
+        lines.append(f"- Why they watch: {reason}")
+    if experiences:
+        lines.append("- Personal experiences:")
+        lines.extend(f"  - {item}" for item in experiences)
+    if char_lines:
+        lines.append("- Characteristics:")
+        lines.extend(f"  {item}" for item in char_lines)
+    if len(lines) == 1:
+        return ""
+    return "\n".join(lines)
 
 
 def _vanilla_message_content(doc: dict[str, Any]) -> str:
