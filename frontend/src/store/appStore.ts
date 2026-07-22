@@ -3,6 +3,14 @@
 import { create } from "zustand";
 
 import { mergeProjectPreservingGraph, normalizeProject } from "@/lib/normalizeProject";
+import {
+  abortMapSyncPipeline,
+  abortSchemeGenPipeline,
+  beginMapSyncAbortSignal,
+  beginSchemeGenAbortSignal,
+  clearMapSyncAbortController,
+  clearSchemeGenAbortController
+} from "@/lib/pipelineAbort";
 import { insertColumn, insertRow, removeColumn, removeRow, renameColumn, updateCellValue } from "@/lib/scriptEditor";
 import type { AppMode, PendingChatDraft, Project, SaveStatus, Script } from "@/lib/types";
 
@@ -96,9 +104,11 @@ type AppState = {
   startMapSync: (projectId: string) => void;
   setMapSyncProgress: (progress: MapSyncProgress | null) => void;
   clearMapSync: () => void;
+  abortMapSync: () => void;
   startSchemeGen: (projectId: string) => void;
   setSchemeGenProgress: (progress: SchemeGenProgress | null) => void;
   clearSchemeGen: () => void;
+  abortSchemeGen: () => void;
 };
 
 const MAX_UNDO_STEPS = 100;
@@ -266,24 +276,42 @@ export const useAppStore = create<AppState>((set) => ({
     })),
   setMapFocusNodeId: (nodeId) => set({ mapFocusNodeId: nodeId }),
   setEditorSchemeFocusId: (schemeId) => set({ editorSchemeFocusId: schemeId }),
-  startMapSync: (projectId) =>
+  startMapSync: (projectId) => {
+    beginMapSyncAbortSignal();
     set({
       mapSync: { projectId, syncing: true, progress: null }
-    }),
+    });
+  },
   setMapSyncProgress: (progress) =>
     set((state) => {
       if (!state.mapSync.syncing) return state;
       return { mapSync: { ...state.mapSync, progress } };
     }),
-  clearMapSync: () => set({ mapSync: EMPTY_MAP_SYNC }),
-  startSchemeGen: (projectId) =>
+  clearMapSync: () => {
+    clearMapSyncAbortController();
+    set({ mapSync: EMPTY_MAP_SYNC });
+  },
+  abortMapSync: () => {
+    abortMapSyncPipeline();
+    set({ mapSync: EMPTY_MAP_SYNC });
+  },
+  startSchemeGen: (projectId) => {
+    beginSchemeGenAbortSignal();
     set({
       schemeGen: { projectId, generating: true, progress: null }
-    }),
+    });
+  },
   setSchemeGenProgress: (progress) =>
     set((state) => {
       if (!state.schemeGen.generating) return state;
       return { schemeGen: { ...state.schemeGen, progress } };
     }),
-  clearSchemeGen: () => set({ schemeGen: EMPTY_SCHEME_GEN })
+  clearSchemeGen: () => {
+    clearSchemeGenAbortController();
+    set({ schemeGen: EMPTY_SCHEME_GEN });
+  },
+  abortSchemeGen: () => {
+    abortSchemeGenPipeline();
+    set({ schemeGen: EMPTY_SCHEME_GEN });
+  }
 }));

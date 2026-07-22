@@ -1,4 +1,5 @@
 import { normalizeProject } from "@/lib/normalizeProject";
+import { PipelineCancelledError } from "@/lib/pipelineAbort";
 import type {
   AppMode,
   BrandInsightCategory,
@@ -440,10 +441,17 @@ export async function syncMapFromScriptStream(
   projectId: string,
   userId: string,
   changedRowIds: string[],
-  onEvent: (event: GraphSyncStreamEvent) => void
+  onEvent: (event: GraphSyncStreamEvent) => void,
+  options?: { signal?: AbortSignal }
 ): Promise<void> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), AGENT_PIPELINE_TIMEOUT_MS);
+  const timeoutId = setTimeout(() => controller.abort("timeout"), AGENT_PIPELINE_TIMEOUT_MS);
+  const external = options?.signal;
+  const onExternalAbort = () => controller.abort("user");
+  if (external) {
+    if (external.aborted) controller.abort("user");
+    else external.addEventListener("abort", onExternalAbort, { once: true });
+  }
 
   try {
     const response = await fetch(`${API_BASE_URL}/projects/${projectId}/graph/sync-from-script/stream`, {
@@ -459,11 +467,15 @@ export async function syncMapFromScriptStream(
     await readSseStream(response, parseGraphSyncSseBlock, onEvent);
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") {
+      if (controller.signal.reason === "user" || external?.aborted) {
+        throw new PipelineCancelledError();
+      }
       throw new Error(`Map update timed out after ${Math.round(AGENT_PIPELINE_TIMEOUT_MS / 60000)} minutes. The backend is still processing — you can refresh and check the map status.`);
     }
     throw err;
   } finally {
     clearTimeout(timeoutId);
+    external?.removeEventListener("abort", onExternalAbort);
   }
 }
 
@@ -978,16 +990,24 @@ export async function generateModificationSchemesStream(
   projectId: string,
   userId: string,
   options: { target_issue_ids?: string[]; target_position_ids?: string[]; message?: string } | undefined,
-  onEvent: (event: ModificationSchemeStreamEvent) => void
+  onEvent: (event: ModificationSchemeStreamEvent) => void,
+  streamOptions?: { signal?: AbortSignal }
 ): Promise<void> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), AGENT_PIPELINE_TIMEOUT_MS);
+  const timeoutId = setTimeout(() => controller.abort("timeout"), AGENT_PIPELINE_TIMEOUT_MS);
+  const external = streamOptions?.signal;
+  const onExternalAbort = () => controller.abort("user");
+  if (external) {
+    if (external.aborted) controller.abort("user");
+    else external.addEventListener("abort", onExternalAbort, { once: true });
+  }
 
   let doneProject: Project | null = null;
   let doneSchemes: ModificationScheme[] = [];
   let assistantReply = "";
   let sawError = false;
   let streamError: unknown = null;
+  let userCancelled = false;
 
   try {
     const response = await fetch(`${API_BASE_URL}/projects/${projectId}/modification-schemes/generate/stream`, {
@@ -1025,17 +1045,29 @@ export async function generateModificationSchemesStream(
   } catch (err) {
     streamError = err;
     if (err instanceof DOMException && err.name === "AbortError") {
+      if (controller.signal.reason === "user" || external?.aborted) {
+        userCancelled = true;
+        throw new PipelineCancelledError();
+      }
       throw new Error(
         `Scheme generation timed out after ${Math.round(AGENT_PIPELINE_TIMEOUT_MS / 60000)} minutes. The backend is still processing — you can refresh and check the status.`
       );
     }
   } finally {
     clearTimeout(timeoutId);
+    external?.removeEventListener("abort", onExternalAbort);
   }
 
+  if (userCancelled) throw new PipelineCancelledError();
   if (sawError) return;
-
   if (doneProject) return;
+  if (controller.signal.aborted) {
+    throw controller.signal.reason === "user" || external?.aborted
+      ? new PipelineCancelledError()
+      : new Error(
+          `Scheme generation timed out after ${Math.round(AGENT_PIPELINE_TIMEOUT_MS / 60000)} minutes. The backend is still processing — you can refresh and check the status.`
+        );
+  }
 
   // Stream often drops the large `done` payload (empty/truncated data) while the
   // backend has already saved schemes. Refetch the project so the editor updates.

@@ -46,6 +46,11 @@ import {
   updateGraphNode
 } from "@/lib/api";
 import { isGraphStaleForUpdateMap } from "@/lib/stale";
+import {
+  getMapSyncAbortSignal,
+  getSchemeGenAbortSignal,
+  isPipelineCancelledError
+} from "@/lib/pipelineAbort";
 import { useSmoothProgress } from "@/lib/useElapsedTime";
 import { useAppStore } from "@/store/appStore";
 
@@ -332,6 +337,7 @@ function MapViewContent() {
   const startMapSync = useAppStore((state) => state.startMapSync);
   const setMapSyncProgress = useAppStore((state) => state.setMapSyncProgress);
   const clearMapSync = useAppStore((state) => state.clearMapSync);
+  const abortMapSync = useAppStore((state) => state.abortMapSync);
   const syncingMap = mapSync.syncing && mapSync.projectId === project?._id;
   const mapSyncProgress = syncingMap ? mapSync.progress : null;
   // Superseded nodes survive only in snapshots; never render them on the canvas.
@@ -714,6 +720,7 @@ function MapViewContent() {
   const startSchemeGen = useAppStore((state) => state.startSchemeGen);
   const setSchemeGenProgress = useAppStore((state) => state.setSchemeGenProgress);
   const clearSchemeGen = useAppStore((state) => state.clearSchemeGen);
+  const abortSchemeGen = useAppStore((state) => state.abortSchemeGen);
   const generatingSchemes =
     (schemeGen.generating && schemeGen.projectId === project?._id) ||
     project?.stale?.modification_schemes === "generating";
@@ -795,45 +802,53 @@ function MapViewContent() {
     const userId = project.user_id;
     startSchemeGen(projectId);
     try {
-      await generateModificationSchemesStream(projectId, userId, {
-        target_position_ids: positionIds,
-        message: "Generate modification schemes for adopted positions in TO BE CONSIDERED."
-      }, (event) => {
-        if (event.type === "progress") {
-          setSchemeGenProgress({ step: event.step, total: event.total, message: event.message });
-        }
-        if (event.type === "done") {
-          if (!event.project) return;
-          const prev = useAppStore.getState().schemeGen.progress;
-          setSchemeGenProgress({
-            step: prev?.total ?? 1,
-            total: prev?.total ?? 1,
-            message: "Complete"
-          });
-          setTimeout(() => {
-            setProject(event.project!);
-            const latest = event.schemes[event.schemes.length - 1];
-            if (latest?.scheme_id) {
-              setEditorSchemeFocusId(latest.scheme_id);
-            }
-            setWorkspaceView("editor");
-            clearSchemeGen();
-          }, 400);
-        }
-        if (event.type === "error") {
-          throw new Error(event.message);
-        }
-      });
+      await generateModificationSchemesStream(
+        projectId,
+        userId,
+        {
+          target_position_ids: positionIds,
+          message: "Generate modification schemes for adopted positions in TO BE CONSIDERED."
+        },
+        (event) => {
+          if (event.type === "progress") {
+            setSchemeGenProgress({ step: event.step, total: event.total, message: event.message });
+          }
+          if (event.type === "done") {
+            if (!event.project) return;
+            const prev = useAppStore.getState().schemeGen.progress;
+            setSchemeGenProgress({
+              step: prev?.total ?? 1,
+              total: prev?.total ?? 1,
+              message: "Complete"
+            });
+            setTimeout(() => {
+              setProject(event.project!);
+              const latest = event.schemes[event.schemes.length - 1];
+              if (latest?.scheme_id) {
+                setEditorSchemeFocusId(latest.scheme_id);
+              }
+              setWorkspaceView("editor");
+              clearSchemeGen();
+            }, 400);
+          }
+          if (event.type === "error") {
+            throw new Error(event.message);
+          }
+        },
+        { signal: getSchemeGenAbortSignal() }
+      );
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to generate modification plan";
-      window.alert(`${message} 请稍后重试。`);
-      clearSchemeGen();
-      try {
-        const refreshed = await fetchProject(projectId, userId);
-        setProject(refreshed);
-      } catch {
-        // ignore refresh failure
+      if (!isPipelineCancelledError(error)) {
+        const message = error instanceof Error ? error.message : "Failed to generate modification plan";
+        window.alert(`${message} 请稍后重试。`);
+        try {
+          const refreshed = await fetchProject(projectId, userId);
+          setProject(refreshed);
+        } catch {
+          // ignore refresh failure
+        }
       }
+      clearSchemeGen();
     }
   }, [
     clearSchemeGen,
@@ -1031,24 +1046,29 @@ function MapViewContent() {
     try {
       const updated: Project = await new Promise((resolve, reject) => {
         let resolved = false;
-        syncMapFromScriptStream(projectId, userId, [], (event) => {
-          if (event.type === "progress") {
-            setMapSyncProgress({ step: event.step, total: event.total, message: event.message });
-          } else if (event.type === "done" && !resolved) {
-            resolved = true;
-            // Animate to 100% before completing
-            const prev = useAppStore.getState().mapSync.progress;
-            setMapSyncProgress({
-              step: prev?.total ?? 1,
-              total: prev?.total ?? 1,
-              message: "Complete"
-            });
-            setTimeout(() => resolve(event.project), 400);
-          } else if (event.type === "error" && !resolved) {
-            resolved = true;
-            reject(new Error(event.message));
-          }
-        }).catch((err) => {
+        syncMapFromScriptStream(
+          projectId,
+          userId,
+          [],
+          (event) => {
+            if (event.type === "progress") {
+              setMapSyncProgress({ step: event.step, total: event.total, message: event.message });
+            } else if (event.type === "done" && !resolved) {
+              resolved = true;
+              const prev = useAppStore.getState().mapSync.progress;
+              setMapSyncProgress({
+                step: prev?.total ?? 1,
+                total: prev?.total ?? 1,
+                message: "Complete"
+              });
+              setTimeout(() => resolve(event.project), 400);
+            } else if (event.type === "error" && !resolved) {
+              resolved = true;
+              reject(new Error(event.message));
+            }
+          },
+          { signal: getMapSyncAbortSignal() }
+        ).catch((err) => {
           if (!resolved) {
             resolved = true;
             reject(err);
@@ -1068,7 +1088,9 @@ function MapViewContent() {
         setProject(updated);
       }
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Failed to update map");
+      if (!isPipelineCancelledError(error)) {
+        window.alert(error instanceof Error ? error.message : "Failed to update map");
+      }
     } finally {
       clearMapSync();
     }
@@ -1078,26 +1100,39 @@ function MapViewContent() {
     <section className="map-workspace" ref={workspaceRef}>
       <div className="map-canvas-area">
       {showUpdateMapButton ? (
-        <button
-          className="map-update-map-btn"
-          disabled={mapSyncing || !canUpdateMap}
-          onClick={() => void handleUpdateMap()}
-          title={!canUpdateMap ? (updateMapBlockedReason ?? undefined) : mapSyncProgress?.message ?? undefined}
-          type="button"
-          aria-busy={mapSyncing}
-        >
-          {mapSyncing && mapSyncProgress ? (
-            <span
-              className="btn-progress-fill"
-              style={{ transform: `scaleX(${smoothMapProgress / 100})` }}
-            />
+        <div className="map-pipeline-action map-pipeline-action--update">
+          {mapSyncing ? (
+            <button
+              aria-label="Stop map update"
+              className="pipeline-abort-btn"
+              onClick={() => abortMapSync()}
+              title="Stop"
+              type="button"
+            >
+              <IconStop />
+            </button>
           ) : null}
-          <span className="btn-progress-label">
-            {mapSyncing
-              ? `Updating… ${Math.round(smoothMapProgress)}%`
-              : "Update Map"}
-          </span>
-        </button>
+          <button
+            className="map-update-map-btn"
+            disabled={mapSyncing || !canUpdateMap}
+            onClick={() => void handleUpdateMap()}
+            title={!canUpdateMap ? (updateMapBlockedReason ?? undefined) : mapSyncProgress?.message ?? undefined}
+            type="button"
+            aria-busy={mapSyncing}
+          >
+            {mapSyncing && mapSyncProgress ? (
+              <span
+                className="btn-progress-fill"
+                style={{ transform: `scaleX(${smoothMapProgress / 100})` }}
+              />
+            ) : null}
+            <span className="btn-progress-label">
+              {mapSyncing
+                ? `Updating… ${Math.round(smoothMapProgress)}%`
+                : "Update Map"}
+            </span>
+          </button>
+        </div>
       ) : null}
       {!emptyGraph && !mapUpdateNeeded && !mapSyncing ? (
         <div className="map-graph-status" aria-live="polite">
@@ -1319,25 +1354,38 @@ function MapViewContent() {
                   ))}
                 </ul>
               )}
-              <button
-                className="map-consideration-generate-btn"
-                disabled={!considerationPositions.length || generatingSchemes}
-                onClick={() => void handleGenerateModificationPlan()}
-                title={generatingProgress?.message ?? undefined}
-                type="button"
-              >
-                {generatingSchemes && generatingProgress ? (
-                  <span
-                    className="btn-progress-fill"
-                    style={{ transform: `scaleX(${smoothGeneratingProgress / 100})` }}
-                  />
+              <div className="map-pipeline-action map-pipeline-action--generate">
+                {generatingSchemes ? (
+                  <button
+                    aria-label="Stop generating modification plan"
+                    className="pipeline-abort-btn pipeline-abort-btn--on-primary"
+                    onClick={() => abortSchemeGen()}
+                    title="Stop"
+                    type="button"
+                  >
+                    <IconStop />
+                  </button>
                 ) : null}
-                <span className="btn-progress-label">
-                  {generatingSchemes
-                    ? `Generating… ${Math.round(smoothGeneratingProgress)}%`
-                    : "Generate modification plan"}
-                </span>
-              </button>
+                <button
+                  className="map-consideration-generate-btn"
+                  disabled={!considerationPositions.length || generatingSchemes}
+                  onClick={() => void handleGenerateModificationPlan()}
+                  title={generatingProgress?.message ?? undefined}
+                  type="button"
+                >
+                  {generatingSchemes && generatingProgress ? (
+                    <span
+                      className="btn-progress-fill"
+                      style={{ transform: `scaleX(${smoothGeneratingProgress / 100})` }}
+                    />
+                  ) : null}
+                  <span className="btn-progress-label">
+                    {generatingSchemes
+                      ? `Generating… ${Math.round(smoothGeneratingProgress)}%`
+                      : "Generate modification plan"}
+                  </span>
+                </button>
+              </div>
             </>
           ) : (
             <>
@@ -1677,6 +1725,14 @@ function IconFocus() {
     <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
       <rect height="12" rx="1.5" width="12" x="3" y="3" />
       <circle cx="9" cy="9" r="1.5" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function IconStop() {
+  return (
+    <svg aria-hidden="true" fill="currentColor" height="12" viewBox="0 0 12 12" width="12">
+      <rect height="10" rx="1.5" width="10" x="1" y="1" />
     </svg>
   );
 }

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { fetchProject, generateModificationSchemesStream, updateVanillaSetupStage } from "@/lib/api";
+import { getSchemeGenAbortSignal, isPipelineCancelledError } from "@/lib/pipelineAbort";
 import type { VanillaSetupData } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
 
@@ -28,6 +29,7 @@ export function VanillaSetupContextPanel({ onClose, open, section }: VanillaSetu
   const startSchemeGen = useAppStore((state) => state.startSchemeGen);
   const setSchemeGenProgress = useAppStore((state) => state.setSchemeGenProgress);
   const clearSchemeGen = useAppStore((state) => state.clearSchemeGen);
+  const abortSchemeGen = useAppStore((state) => state.abortSchemeGen);
   const isRequirements = section === "requirements";
   const title = isRequirements ? "Brand Requirements" : "Conflicts & Trade-offs";
   const fieldKey: keyof VanillaSetupData = isRequirements ? "brand_requirements" : "conflicts";
@@ -181,18 +183,21 @@ export function VanillaSetupContextPanel({ onClose, open, section }: VanillaSetu
           if (event.type === "error") {
             throw new Error(event.message);
           }
-        }
+        },
+        { signal: getSchemeGenAbortSignal() }
       );
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to generate modification plan";
-      setError(message);
-      clearSchemeGen();
-      try {
-        const refreshed = await fetchProject(projectId, userId);
-        setProject(refreshed);
-      } catch {
-        // ignore refresh failure
+      if (!isPipelineCancelledError(err)) {
+        const message = err instanceof Error ? err.message : "Failed to generate modification plan";
+        setError(message);
+        try {
+          const refreshed = await fetchProject(projectId, userId);
+          setProject(refreshed);
+        } catch {
+          // ignore refresh failure
+        }
       }
+      clearSchemeGen();
     }
   }
 
@@ -248,33 +253,54 @@ export function VanillaSetupContextPanel({ onClose, open, section }: VanillaSetu
             </span>
             {error ? <p className="setup-alert setup-alert-error">{error}</p> : null}
             {!isRequirements ? (
-              <button
-                className="vanilla-generate-plan-btn"
-                disabled={!canGeneratePlan}
-                onClick={() => void handleGenerateModificationPlan()}
-                title={
-                  !hasScriptContent(project)
-                    ? "Add script content first"
-                    : !conflictsText && !requirementsText
-                      ? "Add conflicts or requirements first"
-                      : (generateProgress?.message ?? undefined)
-                }
-                type="button"
-              >
+              <div className="map-pipeline-action map-pipeline-action--generate">
                 {generating ? (
-                  <span className="btn-progress-fill" style={{ transform: `scaleX(${progressPercent / 100})` }} />
+                  <button
+                    aria-label="Stop generating modification plan"
+                    className="pipeline-abort-btn pipeline-abort-btn--on-primary"
+                    onClick={() => abortSchemeGen()}
+                    title="Stop"
+                    type="button"
+                  >
+                    <IconStop />
+                  </button>
                 ) : null}
-                <span className="btn-progress-label">
-                  {generating
-                    ? `Generating… ${progressPercent}%`
-                    : "Generate modification plan"}
-                </span>
-              </button>
+                <button
+                  className="vanilla-generate-plan-btn"
+                  disabled={!canGeneratePlan}
+                  onClick={() => void handleGenerateModificationPlan()}
+                  title={
+                    !hasScriptContent(project)
+                      ? "Add script content first"
+                      : !conflictsText && !requirementsText
+                        ? "Add conflicts or requirements first"
+                        : (generateProgress?.message ?? undefined)
+                  }
+                  type="button"
+                >
+                  {generating ? (
+                    <span className="btn-progress-fill" style={{ transform: `scaleX(${progressPercent / 100})` }} />
+                  ) : null}
+                  <span className="btn-progress-label">
+                    {generating
+                      ? `Generating… ${progressPercent}%`
+                      : "Generate modification plan"}
+                  </span>
+                </button>
+              </div>
             ) : null}
           </div>
         </div>
       </section>
     </div>
+  );
+}
+
+function IconStop() {
+  return (
+    <svg aria-hidden="true" fill="currentColor" height="12" viewBox="0 0 12 12" width="12">
+      <rect height="10" rx="1.5" width="10" x="1" y="1" />
+    </svg>
   );
 }
 
