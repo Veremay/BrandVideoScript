@@ -765,11 +765,11 @@ textarea {
 
 .setup-item-group-title {
   margin: 0;
-  color: var(--figma-text-secondary);
-  font-size: calc(11px + var(--app-font-size-delta));
+  color: var(--figma-text);
+  font-size: calc(15px + var(--app-font-size-delta));
   font-weight: 800;
-  line-height: 16px;
-  letter-spacing: 0.04em;
+  line-height: 22px;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
 }
 
@@ -915,8 +915,11 @@ textarea {
   font-size: 12px;
   line-height: 18px;
   outline: none;
-  resize: vertical;
+  overflow: hidden;
+  resize: none;
   font-family: inherit;
+  min-height: 36px;
+  box-sizing: border-box;
 }
 
 .setup-item-content-input:focus,

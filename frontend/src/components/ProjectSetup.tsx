@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { createEmptyInsight, insightsFromProject, toApiBrandInsights } from "@/lib/brandRequirements";
 import {
@@ -406,6 +406,40 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
   );
 }
 
+function AutoSizeTextarea({
+  className,
+  onChange,
+  value,
+  ...props
+}: React.ComponentProps<"textarea">) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  const syncHeight = () => {
+    const node = ref.current;
+    if (!node) return;
+    node.style.height = "0px";
+    node.style.height = `${node.scrollHeight}px`;
+  };
+
+  useLayoutEffect(() => {
+    syncHeight();
+  }, [value]);
+
+  return (
+    <textarea
+      {...props}
+      ref={ref}
+      className={className}
+      rows={1}
+      value={value}
+      onChange={(event) => {
+        onChange?.(event);
+        requestAnimationFrame(syncHeight);
+      }}
+    />
+  );
+}
+
 function EditableRequirementGroup({
   items,
   label,
@@ -456,18 +490,16 @@ function EditableRequirementGroup({
               type="text"
               value={item.title}
             />
-            <textarea
+            <AutoSizeTextarea
               className="setup-item-content-input"
               onChange={(e) => onUpdate(item.insight_id, { content: e.target.value })}
               placeholder="Describe this requirement…"
-              rows={2}
               value={item.content}
             />
-            <textarea
+            <AutoSizeTextarea
               className="setup-item-reason-input"
               onChange={(e) => onUpdate(item.insight_id, { reason: e.target.value })}
               placeholder="Reason (from Brief or inference)"
-              rows={1}
               value={item.reason}
             />
           </li>
