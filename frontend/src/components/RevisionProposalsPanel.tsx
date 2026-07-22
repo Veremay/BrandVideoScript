@@ -10,7 +10,7 @@ import {
   type ReactNode
 } from "react";
 
-import { applyModificationSchemeHunks } from "@/lib/api";
+import { applyModificationSchemeHunks, saveScript } from "@/lib/api";
 import {
   buildPreviewTable,
   listSchemePreviewCells,
@@ -149,6 +149,17 @@ export function RevisionProposalsProvider({ projectId, userId, children }: Revis
       setError(null);
       setStatusMessage(null);
       try {
+        // Flush unsaved editor edits so backend current_script matches what the user sees.
+        const state = useAppStore.getState();
+        const liveScript = state.script;
+        if (liveScript && state.editor.saveStatus === "editing") {
+          const saved = await saveScript(projectId, userId, liveScript);
+          if (useAppStore.getState().script === liveScript) {
+            setProject(saved);
+            setSaveStatus("saved");
+          }
+        }
+
         const updated = await applyModificationSchemeHunks(
           projectId,
           userId,
@@ -176,7 +187,7 @@ export function RevisionProposalsProvider({ projectId, userId, children }: Revis
         setApplying(false);
       }
     },
-    [projectId, selectedScheme, setProject, setScript, userId]
+    [projectId, selectedScheme, setProject, setSaveStatus, setScript, userId]
   );
 
   const acceptAllAndApply = useCallback(async () => {

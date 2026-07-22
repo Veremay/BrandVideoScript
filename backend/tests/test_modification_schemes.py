@@ -4,6 +4,7 @@ from app.models.modification_scheme_ops import (
     apply_hunk_to_script,
     get_cell_value,
     normalize_scheme,
+    reconcile_hunk_for_apply,
     resolve_hunk_identifiers,
     validate_hunk_apply,
 )
@@ -58,7 +59,7 @@ class ModificationSchemeOpsTests(unittest.TestCase):
         self.assertEqual(resolved["column_id"], self.column_id)
         self.assertEqual(resolved["removed"], "开场镜头")
 
-    def test_normalize_scheme_accepts_resolved_aliases(self) -> None:
+    def test_normalize_scheme_anchors_removed_to_live_cell(self) -> None:
         scheme = normalize_scheme(
             {
                 "title": "平衡方案",
@@ -68,7 +69,7 @@ class ModificationSchemeOpsTests(unittest.TestCase):
                     {
                         "row_id": self.row_id,
                         "column_id": self.column_id,
-                        "removed": "开场镜头",
+                        "removed": "LLM paraphrased opening",
                         "added": "平衡版开场",
                     }
                 ],
@@ -77,9 +78,32 @@ class ModificationSchemeOpsTests(unittest.TestCase):
             script_version_id="ver_1",
             script=self.script,
         )
-        self.assertEqual(scheme["direction"], "balanced")
-        self.assertEqual(len(scheme["hunks"]), 1)
         self.assertEqual(scheme["hunks"][0]["removed"], "开场镜头")
+        self.assertEqual(scheme["hunks"][0]["added"], "平衡版开场")
+
+    def test_reconcile_hunk_rebases_removed_onto_live_cell(self) -> None:
+        hunk = {
+            "hunk_id": "hunk_1",
+            "row_id": self.row_id,
+            "column_id": self.column_id,
+            "removed": "旧文本",
+            "added": "新文本",
+        }
+        reconciled = reconcile_hunk_for_apply(self.script, hunk)
+        self.assertEqual(reconciled["removed"], "开场镜头")
+        next_script = apply_hunk_to_script(self.script, reconciled)
+        self.assertEqual(get_cell_value(next_script, self.row_id, self.column_id), "新文本")
+
+    def test_reconcile_hunk_treats_already_applied_as_compatible(self) -> None:
+        hunk = {
+            "hunk_id": "hunk_1",
+            "row_id": self.row_id,
+            "column_id": self.column_id,
+            "removed": "别的原文",
+            "added": "开场镜头",
+        }
+        reconciled = reconcile_hunk_for_apply(self.script, hunk)
+        self.assertEqual(reconciled["removed"], "开场镜头")
 
 
 if __name__ == "__main__":

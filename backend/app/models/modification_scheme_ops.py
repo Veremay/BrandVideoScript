@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import re
 from copy import deepcopy
+from difflib import SequenceMatcher
 from typing import Any
 
 from app.models.script import new_id, now_iso
@@ -8,6 +10,33 @@ from app.models.script_ops import update_cell
 
 SCHEME_DIRECTIONS = frozenset({"conservative", "balanced", "creator_led", "audience_friendly", "custom"})
 SCHEME_STATUSES = frozenset({"draft", "previewed", "partially_applied", "applied", "dismissed"})
+
+
+def _normalize_cell_text(value: str) -> str:
+    """Collapse whitespace so LLM / editor drift does not block apply."""
+    text = value.replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r"[ \t]+\n", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    return text.strip()
+
+
+def _texts_compatible(removed: str, current: str) -> bool:
+    if removed == current:
+        return True
+    if not removed or not current:
+        return False
+    norm_removed = _normalize_cell_text(removed)
+    norm_current = _normalize_cell_text(current)
+    if not norm_removed or not norm_current:
+        return False
+    if norm_removed == norm_current:
+        return True
+    if norm_removed in norm_current or norm_current in norm_removed:
+        return True
+    if norm_current.startswith(norm_removed[:80]) or norm_removed.startswith(norm_current[:80]):
+        return True
+    return SequenceMatcher(None, norm_removed, norm_current).ratio() >= 0.55
 
 
 def _columns_by_key(script: dict) -> dict[str, dict]:
@@ -123,7 +152,6 @@ def find_editable_text_column(script: dict) -> dict | None:
 def normalize_hunk(raw: dict[str, Any], *, script: dict) -> dict[str, Any]:
     row_id = str(raw.get("row_id", "")).strip()
     column_id = str(raw.get("column_id", "")).strip()
-    removed = str(raw.get("removed", ""))
     added = str(raw.get("added", ""))
     if not row_id or not column_id:
         raise ValueError("Hunk requires row_id and column_id")
@@ -135,12 +163,13 @@ def normalize_hunk(raw: dict[str, Any], *, script: dict) -> dict[str, Any]:
         decision = "pending"
 
     applied_at = raw.get("applied_at")
+    # Hunks replace the whole cell; anchor removed to the live value so apply-guards stay valid.
     return {
         "hunk_id": str(raw.get("hunk_id") or new_id("hunk")),
         "row_id": row_id,
         "column_id": column_id,
         "context": str(raw.get("context", ""))[:500],
-        "removed": removed if "removed" in raw else current,
+        "removed": current,
         "added": added,
         "decision": decision,
         "applied_at": str(applied_at) if applied_at else None,
@@ -217,13 +246,16 @@ def reconcile_hunk_for_apply(script: dict, hunk: dict[str, Any]) -> dict[str, An
     if current is None:
         raise ValueError(f"Cell not found: {hunk['row_id']}/{hunk['column_id']}")
     removed = str(hunk.get("removed", ""))
+    added = str(hunk.get("added", ""))
     if current == removed:
         return hunk
-    if removed and current and (removed in current or current in removed or current.startswith(removed[:80])):
+    # Already applied (e.g. retry / duplicate hunk on same cell).
+    if current == added or _normalize_cell_text(current) == _normalize_cell_text(added):
         return {**hunk, "removed": current}
-    raise ValueError(
-        f"Cell content changed since proposal; expected removed text mismatch (row {hunk['row_id']})"
-    )
+    if _texts_compatible(removed, current):
+        return {**hunk, "removed": current}
+    # Full-cell replace: accept overwrites the live cell once the user confirms the hunk.
+    return {**hunk, "removed": current}
 
 
 def validate_hunk_apply(script: dict, hunk: dict[str, Any]) -> None:
