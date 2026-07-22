@@ -119,3 +119,84 @@ async def test_persist_http_activity_log_skips_noise_paths():
             request_id="rid1",
         )
     db.activity_logs.insert_one.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_persist_http_activity_log_skips_ui_batch_path():
+    db = MagicMock()
+    db.activity_logs.insert_one = AsyncMock()
+    with patch("app.repositories.activity_logs.activity_log_enabled", return_value=True):
+        await persist_http_activity_log(
+            db,
+            method="POST",
+            path="/api/projects/project_1/activity-logs/batch",
+            status_code=200,
+            duration_ms=2.0,
+            request_id="rid2",
+        )
+    db.activity_logs.insert_one.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_insert_ui_activity_logs_batch_inserts_when_enabled():
+    from app.repositories.activity_logs import insert_ui_activity_logs_batch
+
+    db = MagicMock()
+    db.activity_logs.insert_many = AsyncMock()
+    with patch("app.repositories.activity_logs.ui_activity_log_enabled", return_value=True):
+        inserted = await insert_ui_activity_logs_batch(
+            db,
+            project_id="project_1",
+            user_id="creator001",
+            events=[
+                {
+                    "action": "ui.click",
+                    "client_ts": "2026-07-22T09:00:00.000Z",
+                    "session_id": "sess_1",
+                    "meta": {"data_track": "nav.back", "target": "Back"},
+                }
+            ],
+        )
+    assert inserted == 1
+    db.activity_logs.insert_many.assert_awaited_once()
+    docs = db.activity_logs.insert_many.await_args.args[0]
+    assert docs[0]["event_type"] == "ui"
+    assert docs[0]["action"] == "ui.click"
+    assert docs[0]["source"] == "frontend"
+    assert docs[0]["meta"]["data_track"] == "nav.back"
+    assert docs[0]["client_ts"] == "2026-07-22T09:00:00.000Z"
+
+
+@pytest.mark.asyncio
+async def test_insert_ui_activity_logs_batch_skips_when_disabled():
+    from app.repositories.activity_logs import insert_ui_activity_logs_batch
+
+    db = MagicMock()
+    db.activity_logs.insert_many = AsyncMock()
+    with patch("app.repositories.activity_logs.ui_activity_log_enabled", return_value=False):
+        inserted = await insert_ui_activity_logs_batch(
+            db,
+            project_id="project_1",
+            user_id="creator001",
+            events=[{"action": "ui.click", "meta": {"data_track": "nav.back"}}],
+        )
+    assert inserted == 0
+    db.activity_logs.insert_many.assert_not_awaited()
+
+
+def test_build_ui_activity_event_shape():
+    from app.repositories.activity_logs import build_ui_activity_event
+
+    event = build_ui_activity_event(
+        project_id="project_1",
+        user_id="creator001",
+        action="ui.click",
+        client_ts="2026-07-22T09:00:00.000Z",
+        session_id="sess_1",
+        meta={"data_track": "script.argue.toggle"},
+    )
+    assert event["event_type"] == "ui"
+    assert event["source"] == "frontend"
+    assert "event_id" in event
+    assert "ts" in event
+    assert event["meta"]["data_track"] == "script.argue.toggle"

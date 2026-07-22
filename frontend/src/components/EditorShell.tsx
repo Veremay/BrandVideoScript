@@ -11,9 +11,10 @@ import { RequirementsPanel } from "@/components/RequirementsPanel";
 import { ScriptGrid } from "@/components/ScriptGrid";
 import { ScriptSnapshotsPanel } from "@/components/ScriptSnapshotsPanel";
 import { VanillaSetupContextPanel } from "@/components/VanillaSetupContextPanel";
-import { createShareLink, fetchProject, fetchProjectGraph, saveBrief, saveScript } from "@/lib/api";
+import { createShareLink, fetchProject, fetchProjectGraph, postUiActivityBatch, saveBrief, saveScript } from "@/lib/api";
 import { getSchemeGenAbortSignal } from "@/lib/pipelineAbort";
 import { schemeGenPercentLabel } from "@/lib/schemeGenPersistence";
+import { startUiActivityTracker, stopUiActivityTracker, updateUiActivityTrackerContext } from "@/lib/uiActivityTracker";
 import { useAppStore } from "@/store/appStore";
 
 const MapView = dynamic(() => import("@/components/MapView").then((mod) => mod.MapView), {
@@ -102,6 +103,22 @@ export function EditorShell() {
       setFontSize(stored);
     }
   }, []);
+
+  useEffect(() => {
+    if (!project?._id || !project.user_id) return;
+    startUiActivityTracker({
+      projectId: project._id,
+      userId: project.user_id,
+      mode: appMode,
+      workspace: activeView,
+      upload: postUiActivityBatch
+    });
+    return () => stopUiActivityTracker();
+  }, [project?._id, project?.user_id]);
+
+  useEffect(() => {
+    updateUiActivityTrackerContext({ mode: appMode, workspace: activeView });
+  }, [appMode, activeView]);
 
   // After refresh, SSE is gone but backend may still be generating. Restore progress
   // from sessionStorage (via setProject hydrate) and poll until the run finishes.
@@ -306,7 +323,7 @@ export function EditorShell() {
       >
         <header className="figma-topnav">
           <div className="figma-topnav-left">
-            <button className="figma-nav-btn figma-nav-back" onClick={handleBack} type="button">
+            <button className="figma-nav-btn figma-nav-back" data-track="nav.back" onClick={handleBack} type="button">
               <IconBack />
               Back
             </button>
@@ -315,6 +332,7 @@ export function EditorShell() {
               <div className="figma-view-toggle" role="tablist" aria-label="Switch view">
                 <button
                   className={`figma-view-tab ${activeView === "editor" ? "active" : ""}`}
+                  data-track="nav.view.editor"
                   onClick={() => setWorkspaceView("editor")}
                   type="button"
                   aria-selected={activeView === "editor"}
@@ -324,6 +342,7 @@ export function EditorShell() {
                 </button>
                 <button
                   className={`figma-view-tab ${activeView === "map" ? "active" : ""}`}
+                  data-track="nav.view.map"
                   onClick={() => setWorkspaceView("map")}
                   type="button"
                   aria-selected={activeView === "map"}
@@ -338,16 +357,27 @@ export function EditorShell() {
           <div className="figma-topnav-right">
             {isVanilla ? (
               <>
-                <button className="figma-nav-btn figma-nav-outline" onClick={() => setVanillaContextSection("requirements")} type="button">
+                <button
+                  className="figma-nav-btn figma-nav-outline"
+                  data-track="nav.requirements"
+                  onClick={() => setVanillaContextSection("requirements")}
+                  type="button"
+                >
                   <IconRequirements />
                   Requirements
                 </button>
-                <button className="figma-nav-btn figma-nav-outline" onClick={handlePersonasClick} type="button">
+                <button
+                  className="figma-nav-btn figma-nav-outline"
+                  data-track="nav.personas"
+                  onClick={handlePersonasClick}
+                  type="button"
+                >
                   <IconPersonas />
                   Personas
                 </button>
                 <button
                   className="figma-nav-btn figma-nav-outline"
+                  data-track="nav.conflicts"
                   onClick={() => setVanillaContextSection("conflicts")}
                   title={schemeGen.progress?.message ?? undefined}
                   type="button"
@@ -360,6 +390,7 @@ export function EditorShell() {
                 <input ref={fileInputRef} accept=".md,.txt,text/markdown,text/plain" hidden onChange={handleBriefFile} type="file" />
                 <button
                   className="figma-nav-btn figma-nav-outline"
+                  data-track="nav.upload_brief"
                   disabled={parsingBrief}
                   onClick={() => fileInputRef.current?.click()}
                   type="button"
@@ -371,11 +402,21 @@ export function EditorShell() {
                 {project.brief.parse_status ? (
                   <span className="figma-brief-tag figma-brief-tag--status">{project.brief.parse_status}</span>
                 ) : null}
-                <button className="figma-nav-btn figma-nav-outline" onClick={handleRequirementsClick} type="button">
+                <button
+                  className="figma-nav-btn figma-nav-outline"
+                  data-track="nav.requirements"
+                  onClick={handleRequirementsClick}
+                  type="button"
+                >
                   <IconRequirements />
                   Requirements
                 </button>
-                <button className="figma-nav-btn figma-nav-outline" onClick={handlePersonasClick} type="button">
+                <button
+                  className="figma-nav-btn figma-nav-outline"
+                  data-track="nav.personas"
+                  onClick={handlePersonasClick}
+                  type="button"
+                >
                   <IconPersonas />
                   Personas
                 </button>
@@ -428,7 +469,13 @@ export function EditorShell() {
                 </div>
               ) : null}
             </div>
-            <button className="figma-nav-btn figma-nav-outline figma-nav-share" onClick={() => void handleShare()} disabled={sharing} type="button">
+            <button
+              className="figma-nav-btn figma-nav-outline figma-nav-share"
+              data-track="nav.share"
+              onClick={() => void handleShare()}
+              disabled={sharing}
+              type="button"
+            >
               {sharing ? "Sharing…" : "Share"}
             </button>
             <button className="figma-nav-btn figma-nav-primary" type="button">
@@ -458,6 +505,7 @@ export function EditorShell() {
             <PersonaPanel onClose={() => setPersonaPanelOpen(false)} open={layout.personaPanelOpen} />
             <button
               className={`figma-fab ${coordinatorOpen ? "figma-fab--open" : ""}`}
+              data-track="nav.coordinator.toggle"
               onClick={handleFabClick}
               type="button"
               aria-label={coordinatorOpen ? "Close Coordinator Chat" : "Open Coordinator Chat"}
@@ -486,6 +534,7 @@ export function EditorShell() {
             <PersonaPanel onClose={() => setPersonaPanelOpen(false)} open={layout.personaPanelOpen} />
             <button
               className={`figma-fab ${communicationOpen ? "figma-fab--open" : ""}`}
+              data-track="nav.communication.toggle"
               onClick={() => setCommunicationOpen((value) => !value)}
               type="button"
               aria-label={communicationOpen ? "Close Communication panel" : "Open Communication panel"}

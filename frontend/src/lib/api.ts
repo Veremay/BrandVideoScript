@@ -609,6 +609,22 @@ export async function saveFeedbackCreatorReply(
   )!;
 }
 
+export async function postUiActivityBatch(
+  projectId: string,
+  userId: string,
+  events: Array<{
+    action: "ui.click" | "ui.keydown" | "ui.track";
+    client_ts: string;
+    session_id: string;
+    meta: Record<string, string | number | boolean>;
+  }>
+): Promise<{ project_id: string; inserted: number }> {
+  return request(`/projects/${projectId}/activity-logs/batch`, {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId, events })
+  });
+}
+
 export async function createScriptRow(projectId: string, userId: string, afterRowId?: string): Promise<Project> {
   return request(`/projects/${projectId}/script/rows`, {
     method: "POST",

@@ -57,6 +57,13 @@ def activity_log_enabled() -> bool:
     return os.getenv("ACTIVITY_LOG_ENABLED", "1") != "0"
 
 
+def ui_activity_log_enabled() -> bool:
+    """Frontend click / UI events; requires ACTIVITY_LOG_ENABLED as well."""
+    if not activity_log_enabled():
+        return False
+    return os.getenv("UI_ACTIVITY_LOG_ENABLED", "1") != "0"
+
+
 def get_request_id() -> str:
     return request_id_ctx.get()
 

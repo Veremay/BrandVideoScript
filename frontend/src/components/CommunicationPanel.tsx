@@ -469,6 +469,7 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
         <footer className="glacier-input-area comm-footer">
           <button
             className="comm-generate-btn"
+            data-track="comm.plan.generate"
             onClick={() => void handleGenerate()}
             disabled={generating || (argueItems.length === 0 && !hasArgumentBrief)}
             type="button"

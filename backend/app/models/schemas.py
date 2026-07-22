@@ -110,6 +110,23 @@ class ActivityLogListResponse(BaseModel):
     events: list[dict[str, Any]]
 
 
+class UiActivityEventItem(BaseModel):
+    action: Literal["ui.click", "ui.keydown", "ui.track"] = "ui.click"
+    client_ts: str | None = Field(default=None, max_length=40)
+    session_id: str | None = Field(default=None, max_length=80)
+    meta: dict[str, Any] = Field(default_factory=dict)
+
+
+class ActivityLogBatchRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=80)
+    events: list[UiActivityEventItem] = Field(min_length=1, max_length=50)
+
+
+class ActivityLogBatchResponse(BaseModel):
+    project_id: str
+    inserted: int
+
+
 class ScriptSnapshotCreateResponse(BaseModel):
     snapshot: ScriptSnapshotSummary
 

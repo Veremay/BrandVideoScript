@@ -5,16 +5,21 @@ from typing import Any
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.script import new_id, now_iso
-from app.services.app_log import activity_log_enabled, log_error
+from app.services.app_log import activity_log_enabled, log_error, ui_activity_log_enabled
 
 _HTTP_SKIP_EXACT = frozenset({"/api/health", "/health", "/openapi.json", "/docs", "/redoc"})
 _HTTP_SKIP_PREFIXES = ("/docs/", "/redoc/")
+_HTTP_SKIP_SUFFIXES = ("/activity-logs/batch",)
 
 
 def should_persist_http_path(path: str) -> bool:
     if path in _HTTP_SKIP_EXACT:
         return False
-    return not any(path.startswith(prefix) for prefix in _HTTP_SKIP_PREFIXES)
+    if any(path.startswith(prefix) for prefix in _HTTP_SKIP_PREFIXES):
+        return False
+    if any(path.endswith(suffix) for suffix in _HTTP_SKIP_SUFFIXES):
+        return False
+    return True
 
 
 def build_activity_event(
@@ -64,6 +69,98 @@ def build_activity_event(
 
 async def insert_activity_log(db: AsyncIOMotorDatabase, event: dict[str, Any]) -> None:
     await db.activity_logs.insert_one(event)
+
+
+_ALLOWED_UI_ACTIONS = frozenset({"ui.click", "ui.keydown", "ui.track"})
+_MAX_UI_BATCH = 50
+_MAX_UI_META_KEYS = 24
+_MAX_UI_META_VALUE_LEN = 240
+
+
+def build_ui_activity_event(
+    *,
+    project_id: str,
+    user_id: str,
+    action: str,
+    client_ts: str | None = None,
+    session_id: str | None = None,
+    meta: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    event: dict[str, Any] = {
+        "event_id": new_id("evt"),
+        "event_type": "ui",
+        "ts": now_iso(),
+        "action": action,
+        "user_id": user_id,
+        "project_id": project_id,
+        "source": "frontend",
+    }
+    if client_ts:
+        event["client_ts"] = client_ts
+    if session_id:
+        event["session_id"] = session_id
+    if meta:
+        event["meta"] = meta
+    return event
+
+
+def _sanitize_ui_meta(meta: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not meta:
+        return None
+    cleaned: dict[str, Any] = {}
+    for index, (key, value) in enumerate(meta.items()):
+        if index >= _MAX_UI_META_KEYS:
+            break
+        if value is None or value == "" or value == [] or value == {}:
+            continue
+        if isinstance(value, (bool, int, float)):
+            cleaned[str(key)[:64]] = value
+            continue
+        text = str(value)
+        if len(text) > _MAX_UI_META_VALUE_LEN:
+            text = f"{text[:_MAX_UI_META_VALUE_LEN]}…"
+        cleaned[str(key)[:64]] = text
+    return cleaned or None
+
+
+async def insert_ui_activity_logs_batch(
+    db: AsyncIOMotorDatabase,
+    *,
+    project_id: str,
+    user_id: str,
+    events: list[dict[str, Any]],
+) -> int:
+    """Persist a batch of frontend UI events. Returns number inserted."""
+    if not ui_activity_log_enabled() or not events:
+        return 0
+
+    documents: list[dict[str, Any]] = []
+    for raw in events[:_MAX_UI_BATCH]:
+        action = str(raw.get("action") or "ui.click").strip()
+        if action not in _ALLOWED_UI_ACTIONS:
+            action = "ui.click"
+        client_ts = raw.get("client_ts")
+        session_id = raw.get("session_id")
+        meta = _sanitize_ui_meta(raw.get("meta") if isinstance(raw.get("meta"), dict) else None)
+        documents.append(
+            build_ui_activity_event(
+                project_id=project_id,
+                user_id=user_id,
+                action=action,
+                client_ts=str(client_ts).strip() if isinstance(client_ts, str) and client_ts.strip() else None,
+                session_id=str(session_id).strip()[:80] if isinstance(session_id, str) and session_id.strip() else None,
+                meta=meta,
+            )
+        )
+
+    if not documents:
+        return 0
+    try:
+        await db.activity_logs.insert_many(documents, ordered=False)
+    except Exception as exc:
+        log_error("Failed to persist UI activity log batch", exc=exc, project_id=project_id)
+        raise
+    return len(documents)
 
 
 async def persist_http_activity_log(

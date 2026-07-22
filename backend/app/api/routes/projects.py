@@ -6,6 +6,8 @@ from app.db.mongo import database_dependency
 from app.models.schemas import (
     ActivePersonaUpdateRequest,
     ActivityLogListResponse,
+    ActivityLogBatchRequest,
+    ActivityLogBatchResponse,
     BriefParseRequest,
     BriefParseResponse,
     BriefUpdateRequest,
@@ -34,7 +36,7 @@ from app.models.schemas import (
     ShareCreateRequest,
     ShareCreateResponse,
 )
-from app.repositories.activity_logs import list_project_activity_logs
+from app.repositories.activity_logs import insert_ui_activity_logs_batch, list_project_activity_logs
 from app.repositories.script_snapshots import create_script_snapshot, list_script_snapshots, restore_script_snapshot
 from app.repositories.share_sessions import create_or_get_share_session
 from app.services.coordinator_service import provision_personas_from_analytics, run_brief_initial_parse, stream_brief_parse
@@ -141,6 +143,31 @@ async def get_project_activity_logs(
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         media_type="application/json",
     )
+
+
+@router.post("/{project_id}/activity-logs/batch", response_model=ActivityLogBatchResponse)
+async def post_project_activity_logs_batch(
+    project_id: str,
+    payload: ActivityLogBatchRequest,
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> dict:
+    """Batch-ingest frontend UI click / interaction events into activity_logs."""
+    user_id = payload.user_id.strip()
+    project = await get_project(db, project_id, user_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    try:
+        inserted = await insert_ui_activity_logs_batch(
+            db,
+            project_id=project_id,
+            user_id=user_id,
+            events=[event.model_dump() for event in payload.events],
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Failed to persist UI activity logs") from exc
+
+    return {"project_id": project_id, "inserted": inserted}
 
 
 @router.patch("/{project_id}", response_model=ProjectResponse)

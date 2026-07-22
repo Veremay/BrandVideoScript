@@ -972,6 +972,7 @@ function RowBlock({
                   {brandFeedback && !isShare && value.trim() && onToggleArgue ? (
                     <button
                       className={`feedback-argue-btn${feedbackArgued ? " is-active" : ""}`}
+                      data-track="script.argue.toggle"
                       onClick={() => onToggleArgue(row.row_id, column.column_id)}
                       disabled={argueBusy}
                       type="button"
