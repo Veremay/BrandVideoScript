@@ -358,50 +358,59 @@ function EditableRequirementGroup({
       <h3 className="setup-item-group-title">
         {label} ({items.length})
       </h3>
-      <ul className="setup-item-list">
+      <ul className="requirements-list setup-requirements-list">
         {items.map((item, index) => (
-          <li className="setup-item setup-item--editable" key={item.insight_id}>
-            <div className="setup-item-header">
-              <span className="setup-item-index">#{index + 1}</span>
-              <select
-                className="setup-confidence-select"
-                onChange={(e) => onUpdate(item.insight_id, { confidence: e.target.value as BrandInsightConfidence })}
-                value={item.confidence}
-              >
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-              </select>
+          <li className="requirement-card" key={item.insight_id}>
+            <div className="requirement-card-header">
+              <span className="requirement-card-index">#{index + 1}</span>
+              <label className="requirement-confidence-label">
+                Confidence
+                <select
+                  className="requirement-confidence-select"
+                  onChange={(e) => onUpdate(item.insight_id, { confidence: e.target.value as BrandInsightConfidence })}
+                  value={item.confidence}
+                >
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
+              </label>
               <button
                 aria-label="Delete requirement"
-                className="setup-item-delete"
+                className="requirement-delete-btn"
                 onClick={() => onDelete(item.insight_id)}
                 type="button"
               >
                 <IconTrashSmall />
               </button>
             </div>
-            <input
-              className="setup-item-title-input"
-              onChange={(e) => onUpdate(item.insight_id, { title: e.target.value })}
-              placeholder="Title"
-              type="text"
-              value={item.title}
-            />
-            <textarea
-              className="setup-item-content-input"
-              onChange={(e) => onUpdate(item.insight_id, { content: e.target.value })}
-              placeholder="Describe this requirement…"
-              rows={2}
-              value={item.content}
-            />
-            <textarea
-              className="setup-item-reason-input"
-              onChange={(e) => onUpdate(item.insight_id, { reason: e.target.value })}
-              placeholder="Reason (from Brief or inference)"
-              rows={1}
-              value={item.reason}
-            />
+            <label className="requirement-field">
+              <span>Title</span>
+              <input
+                onChange={(e) => onUpdate(item.insight_id, { title: e.target.value })}
+                placeholder="Short label for this requirement"
+                type="text"
+                value={item.title}
+              />
+            </label>
+            <label className="requirement-field">
+              <span>Content</span>
+              <textarea
+                onChange={(e) => onUpdate(item.insight_id, { content: e.target.value })}
+                placeholder="Describe the brand requirement…"
+                rows={3}
+                value={item.content}
+              />
+            </label>
+            <label className="requirement-field">
+              <span>Reason</span>
+              <textarea
+                onChange={(e) => onUpdate(item.insight_id, { reason: e.target.value })}
+                placeholder="Why this requirement exists (from Brief or inference)"
+                rows={2}
+                value={item.reason}
+              />
+            </label>
           </li>
         ))}
       </ul>
@@ -440,10 +449,10 @@ function IconCheck() {
 
 function IconTrashSmall() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-      <path d="M2 4h12" />
-      <path d="M12.667 4v9.333a1.333 1.333 0 0 1-1.334 1.334H4.667a1.333 1.333 0 0 1-1.334-1.334V4" />
-      <path d="M5.333 4V2.667a1.333 1.333 0 0 1 1.334-1.334h2.666a1.333 1.333 0 0 1 1.334 1.334V4" />
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M3 6h18" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
     </svg>
   );
 }

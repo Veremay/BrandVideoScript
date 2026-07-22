@@ -792,13 +792,6 @@ textarea {
   background: rgba(255, 255, 255, 0.62);
 }
 
-.setup-item-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-}
-
 .setup-item strong,
 .setup-persona-list strong {
   color: var(--figma-text);
@@ -848,85 +841,9 @@ textarea {
   color: #ba1a1a;
 }
 
-/* ── Editable requirement card ── */
-.setup-item--editable {
-  gap: 8px;
-}
-
-.setup-item-index {
-  color: var(--figma-text-secondary);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.setup-confidence-select {
-  padding: 2px 6px;
-  border: 1px solid var(--figma-border);
-  border-radius: 6px;
-  background: var(--figma-bg);
-  color: var(--figma-text);
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.setup-item-delete {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--figma-text-secondary);
-  cursor: pointer;
-  margin-left: auto;
-}
-
-.setup-item-delete:hover {
-  background: rgba(248, 113, 113, 0.12);
-  color: #f87171;
-}
-
-.setup-item-title-input {
-  padding: 5px 8px;
-  border: 1px solid var(--figma-border);
-  border-radius: 6px;
-  background: var(--figma-bg);
-  color: var(--figma-text);
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 18px;
-  outline: none;
-}
-
-.setup-item-title-input:focus {
-  border-color: var(--figma-primary, #0ea5e9);
-}
-
-.setup-item-content-input,
-.setup-item-reason-input {
-  padding: 5px 8px;
-  border: 1px solid var(--figma-border);
-  border-radius: 6px;
-  background: var(--figma-bg);
-  color: var(--figma-text);
-  font-size: 12px;
-  line-height: 18px;
-  outline: none;
-  resize: vertical;
-  font-family: inherit;
-}
-
-.setup-item-content-input:focus,
-.setup-item-reason-input:focus {
-  border-color: var(--figma-primary, #0ea5e9);
-}
-
-.setup-item-reason-input {
-  font-size: 11px;
-  color: var(--figma-text-secondary);
+/* ── Editable requirement card (reuses .requirement-* from RequirementsPanel) ── */
+.setup-requirements-list {
+  margin: 0;
 }
 
 .setup-add-btn {
@@ -2890,6 +2807,38 @@ textarea {
   padding: 17px 16px 16px;
   border-top: 1px solid var(--glacier-border);
   background: rgba(242, 243, 255, 0.5);
+}
+
+.glacier-quick-replies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.glacier-quick-reply {
+  max-width: 100%;
+  padding: 7px 11px;
+  border: 1px solid var(--glacier-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--glacier-primary);
+  font-family: Inter, Arial, "Microsoft YaHei", sans-serif;
+  font-size: calc(12px + var(--app-font-size-delta));
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.glacier-quick-reply:hover:not(:disabled) {
+  border-color: var(--glacier-primary);
+  background: rgba(0, 101, 145, 0.08);
+}
+
+.glacier-quick-reply:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .glacier-quote {
