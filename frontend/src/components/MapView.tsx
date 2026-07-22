@@ -328,6 +328,12 @@ function MapViewContent() {
   const setProject = useAppStore((state) => state.setProject);
   const mapFocusNodeId = useAppStore((state) => state.mapFocusNodeId);
   const setMapFocusNodeId = useAppStore((state) => state.setMapFocusNodeId);
+  const mapSync = useAppStore((state) => state.mapSync);
+  const startMapSync = useAppStore((state) => state.startMapSync);
+  const setMapSyncProgress = useAppStore((state) => state.setMapSyncProgress);
+  const clearMapSync = useAppStore((state) => state.clearMapSync);
+  const syncingMap = mapSync.syncing && mapSync.projectId === project?._id;
+  const mapSyncProgress = syncingMap ? mapSync.progress : null;
   // Superseded nodes survive only in snapshots; never render them on the canvas.
   const rationaleNodes = useMemo(
     () => (project?.rationale_nodes ?? []).filter((node) => node.lifecycle !== "superseded"),
@@ -401,7 +407,6 @@ function MapViewContent() {
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
   const [focusConflictTag, setFocusConflictTag] = useState<string | null>(null);
   const [rightPanelTab, setRightPanelTab] = useState<"consider" | "conflicts">("consider");
-  const [syncingMap, setSyncingMap] = useState(false);
   const [populatingIssueId, setPopulatingIssueId] = useState<string | null>(null);
   const [applyingLayout, setApplyingLayout] = useState(false);
   const { zoomIn, zoomOut, fitView, getViewport, setViewport, setCenter } = useReactFlow();
@@ -707,7 +712,6 @@ function MapViewContent() {
   const setEditorSchemeFocusId = useAppStore((state) => state.setEditorSchemeFocusId);
   const [generatingSchemes, setGeneratingSchemes] = useState(false);
   const [generatingProgress, setGeneratingProgress] = useState<{ step: number; total: number; message: string } | null>(null);
-  const [mapSyncProgress, setMapSyncProgress] = useState<{ step: number; total: number; message: string } | null>(null);
   const smoothMapProgress = useSmoothProgress(
     mapSyncProgress?.step ?? 0,
     mapSyncProgress?.total ?? 1,
@@ -1007,18 +1011,24 @@ function MapViewContent() {
 
   const handleUpdateMap = useCallback(async () => {
     if (!project?._id || !project.user_id || syncingMap || !canUpdateMap) return;
-    setSyncingMap(true);
-    setMapSyncProgress(null);
+    const projectId = project._id;
+    const userId = project.user_id;
+    startMapSync(projectId);
     try {
       const updated: Project = await new Promise((resolve, reject) => {
         let resolved = false;
-        syncMapFromScriptStream(project._id, project.user_id, [], (event) => {
+        syncMapFromScriptStream(projectId, userId, [], (event) => {
           if (event.type === "progress") {
             setMapSyncProgress({ step: event.step, total: event.total, message: event.message });
           } else if (event.type === "done" && !resolved) {
             resolved = true;
             // Animate to 100% before completing
-            setMapSyncProgress((prev) => ({ step: prev?.total ?? 1, total: prev?.total ?? 1, message: "Complete" }));
+            const prev = useAppStore.getState().mapSync.progress;
+            setMapSyncProgress({
+              step: prev?.total ?? 1,
+              total: prev?.total ?? 1,
+              message: "Complete"
+            });
             setTimeout(() => resolve(event.project), 400);
           } else if (event.type === "error" && !resolved) {
             resolved = true;
@@ -1036,7 +1046,7 @@ function MapViewContent() {
       const layouts = computeIbisLayout(nextNodes, nextEdges);
       if (layouts.size > 0) {
         const layoutPayload = Object.fromEntries([...layouts.entries()]);
-        const withLayouts = await batchUpdateGraphLayouts(project._id, project.user_id, layoutPayload, {
+        const withLayouts = await batchUpdateGraphLayouts(projectId, userId, layoutPayload, {
           skipSnapshot: true
         });
         setProject(withLayouts);
@@ -1046,10 +1056,9 @@ function MapViewContent() {
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "Failed to update map");
     } finally {
-      setSyncingMap(false);
-      setMapSyncProgress(null);
+      clearMapSync();
     }
-  }, [canUpdateMap, project, setProject, syncingMap]);
+  }, [canUpdateMap, clearMapSync, project, setMapSyncProgress, setProject, startMapSync, syncingMap]);
 
   return (
     <section className="map-workspace" ref={workspaceRef}>

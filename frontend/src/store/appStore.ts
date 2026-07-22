@@ -13,6 +13,24 @@ type EditorState = {
   saveStatus: SaveStatus;
 };
 
+export type MapSyncProgress = {
+  step: number;
+  total: number;
+  message: string;
+};
+
+type MapSyncState = {
+  projectId: string | null;
+  syncing: boolean;
+  progress: MapSyncProgress | null;
+};
+
+const EMPTY_MAP_SYNC: MapSyncState = {
+  projectId: null,
+  syncing: false,
+  progress: null
+};
+
 type AppState = {
   userId?: string;
   projects: Project[];
@@ -29,6 +47,8 @@ type AppState = {
   };
   mapFocusNodeId: string | null;
   editorSchemeFocusId: string | null;
+  /** Survives MapView unmount when switching to Editor mid Update Map. */
+  mapSync: MapSyncState;
   /** One-shot draft to inject into CoordinatorChat input (vanilla Argue). */
   pendingChatDraft: PendingChatDraft | null;
   undoStack: Script[];
@@ -53,6 +73,9 @@ type AppState = {
   setWorkspaceView: (view: "editor" | "map") => void;
   setMapFocusNodeId: (nodeId: string | null) => void;
   setEditorSchemeFocusId: (schemeId: string | null) => void;
+  startMapSync: (projectId: string) => void;
+  setMapSyncProgress: (progress: MapSyncProgress | null) => void;
+  clearMapSync: () => void;
 };
 
 const MAX_UNDO_STEPS = 100;
@@ -78,6 +101,7 @@ export const useAppStore = create<AppState>((set) => ({
   },
   mapFocusNodeId: null,
   editorSchemeFocusId: null,
+  mapSync: EMPTY_MAP_SYNC,
   pendingChatDraft: null,
   undoStack: [],
   setUserId: (userId) => set({ userId }),
@@ -87,12 +111,14 @@ export const useAppStore = create<AppState>((set) => ({
       const normalized = normalizeProject(project);
       const merged = normalized ? mergeProjectPreservingGraph(state.project, normalized) : null;
       const appMode = merged?.mode ?? merged?.current_script.settings?.mode ?? "full";
+      const sameProject = state.project?._id === merged?._id;
       return {
         project: merged,
         script: merged?.current_script ?? null,
         appMode,
         editor: { saveStatus: "saved" },
-        undoStack: state.project?._id === merged?._id ? state.undoStack : []
+        undoStack: sameProject ? state.undoStack : [],
+        mapSync: sameProject ? state.mapSync : EMPTY_MAP_SYNC
       };
     }),
   setScript: (script) => set({ script }),
@@ -214,5 +240,15 @@ export const useAppStore = create<AppState>((set) => ({
       layout: { ...state.layout, workspaceView: view }
     })),
   setMapFocusNodeId: (nodeId) => set({ mapFocusNodeId: nodeId }),
-  setEditorSchemeFocusId: (schemeId) => set({ editorSchemeFocusId: schemeId })
+  setEditorSchemeFocusId: (schemeId) => set({ editorSchemeFocusId: schemeId }),
+  startMapSync: (projectId) =>
+    set({
+      mapSync: { projectId, syncing: true, progress: null }
+    }),
+  setMapSyncProgress: (progress) =>
+    set((state) => {
+      if (!state.mapSync.syncing) return state;
+      return { mapSync: { ...state.mapSync, progress } };
+    }),
+  clearMapSync: () => set({ mapSync: EMPTY_MAP_SYNC })
 }));
