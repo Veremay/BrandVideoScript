@@ -15,8 +15,21 @@ type AssistantTab = "chat" | "plans";
 const MAX_ATTACHMENTS = 3;
 const MAX_ATTACHMENT_BYTES = 262_144;
 const MAX_ATTACHMENT_CHARS = 20_000;
-const VANILLA_SETUP_QUICK_REPLIES = ["Help me analyze brand requirements"] as const;
-const VANILLA_EDITOR_QUICK_REPLIES = ["Help me analyze potential conflicts"] as const;
+const VANILLA_SETUP_QUICK_REPLIES = [
+  {
+    label: "Help me analyze brand requirements",
+    prompt:
+      "Help me analyze brand requirements from the Brand Requirements context and our conversation. Return the analysis as markdown bullet points only: group related requirements, keep each bullet concise and actionable, and avoid long paragraphs."
+  }
+] as const;
+
+const VANILLA_EDITOR_QUICK_REPLIES = [
+  {
+    label: "Help me analyze potential conflicts",
+    prompt:
+      "Help me analyze potential conflicts and trade-offs from the Conflicts context, script, and our conversation. Return the analysis as markdown bullet points only: list each conflict/trade-off clearly, keep each bullet concise, and avoid long paragraphs."
+  }
+] as const;
 const SUPPORTED_ATTACHMENT_EXTENSIONS = new Set([
   "txt", "md", "markdown", "csv", "json", "xml", "yaml", "yml", "srt", "vtt",
   "html", "css", "js", "jsx", "ts", "tsx", "py"
@@ -597,11 +610,11 @@ export function CoordinatorChat({
                 <button
                   className="glacier-quick-reply"
                   disabled={streaming}
-                  key={reply}
-                  onClick={() => void handleSend(reply)}
+                  key={reply.label}
+                  onClick={() => void handleSend(reply.prompt)}
                   type="button"
                 >
-                  {reply}
+                  {reply.label}
                 </button>
               ))}
             </div>

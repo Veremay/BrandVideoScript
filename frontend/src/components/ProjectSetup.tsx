@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 
 import { createEmptyInsight, insightsFromProject, toApiBrandInsights } from "@/lib/brandRequirements";
 import {
@@ -59,24 +59,22 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
   const busy = uploadingBrief || parsingBrief || personaBusy;
 
   function updateLocalInsight(
-    list: BrandInsight[],
-    setList: (items: BrandInsight[]) => void,
+    setList: Dispatch<SetStateAction<BrandInsight[]>>,
     insightId: string,
     patch: Partial<BrandInsight>
   ) {
-    setList(list.map((item) => (item.insight_id === insightId ? { ...item, ...patch } : item)));
+    setList((items) => items.map((item) => (item.insight_id === insightId ? { ...item, ...patch } : item)));
   }
 
   function addLocalInsight(
-    list: BrandInsight[],
-    setList: (items: BrandInsight[]) => void,
+    setList: Dispatch<SetStateAction<BrandInsight[]>>,
     category: BrandInsightCategory
   ) {
-    setList([...list, createEmptyInsight(category)]);
+    setList((items) => [...items, createEmptyInsight(category)]);
   }
 
-  function removeLocalInsight(list: BrandInsight[], setList: (items: BrandInsight[]) => void, insightId: string) {
-    setList(list.filter((item) => item.insight_id !== insightId));
+  function removeLocalInsight(setList: Dispatch<SetStateAction<BrandInsight[]>>, insightId: string) {
+    setList((items) => items.filter((item) => item.insight_id !== insightId));
   }
 
   async function handleSaveRequirements() {
@@ -258,26 +256,22 @@ export function ProjectSetup({ onBack, onEnterEditor }: ProjectSetupProps) {
             </div>
 
             <div className="setup-card-scroll app-scrollbar">
-              {hasRequirements ? (
-                <div className="setup-item-groups">
-                  <EditableRequirementGroup
-                    items={localExplicit}
-                    label="Explicit"
-                    onAdd={() => addLocalInsight(localExplicit, setLocalExplicit, "explicit_requirement")}
-                    onDelete={(id) => removeLocalInsight(localExplicit, setLocalExplicit, id)}
-                    onUpdate={(id, patch) => updateLocalInsight(localExplicit, setLocalExplicit, id, patch)}
-                  />
-                  <EditableRequirementGroup
-                    items={localImplicit}
-                    label="Implicit"
-                    onAdd={() => addLocalInsight(localImplicit, setLocalImplicit, "implicit_requirement")}
-                    onDelete={(id) => removeLocalInsight(localImplicit, setLocalImplicit, id)}
-                    onUpdate={(id, patch) => updateLocalInsight(localImplicit, setLocalImplicit, id, patch)}
-                  />
-                </div>
-              ) : (
-                <p className="setup-empty">No requirements parsed yet.</p>
-              )}
+              <div className="setup-item-groups">
+                <EditableRequirementGroup
+                  items={localExplicit}
+                  label="Explicit"
+                  onAdd={() => addLocalInsight(setLocalExplicit, "explicit_requirement")}
+                  onDelete={(id) => removeLocalInsight(setLocalExplicit, id)}
+                  onUpdate={(id, patch) => updateLocalInsight(setLocalExplicit, id, patch)}
+                />
+                <EditableRequirementGroup
+                  items={localImplicit}
+                  label="Implicit"
+                  onAdd={() => addLocalInsight(setLocalImplicit, "implicit_requirement")}
+                  onDelete={(id) => removeLocalInsight(setLocalImplicit, id)}
+                  onUpdate={(id, patch) => updateLocalInsight(setLocalImplicit, id, patch)}
+                />
+              </div>
             </div>
 
             <div className="setup-actions">
@@ -453,59 +447,69 @@ function EditableRequirementGroup({
   onDelete: (insightId: string) => void;
   onUpdate: (insightId: string, patch: Partial<BrandInsight>) => void;
 }) {
-  if (!items.length) return null;
-
   return (
     <section className="setup-item-group">
       <h3 className="setup-item-group-title">
         {label} ({items.length})
       </h3>
-      <ul className="setup-item-list">
-        {items.map((item, index) => (
-          <li className="setup-item setup-item--editable" key={item.insight_id}>
-            <div className="setup-item-header">
-              <span className="setup-item-index">#{index + 1}</span>
-              <select
-                className="setup-confidence-select"
-                onChange={(e) => onUpdate(item.insight_id, { confidence: e.target.value as BrandInsightConfidence })}
-                value={item.confidence}
-              >
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-              </select>
-              <button
-                aria-label="Delete requirement"
-                className="setup-item-delete"
-                onClick={() => onDelete(item.insight_id)}
-                type="button"
-              >
-                <IconTrashSmall />
-              </button>
-            </div>
-            <input
-              className="setup-item-title-input"
-              onChange={(e) => onUpdate(item.insight_id, { title: e.target.value })}
-              placeholder="Title"
-              type="text"
-              value={item.title}
-            />
-            <AutoSizeTextarea
-              className="setup-item-content-input"
-              onChange={(e) => onUpdate(item.insight_id, { content: e.target.value })}
-              placeholder="Describe this requirement…"
-              value={item.content}
-            />
-            <AutoSizeTextarea
-              className="setup-item-reason-input"
-              onChange={(e) => onUpdate(item.insight_id, { reason: e.target.value })}
-              placeholder="Reason (from Brief or inference)"
-              value={item.reason}
-            />
-          </li>
-        ))}
-      </ul>
-      <button className="setup-add-btn" onClick={onAdd} type="button">
+      {items.length ? (
+        <ul className="setup-item-list">
+          {items.map((item, index) => (
+            <li className="setup-item setup-item--editable" key={item.insight_id}>
+              <div className="setup-item-header">
+                <span className="setup-item-index">#{index + 1}</span>
+                <select
+                  className="setup-confidence-select"
+                  onChange={(e) => onUpdate(item.insight_id, { confidence: e.target.value as BrandInsightConfidence })}
+                  value={item.confidence}
+                >
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
+                <button
+                  aria-label="Delete requirement"
+                  className="setup-item-delete"
+                  onClick={() => onDelete(item.insight_id)}
+                  type="button"
+                >
+                  <IconTrashSmall />
+                </button>
+              </div>
+              <input
+                className="setup-item-title-input"
+                onChange={(e) => onUpdate(item.insight_id, { title: e.target.value })}
+                placeholder="Title"
+                type="text"
+                value={item.title}
+              />
+              <AutoSizeTextarea
+                className="setup-item-content-input"
+                onChange={(e) => onUpdate(item.insight_id, { content: e.target.value })}
+                placeholder="Describe this requirement…"
+                value={item.content}
+              />
+              <AutoSizeTextarea
+                className="setup-item-reason-input"
+                onChange={(e) => onUpdate(item.insight_id, { reason: e.target.value })}
+                placeholder="Reason (from Brief or inference)"
+                value={item.reason}
+              />
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="setup-empty">No {label.toLowerCase()} requirements yet.</p>
+      )}
+      <button
+        className="setup-add-btn"
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onAdd();
+        }}
+        type="button"
+      >
         + Add {label.toLowerCase()} requirement
       </button>
     </section>

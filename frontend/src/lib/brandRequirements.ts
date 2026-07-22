@@ -73,8 +73,12 @@ export function requirementsFromProject(project: Project) {
 
 export function createEmptyInsight(category: BrandInsightCategory): BrandInsight {
   const now = new Date().toISOString();
+  const insightId =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? `insight_${crypto.randomUUID()}`
+      : `insight_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
   return {
-    insight_id: `insight_${crypto.randomUUID()}`,
+    insight_id: insightId,
     agent_type: "brand",
     category,
     title: "",
