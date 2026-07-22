@@ -253,7 +253,7 @@ export function VanillaSetupContextPanel({ onClose, open, section }: VanillaSetu
                 {generating ? (
                   <button
                     aria-label="Stop generating modification plan"
-                    className="pipeline-abort-btn pipeline-abort-btn--on-primary"
+                    className="pipeline-abort-btn"
                     onClick={() => abortSchemeGen()}
                     title="Stop"
                     type="button"
