@@ -710,8 +710,14 @@ function MapViewContent() {
 
   const setWorkspaceView = useAppStore((state) => state.setWorkspaceView);
   const setEditorSchemeFocusId = useAppStore((state) => state.setEditorSchemeFocusId);
-  const [generatingSchemes, setGeneratingSchemes] = useState(false);
-  const [generatingProgress, setGeneratingProgress] = useState<{ step: number; total: number; message: string } | null>(null);
+  const schemeGen = useAppStore((state) => state.schemeGen);
+  const startSchemeGen = useAppStore((state) => state.startSchemeGen);
+  const setSchemeGenProgress = useAppStore((state) => state.setSchemeGenProgress);
+  const clearSchemeGen = useAppStore((state) => state.clearSchemeGen);
+  const generatingSchemes =
+    (schemeGen.generating && schemeGen.projectId === project?._id) ||
+    project?.stale?.modification_schemes === "generating";
+  const generatingProgress = schemeGen.projectId === project?._id ? schemeGen.progress : null;
   const smoothMapProgress = useSmoothProgress(
     mapSyncProgress?.step ?? 0,
     mapSyncProgress?.total ?? 1,
@@ -785,26 +791,33 @@ function MapViewContent() {
       window.alert("Add at least one Position to TO BE CONSIDERED from the node menu.");
       return;
     }
-    setGeneratingSchemes(true);
-    setGeneratingProgress(null);
+    const projectId = project._id;
+    const userId = project.user_id;
+    startSchemeGen(projectId);
     try {
-      await generateModificationSchemesStream(project._id, project.user_id, {
+      await generateModificationSchemesStream(projectId, userId, {
         target_position_ids: positionIds,
         message: "Generate modification schemes for adopted positions in TO BE CONSIDERED."
       }, (event) => {
         if (event.type === "progress") {
-          setGeneratingProgress({ step: event.step, total: event.total, message: event.message });
+          setSchemeGenProgress({ step: event.step, total: event.total, message: event.message });
         }
         if (event.type === "done") {
-          // Animate to 100% before completing
-          setGeneratingProgress((prev) => ({ step: prev?.total ?? 1, total: prev?.total ?? 1, message: "Complete" }));
+          if (!event.project) return;
+          const prev = useAppStore.getState().schemeGen.progress;
+          setSchemeGenProgress({
+            step: prev?.total ?? 1,
+            total: prev?.total ?? 1,
+            message: "Complete"
+          });
           setTimeout(() => {
-            setProject(event.project);
+            setProject(event.project!);
             const latest = event.schemes[event.schemes.length - 1];
             if (latest?.scheme_id) {
               setEditorSchemeFocusId(latest.scheme_id);
             }
             setWorkspaceView("editor");
+            clearSchemeGen();
           }, 400);
         }
         if (event.type === "error") {
@@ -814,23 +827,24 @@ function MapViewContent() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to generate modification plan";
       window.alert(`${message} 请稍后重试。`);
+      clearSchemeGen();
       try {
-        const refreshed = await fetchProject(project._id, project.user_id);
+        const refreshed = await fetchProject(projectId, userId);
         setProject(refreshed);
       } catch {
         // ignore refresh failure
       }
-    } finally {
-      setGeneratingSchemes(false);
-      setGeneratingProgress(null);
     }
   }, [
+    clearSchemeGen,
     considerationPositions,
     generatingSchemes,
     project,
     setEditorSchemeFocusId,
     setProject,
-    setWorkspaceView
+    setSchemeGenProgress,
+    setWorkspaceView,
+    startSchemeGen
   ]);
 
   const handleAddNode = useCallback(

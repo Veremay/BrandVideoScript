@@ -234,11 +234,24 @@ async def stream_generate_modification_schemes(
         return
 
     result = task.result()
-    yield encode_sse("done", {
+    done_payload = {
         "project": result.get("project"),
-        "schemes": result.get("schemes"),
+        "schemes": result.get("schemes") or [],
         "assistant_reply": result.get("assistant_reply", ""),
-    })
+    }
+    try:
+        yield encode_sse("done", done_payload)
+    except (TypeError, ValueError):
+        # Full project/schemes payload can fail JSON encoding; client will refetch.
+        yield encode_sse(
+            "done",
+            {
+                "project": None,
+                "schemes": [],
+                "assistant_reply": str(result.get("assistant_reply", "")),
+                "refetch": True,
+            },
+        )
 
 
 async def run_persona_provisioned_parse(

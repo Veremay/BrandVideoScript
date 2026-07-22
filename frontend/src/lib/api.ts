@@ -237,18 +237,43 @@ async function readSseStream<T>(
       const parts = buffer.split("\n\n");
       buffer = parts.pop() ?? "";
       for (const part of parts) {
-        const event = parseBlock(part.trim());
-        if (event) onEvent(event);
+        try {
+          const event = parseBlock(part.trim());
+          if (event) onEvent(event);
+        } catch {
+          // Skip malformed SSE blocks (truncated JSON, proxy artifacts).
+        }
       }
     }
     if (buffer.trim()) {
-      const event = parseBlock(buffer.trim());
-      if (event) onEvent(event);
+      try {
+        const event = parseBlock(buffer.trim());
+        if (event) onEvent(event);
+      } catch {
+        // ignore trailing incomplete block
+      }
     }
   } finally {
     try { reader.cancel(); } catch { /* ignore */ }
     reader.releaseLock();
   }
+}
+
+function parseSseEventData(block: string): { event: string; data: string } {
+  let event = "message";
+  const dataLines: string[] = [];
+  for (const line of block.split("\n")) {
+    if (line.startsWith("event:")) {
+      event = line.slice(6).trim();
+      continue;
+    }
+    if (line.startsWith("data:")) {
+      // SSE: optional single leading space after "data:"
+      const raw = line.slice(5);
+      dataLines.push(raw.startsWith(" ") ? raw.slice(1) : raw);
+    }
+  }
+  return { event, data: dataLines.join("\n") };
 }
 
 type BriefParseSseEvent =
@@ -909,26 +934,42 @@ export async function generateModificationSchemes(
 type ModificationSchemeStreamEvent =
   | { type: "progress"; step: number; total: number; message: string }
   | { type: "heartbeat" }
-  | { type: "done"; project: Project; schemes: ModificationScheme[]; assistant_reply: string }
+  | {
+      type: "done";
+      project: Project | null;
+      schemes: ModificationScheme[];
+      assistant_reply: string;
+      refetch?: boolean;
+    }
   | { type: "error"; message: string };
 
 function parseModificationSchemeSseBlock(block: string): ModificationSchemeStreamEvent | null {
-  let event = "message";
-  let data = "";
-  for (const line of block.split("\n")) {
-    if (line.startsWith("event:")) event = line.slice(6).trim();
-    if (line.startsWith("data:")) data = line.slice(5).trim();
-  }
+  const { event, data } = parseSseEventData(block);
   if (!data) return null;
   const payload = JSON.parse(data) as Record<string, unknown>;
-  if (event === "progress") return { type: "progress", step: Number(payload.step ?? 0), total: Number(payload.total ?? 1), message: String(payload.message ?? "") };
+  if (event === "progress") {
+    return {
+      type: "progress",
+      step: Number(payload.step ?? 0),
+      total: Number(payload.total ?? 1),
+      message: String(payload.message ?? "")
+    };
+  }
   if (event === "heartbeat") return { type: "heartbeat" };
-  if (event === "done") return {
-    type: "done",
-    project: normalizeProject(payload.project as Project)!,
-    schemes: (payload.schemes ?? []) as ModificationScheme[],
-    assistant_reply: String(payload.assistant_reply ?? ""),
-  };
+  if (event === "done") {
+    const rawProject = payload.project;
+    const project =
+      rawProject && typeof rawProject === "object"
+        ? normalizeProject(rawProject as Project)
+        : null;
+    return {
+      type: "done",
+      project: project as Project | null,
+      schemes: (payload.schemes ?? []) as ModificationScheme[],
+      assistant_reply: String(payload.assistant_reply ?? ""),
+      refetch: Boolean(payload.refetch) || !project
+    };
+  }
   if (event === "error") return { type: "error", message: String(payload.message ?? "Scheme generation failed") };
   return null;
 }
@@ -941,6 +982,12 @@ export async function generateModificationSchemesStream(
 ): Promise<void> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), AGENT_PIPELINE_TIMEOUT_MS);
+
+  let doneProject: Project | null = null;
+  let doneSchemes: ModificationScheme[] = [];
+  let assistantReply = "";
+  let sawError = false;
+  let streamError: unknown = null;
 
   try {
     const response = await fetch(`${API_BASE_URL}/projects/${projectId}/modification-schemes/generate/stream`, {
@@ -958,14 +1005,53 @@ export async function generateModificationSchemesStream(
       const message = await response.text();
       throw new Error(message || `Scheme generation failed: ${response.status}`);
     }
-    await readSseStream(response, parseModificationSchemeSseBlock, onEvent);
+    await readSseStream(response, parseModificationSchemeSseBlock, (event) => {
+      if (event.type === "progress" || event.type === "heartbeat") {
+        onEvent(event);
+        return;
+      }
+      if (event.type === "error") {
+        sawError = true;
+        onEvent(event);
+        return;
+      }
+      doneSchemes = event.schemes ?? [];
+      assistantReply = event.assistant_reply ?? "";
+      if (event.project && !event.refetch) {
+        doneProject = event.project;
+        onEvent(event);
+      }
+    });
   } catch (err) {
+    streamError = err;
     if (err instanceof DOMException && err.name === "AbortError") {
-      throw new Error(`Scheme generation timed out after ${Math.round(AGENT_PIPELINE_TIMEOUT_MS / 60000)} minutes. The backend is still processing — you can refresh and check the status.`);
+      throw new Error(
+        `Scheme generation timed out after ${Math.round(AGENT_PIPELINE_TIMEOUT_MS / 60000)} minutes. The backend is still processing — you can refresh and check the status.`
+      );
     }
-    throw err;
   } finally {
     clearTimeout(timeoutId);
+  }
+
+  if (sawError) return;
+
+  if (doneProject) return;
+
+  // Stream often drops the large `done` payload (empty/truncated data) while the
+  // backend has already saved schemes. Refetch the project so the editor updates.
+  try {
+    const project = await fetchProject(projectId, userId);
+    onEvent({
+      type: "done",
+      project,
+      schemes: project.modification_schemes?.length
+        ? project.modification_schemes
+        : doneSchemes,
+      assistant_reply: assistantReply
+    });
+  } catch (err) {
+    if (streamError instanceof Error) throw streamError;
+    throw err instanceof Error ? err : new Error("Scheme generation finished but project refresh failed");
   }
 }
 

@@ -24,10 +24,19 @@ export function VanillaSetupContextPanel({ onClose, open, section }: VanillaSetu
   const project = useAppStore((state) => state.project);
   const setProject = useAppStore((state) => state.setProject);
   const setEditorSchemeFocusId = useAppStore((state) => state.setEditorSchemeFocusId);
+  const schemeGen = useAppStore((state) => state.schemeGen);
+  const startSchemeGen = useAppStore((state) => state.startSchemeGen);
+  const setSchemeGenProgress = useAppStore((state) => state.setSchemeGenProgress);
+  const clearSchemeGen = useAppStore((state) => state.clearSchemeGen);
   const isRequirements = section === "requirements";
   const title = isRequirements ? "Brand Requirements" : "Conflicts & Trade-offs";
   const fieldKey: keyof VanillaSetupData = isRequirements ? "brand_requirements" : "conflicts";
   const storedValue = project?.vanilla_setup_data?.[fieldKey] ?? "";
+
+  const generating =
+    (schemeGen.generating && schemeGen.projectId === project?._id) ||
+    project?.stale?.modification_schemes === "generating";
+  const generateProgress = schemeGen.projectId === project?._id ? schemeGen.progress : null;
 
   const [draft, setDraft] = useState(storedValue);
   const draftRef = useRef(draft);
@@ -35,12 +44,6 @@ export function VanillaSetupContextPanel({ onClose, open, section }: VanillaSetu
   const [dirty, setDirty] = useState(false);
   const [saveState, setSaveState] = useState<"saved" | "pending" | "saving" | "failed">("saved");
   const [error, setError] = useState<string | null>(null);
-  const [generating, setGenerating] = useState(false);
-  const [generateProgress, setGenerateProgress] = useState<{
-    step: number;
-    total: number;
-    message: string;
-  } | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -49,8 +52,6 @@ export function VanillaSetupContextPanel({ onClose, open, section }: VanillaSetu
     setDirty(false);
     setSaveState("saved");
     setError(null);
-    setGenerating(false);
-    setGenerateProgress(null);
   }, [open, section, storedValue, project?._id]);
 
   useEffect(() => {
@@ -140,14 +141,15 @@ export function VanillaSetupContextPanel({ onClose, open, section }: VanillaSetu
       return;
     }
 
-    setGenerating(true);
-    setGenerateProgress(null);
+    const projectId = project._id;
+    const userId = project.user_id;
+    startSchemeGen(projectId);
     setError(null);
     try {
       await flushDraft();
       await generateModificationSchemesStream(
-        project._id,
-        project.user_id,
+        projectId,
+        userId,
         {
           target_position_ids: [],
           target_issue_ids: [],
@@ -156,20 +158,23 @@ export function VanillaSetupContextPanel({ onClose, open, section }: VanillaSetu
         },
         (event) => {
           if (event.type === "progress") {
-            setGenerateProgress({ step: event.step, total: event.total, message: event.message });
+            setSchemeGenProgress({ step: event.step, total: event.total, message: event.message });
           }
           if (event.type === "done") {
-            setGenerateProgress({
-              step: event.schemes?.length ? 1 : 0,
-              total: 1,
+            if (!event.project) return;
+            const prev = useAppStore.getState().schemeGen.progress;
+            setSchemeGenProgress({
+              step: prev?.total ?? 1,
+              total: prev?.total ?? 1,
               message: "Complete"
             });
             window.setTimeout(() => {
-              setProject(event.project);
+              setProject(event.project!);
               const latest = event.schemes[event.schemes.length - 1];
               if (latest?.scheme_id) {
                 setEditorSchemeFocusId(latest.scheme_id);
               }
+              clearSchemeGen();
               onClose();
             }, 350);
           }
@@ -181,15 +186,13 @@ export function VanillaSetupContextPanel({ onClose, open, section }: VanillaSetu
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to generate modification plan";
       setError(message);
+      clearSchemeGen();
       try {
-        const refreshed = await fetchProject(project._id, project.user_id);
+        const refreshed = await fetchProject(projectId, userId);
         setProject(refreshed);
       } catch {
         // ignore refresh failure
       }
-    } finally {
-      setGenerating(false);
-      setGenerateProgress(null);
     }
   }
 

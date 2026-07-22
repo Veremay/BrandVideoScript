@@ -31,6 +31,24 @@ const EMPTY_MAP_SYNC: MapSyncState = {
   progress: null
 };
 
+export type SchemeGenProgress = {
+  step: number;
+  total: number;
+  message: string;
+};
+
+type SchemeGenState = {
+  projectId: string | null;
+  generating: boolean;
+  progress: SchemeGenProgress | null;
+};
+
+const EMPTY_SCHEME_GEN: SchemeGenState = {
+  projectId: null,
+  generating: false,
+  progress: null
+};
+
 type AppState = {
   userId?: string;
   projects: Project[];
@@ -49,6 +67,8 @@ type AppState = {
   editorSchemeFocusId: string | null;
   /** Survives MapView unmount when switching to Editor mid Update Map. */
   mapSync: MapSyncState;
+  /** Survives Conflicts panel / MapView unmount mid Generate modification plan. */
+  schemeGen: SchemeGenState;
   /** One-shot draft to inject into CoordinatorChat input (vanilla Argue). */
   pendingChatDraft: PendingChatDraft | null;
   undoStack: Script[];
@@ -76,6 +96,9 @@ type AppState = {
   startMapSync: (projectId: string) => void;
   setMapSyncProgress: (progress: MapSyncProgress | null) => void;
   clearMapSync: () => void;
+  startSchemeGen: (projectId: string) => void;
+  setSchemeGenProgress: (progress: SchemeGenProgress | null) => void;
+  clearSchemeGen: () => void;
 };
 
 const MAX_UNDO_STEPS = 100;
@@ -102,6 +125,7 @@ export const useAppStore = create<AppState>((set) => ({
   mapFocusNodeId: null,
   editorSchemeFocusId: null,
   mapSync: EMPTY_MAP_SYNC,
+  schemeGen: EMPTY_SCHEME_GEN,
   pendingChatDraft: null,
   undoStack: [],
   setUserId: (userId) => set({ userId }),
@@ -118,7 +142,8 @@ export const useAppStore = create<AppState>((set) => ({
         appMode,
         editor: { saveStatus: "saved" },
         undoStack: sameProject ? state.undoStack : [],
-        mapSync: sameProject ? state.mapSync : EMPTY_MAP_SYNC
+        mapSync: sameProject ? state.mapSync : EMPTY_MAP_SYNC,
+        schemeGen: sameProject ? state.schemeGen : EMPTY_SCHEME_GEN
       };
     }),
   setScript: (script) => set({ script }),
@@ -250,5 +275,15 @@ export const useAppStore = create<AppState>((set) => ({
       if (!state.mapSync.syncing) return state;
       return { mapSync: { ...state.mapSync, progress } };
     }),
-  clearMapSync: () => set({ mapSync: EMPTY_MAP_SYNC })
+  clearMapSync: () => set({ mapSync: EMPTY_MAP_SYNC }),
+  startSchemeGen: (projectId) =>
+    set({
+      schemeGen: { projectId, generating: true, progress: null }
+    }),
+  setSchemeGenProgress: (progress) =>
+    set((state) => {
+      if (!state.schemeGen.generating) return state;
+      return { schemeGen: { ...state.schemeGen, progress } };
+    }),
+  clearSchemeGen: () => set({ schemeGen: EMPTY_SCHEME_GEN })
 }));

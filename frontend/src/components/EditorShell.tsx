@@ -73,6 +73,16 @@ export function EditorShell() {
     setWorkspaceView
   } = useAppStore();
   const isVanilla = appMode === "vanilla";
+  const schemeGen = useAppStore((state) => state.schemeGen);
+  const schemeGenerating =
+    (schemeGen.generating && schemeGen.projectId === project?._id) ||
+    project?.stale?.modification_schemes === "generating";
+  const schemeGenPercent =
+    schemeGen.progress && schemeGen.progress.total > 0
+      ? Math.min(100, Math.round((schemeGen.progress.step / schemeGen.progress.total) * 100))
+      : schemeGenerating
+        ? 8
+        : 0;
   const hasHydrated = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [parsingBrief, setParsingBrief] = useState(false);
@@ -290,8 +300,13 @@ export function EditorShell() {
                   <IconPersonas />
                   Personas
                 </button>
-                <button className="figma-nav-btn figma-nav-outline" onClick={() => setVanillaContextSection("conflicts")} type="button">
-                  Conflicts
+                <button
+                  className="figma-nav-btn figma-nav-outline"
+                  onClick={() => setVanillaContextSection("conflicts")}
+                  title={schemeGen.progress?.message ?? undefined}
+                  type="button"
+                >
+                  {schemeGenerating ? `Generating… ${schemeGenPercent}%` : "Conflicts"}
                 </button>
               </>
             ) : (
