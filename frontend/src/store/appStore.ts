@@ -11,6 +11,11 @@ import {
   clearMapSyncAbortController,
   clearSchemeGenAbortController
 } from "@/lib/pipelineAbort";
+import {
+  clearPersistedSchemeGen,
+  readPersistedSchemeGen,
+  writePersistedSchemeGen
+} from "@/lib/schemeGenPersistence";
 import { insertColumn, insertRow, removeColumn, removeRow, renameColumn, updateCellValue } from "@/lib/scriptEditor";
 import type { AppMode, PendingChatDraft, Project, SaveStatus, Script } from "@/lib/types";
 
@@ -56,6 +61,40 @@ const EMPTY_SCHEME_GEN: SchemeGenState = {
   generating: false,
   progress: null
 };
+
+function resolveSchemeGenForProject(
+  projectId: string | null | undefined,
+  staleStatus: string | undefined,
+  current: SchemeGenState
+): SchemeGenState {
+  if (!projectId) return EMPTY_SCHEME_GEN;
+  if (current.generating && current.projectId === projectId) return current;
+
+  const stored = readPersistedSchemeGen();
+  if (staleStatus === "generating") {
+    return {
+      projectId,
+      generating: true,
+      progress: stored?.projectId === projectId ? stored.progress : null
+    };
+  }
+
+  // Backend finished (or never started) — drop any leftover session progress.
+  if (stored?.projectId === projectId) clearPersistedSchemeGen();
+  return EMPTY_SCHEME_GEN;
+}
+
+function persistSchemeGen(state: SchemeGenState) {
+  if (!state.generating || !state.projectId) {
+    clearPersistedSchemeGen();
+    return;
+  }
+  writePersistedSchemeGen({
+    projectId: state.projectId,
+    generating: true,
+    progress: state.progress
+  });
+}
 
 type AppState = {
   userId?: string;
@@ -146,6 +185,13 @@ export const useAppStore = create<AppState>((set) => ({
       const merged = normalized ? mergeProjectPreservingGraph(state.project, normalized) : null;
       const appMode = merged?.mode ?? merged?.current_script.settings?.mode ?? "full";
       const sameProject = state.project?._id === merged?._id;
+      const schemeGen = resolveSchemeGenForProject(
+        merged?._id,
+        merged?.stale?.modification_schemes,
+        sameProject ? state.schemeGen : EMPTY_SCHEME_GEN
+      );
+      if (!sameProject) clearPersistedSchemeGen();
+      else persistSchemeGen(schemeGen);
       return {
         project: merged,
         script: merged?.current_script ?? null,
@@ -153,7 +199,7 @@ export const useAppStore = create<AppState>((set) => ({
         editor: { saveStatus: "saved" },
         undoStack: sameProject ? state.undoStack : [],
         mapSync: sameProject ? state.mapSync : EMPTY_MAP_SYNC,
-        schemeGen: sameProject ? state.schemeGen : EMPTY_SCHEME_GEN
+        schemeGen
       };
     }),
   setScript: (script) => set({ script }),
@@ -297,21 +343,25 @@ export const useAppStore = create<AppState>((set) => ({
   },
   startSchemeGen: (projectId) => {
     beginSchemeGenAbortSignal();
-    set({
-      schemeGen: { projectId, generating: true, progress: null }
-    });
+    const next: SchemeGenState = { projectId, generating: true, progress: null };
+    persistSchemeGen(next);
+    set({ schemeGen: next });
   },
   setSchemeGenProgress: (progress) =>
     set((state) => {
       if (!state.schemeGen.generating) return state;
-      return { schemeGen: { ...state.schemeGen, progress } };
+      const next = { ...state.schemeGen, progress };
+      persistSchemeGen(next);
+      return { schemeGen: next };
     }),
   clearSchemeGen: () => {
     clearSchemeGenAbortController();
+    clearPersistedSchemeGen();
     set({ schemeGen: EMPTY_SCHEME_GEN });
   },
   abortSchemeGen: () => {
     abortSchemeGenPipeline();
+    clearPersistedSchemeGen();
     set({ schemeGen: EMPTY_SCHEME_GEN });
   }
 }));

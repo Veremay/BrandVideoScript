@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { fetchProject, generateModificationSchemesStream, updateVanillaSetupStage } from "@/lib/api";
 import { getSchemeGenAbortSignal, isPipelineCancelledError } from "@/lib/pipelineAbort";
+import { schemeGenPercentLabel, schemeGenPercentValue } from "@/lib/schemeGenPersistence";
 import type { VanillaSetupData } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
 
@@ -201,12 +202,7 @@ export function VanillaSetupContextPanel({ onClose, open, section }: VanillaSetu
     }
   }
 
-  const progressPercent =
-    generateProgress && generateProgress.total > 0
-      ? Math.min(100, Math.round((generateProgress.step / generateProgress.total) * 100))
-      : generating
-        ? 8
-        : 0;
+  const progressPercent = schemeGenPercentValue(generateProgress);
 
   return (
     <div className="persona-overlay" role="presentation">
@@ -283,7 +279,7 @@ export function VanillaSetupContextPanel({ onClose, open, section }: VanillaSetu
                   ) : null}
                   <span className="btn-progress-label">
                     {generating
-                      ? `Generating… ${progressPercent}%`
+                      ? schemeGenPercentLabel(generateProgress)
                       : "Generate modification plan"}
                   </span>
                 </button>

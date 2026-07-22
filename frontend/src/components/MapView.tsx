@@ -51,6 +51,7 @@ import {
   getSchemeGenAbortSignal,
   isPipelineCancelledError
 } from "@/lib/pipelineAbort";
+import { schemeGenPercentLabel } from "@/lib/schemeGenPersistence";
 import { useSmoothProgress } from "@/lib/useElapsedTime";
 import { useAppStore } from "@/store/appStore";
 
@@ -1381,7 +1382,7 @@ function MapViewContent() {
                   ) : null}
                   <span className="btn-progress-label">
                     {generatingSchemes
-                      ? `Generating… ${Math.round(smoothGeneratingProgress)}%`
+                      ? schemeGenPercentLabel(generatingProgress)
                       : "Generate modification plan"}
                   </span>
                 </button>

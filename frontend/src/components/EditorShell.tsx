@@ -11,7 +11,9 @@ import { RequirementsPanel } from "@/components/RequirementsPanel";
 import { ScriptGrid } from "@/components/ScriptGrid";
 import { ScriptSnapshotsPanel } from "@/components/ScriptSnapshotsPanel";
 import { VanillaSetupContextPanel } from "@/components/VanillaSetupContextPanel";
-import { createShareLink, fetchProjectGraph, saveBrief, saveScript } from "@/lib/api";
+import { createShareLink, fetchProject, fetchProjectGraph, saveBrief, saveScript } from "@/lib/api";
+import { getSchemeGenAbortSignal } from "@/lib/pipelineAbort";
+import { schemeGenPercentLabel } from "@/lib/schemeGenPersistence";
 import { useAppStore } from "@/store/appStore";
 
 const MapView = dynamic(() => import("@/components/MapView").then((mod) => mod.MapView), {
@@ -75,15 +77,12 @@ export function EditorShell() {
   const isVanilla = appMode === "vanilla";
   const schemeGen = useAppStore((state) => state.schemeGen);
   const abortSchemeGen = useAppStore((state) => state.abortSchemeGen);
+  const clearSchemeGen = useAppStore((state) => state.clearSchemeGen);
+  const setEditorSchemeFocusId = useAppStore((state) => state.setEditorSchemeFocusId);
   const schemeGenerating =
     (schemeGen.generating && schemeGen.projectId === project?._id) ||
     project?.stale?.modification_schemes === "generating";
-  const schemeGenPercent =
-    schemeGen.progress && schemeGen.progress.total > 0
-      ? Math.min(100, Math.round((schemeGen.progress.step / schemeGen.progress.total) * 100))
-      : schemeGenerating
-        ? 8
-        : 0;
+  const schemeGenLabel = schemeGenerating ? schemeGenPercentLabel(schemeGen.progress) : "Conflicts";
   const hasHydrated = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [parsingBrief, setParsingBrief] = useState(false);
@@ -104,6 +103,53 @@ export function EditorShell() {
       setFontSize(stored);
     }
   }, []);
+
+  // After refresh, SSE is gone but backend may still be generating. Restore progress
+  // from sessionStorage (via setProject hydrate) and poll until the run finishes.
+  useEffect(() => {
+    if (!project?._id || !project.user_id) return;
+    const activelyStreaming = Boolean(getSchemeGenAbortSignal() && !getSchemeGenAbortSignal()!.aborted);
+    if (activelyStreaming) return;
+    if (project.stale?.modification_schemes !== "generating" && !schemeGen.generating) return;
+    if (project.stale?.modification_schemes !== "generating") return;
+
+    let cancelled = false;
+    const projectId = project._id;
+    const userId = project.user_id;
+
+    async function poll() {
+      while (!cancelled) {
+        await new Promise((resolve) => window.setTimeout(resolve, 2000));
+        if (cancelled) return;
+        if (getSchemeGenAbortSignal() && !getSchemeGenAbortSignal()!.aborted) return;
+        try {
+          const refreshed = await fetchProject(projectId, userId);
+          if (cancelled) return;
+          if (refreshed.stale?.modification_schemes === "generating") continue;
+          setProject(refreshed);
+          const latest = refreshed.modification_schemes?.[refreshed.modification_schemes.length - 1];
+          if (latest?.scheme_id) setEditorSchemeFocusId(latest.scheme_id);
+          clearSchemeGen();
+          return;
+        } catch {
+          // keep polling
+        }
+      }
+    }
+
+    void poll();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    clearSchemeGen,
+    project?._id,
+    project?.user_id,
+    project?.stale?.modification_schemes,
+    schemeGen.generating,
+    setEditorSchemeFocusId,
+    setProject
+  ]);
 
   useEffect(() => {
     if (!project || !script) return;
@@ -319,7 +365,7 @@ export function EditorShell() {
                     title={schemeGen.progress?.message ?? undefined}
                     type="button"
                   >
-                    {schemeGenerating ? `Generating… ${schemeGenPercent}%` : "Conflicts"}
+                    {schemeGenLabel}
                   </button>
                 </span>
               </>
