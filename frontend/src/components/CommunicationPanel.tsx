@@ -28,6 +28,33 @@ function emptyDispute(): StreamingDispute {
   return { issue_node_id: "", brand_feedback: "", reply: "" };
 }
 
+async function copyTextToClipboard(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // Fall through when clipboard permission is denied or context is insecure.
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+
+  try {
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    textarea.remove();
+  }
+}
+
 function ensureDisputeSlot(disputes: StreamingDispute[], index: number): StreamingDispute[] {
   const next = [...disputes];
   while (next.length <= index) next.push(emptyDispute());
@@ -52,6 +79,7 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
   const [streamDisputes, setStreamDisputes] = useState<StreamingDispute[]>([]);
   const [streamingDisputeIndex, setStreamingDisputeIndex] = useState<number | null>(null);
   const [streamProgress, setStreamProgress] = useState<string | null>(null);
+  const [copiedReplyKey, setCopiedReplyKey] = useState<string | null>(null);
 
   const argueItems = useMemo(() => {
     const queueItems = project?.communication_support_queue ?? [];
@@ -336,28 +364,7 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
                   </section>
 
                   <section className="comm-plan-section">
-                    <div className="comm-plan-header-row">
-                      <h4 className="comm-plan-subtitle">Reply messages ({displayPlan.open_disputes.length})</h4>
-                      <button
-                        className="comm-copy-all-btn"
-                        disabled={generating}
-                        onClick={() => {
-                          const allReplies = displayPlan.open_disputes
-                            .map((d, i) => {
-                              const reply = d.reply || d.our_position || d.summary || "(No content)";
-                              const feedback = d.brand_feedback || d.summary || `Feedback #${i + 1}`;
-                              return `**${i + 1}. ${feedback}**\n${reply}`;
-                            })
-                            .join("\n\n---\n\n");
-                          void navigator.clipboard.writeText(allReplies).then(() => {
-                            /* visual feedback handled via button text swap */
-                          });
-                        }}
-                        type="button"
-                      >
-                        <IconCopy /> Copy all
-                      </button>
-                    </div>
+                    <h4 className="comm-plan-subtitle">Reply messages ({displayPlan.open_disputes.length})</h4>
                     {displayPlan.open_disputes.map((dispute, index) => {
                       // Robust fallback chain: new fields → legacy fields → hardcoded placeholder
                       const rawReply = dispute.reply || dispute.our_position || "";
@@ -371,9 +378,10 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
                         .map((nodeId) => ({ node: ibisNodesById.get(nodeId), code: ibisNodeLabels.get(nodeId) }))
                         .filter((item): item is { node: NonNullable<typeof item.node>; code: string } => Boolean(item.node && item.code));
                       const isAnimating = generating && streamingDisputeIndex === index;
+                      const replyKey = dispute.issue_node_id || `stream-${index}`;
 
                       return (
-                        <article className="comm-dispute" key={dispute.issue_node_id || `stream-${index}`}>
+                        <article className="comm-dispute" key={replyKey}>
                           <div className="comm-dispute-head">
                             <span className="comm-dispute-index">#{index + 1}</span>
                             <span className="comm-dispute-feedback-label">{feedbackText || (generating ? "…" : "")}</span>
@@ -383,11 +391,23 @@ export function CommunicationPanel({ open, onClose, projectId, userId }: Communi
                             <div className="comm-dispute-reply-header">
                               <span className="comm-dispute-label">Reply</span>
                               <button
-                                className="comm-copy-btn"
+                                className={`comm-copy-btn${copiedReplyKey === replyKey ? " is-copied" : ""}`}
                                 disabled={generating || !replyText}
-                                onClick={() => void navigator.clipboard.writeText(replyText)}
+                                onClick={() => {
+                                  void (async () => {
+                                    const ok = await copyTextToClipboard(replyText);
+                                    if (!ok) {
+                                      window.alert("Copy failed. Please select the reply text and copy manually.");
+                                      return;
+                                    }
+                                    setCopiedReplyKey(replyKey);
+                                    window.setTimeout(() => {
+                                      setCopiedReplyKey((current) => (current === replyKey ? null : current));
+                                    }, 1500);
+                                  })();
+                                }}
                                 type="button"
-                                title="Copy reply"
+                                title={copiedReplyKey === replyKey ? "Copied" : "Copy reply"}
                               >
                                 <IconCopy />
                               </button>

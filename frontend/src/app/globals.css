@@ -7171,14 +7171,15 @@ button.editor-row-link-mark:focus-visible {
 }
 
 .feedback-cell-main {
-  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
 }
 
 .feedback-argue-btn {
-  position: absolute;
-  right: 6px;
-  bottom: 6px;
-  z-index: 2;
+  align-self: flex-end;
+  flex-shrink: 0;
   height: 22px;
   padding: 0 10px;
   border: 1px solid var(--figma-border);
@@ -7188,7 +7189,7 @@ button.editor-row-link-mark:focus-visible {
   font-size: calc(11px + var(--app-font-size-delta));
   font-weight: 600;
   cursor: pointer;
-  opacity: 0.6;
+  opacity: 0.75;
   transition: opacity 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
@@ -7465,39 +7466,6 @@ button.editor-row-link-mark:focus-visible {
 }
 
 /* ---- Streamlined communication plan: reply-focused layout ---- */
-.comm-plan-header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.comm-copy-all-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 10px;
-  border: 1px solid var(--figma-border);
-  border-radius: 6px;
-  background: #fff;
-  color: var(--figma-text-secondary);
-  font-size: calc(11px + var(--app-font-size-delta));
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
-}
-
-.comm-copy-all-btn svg {
-  width: 12px;
-  height: 12px;
-}
-
-.comm-copy-all-btn:hover {
-  border-color: var(--figma-primary);
-  color: var(--figma-primary);
-  background: rgba(0, 101, 145, 0.05);
-}
-
 .comm-dispute-head {
   display: flex;
   align-items: flex-start;
@@ -7571,6 +7539,12 @@ button.editor-row-link-mark:focus-visible {
   background: rgba(0, 101, 145, 0.08);
   color: var(--figma-primary);
   border-color: rgba(0, 101, 145, 0.15);
+}
+
+.comm-copy-btn.is-copied {
+  color: var(--figma-primary);
+  border-color: rgba(0, 101, 145, 0.35);
+  background: rgba(0, 101, 145, 0.08);
 }
 
 .comm-dispute-reply-text {
