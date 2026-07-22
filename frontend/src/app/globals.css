@@ -1893,6 +1893,42 @@ textarea {
   margin-top: 12px;
 }
 
+.vanilla-generate-plan-btn {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  margin-top: 4px;
+  padding: 12px 14px;
+  border: none;
+  border-radius: 10px;
+  background: var(--figma-primary, #0ea5e9);
+  color: #fff;
+  font-size: calc(13px + var(--app-font-size-delta));
+  font-weight: 600;
+  line-height: 1.25;
+  cursor: pointer;
+}
+
+.vanilla-generate-plan-btn > .btn-progress-fill {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.25);
+  transform-origin: left;
+  transition: transform 0.35s ease;
+  z-index: 0;
+  border-radius: 10px;
+}
+
+.vanilla-generate-plan-btn > .btn-progress-label {
+  position: relative;
+  z-index: 1;
+}
+
+.vanilla-generate-plan-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .vanilla-context-body p {
   margin: 0;
   padding: 20px;

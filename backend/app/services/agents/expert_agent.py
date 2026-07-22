@@ -71,6 +71,9 @@ def _pick_target_positions(
     project: dict[str, Any],
     target_position_ids: list[str] | None,
 ) -> list[dict[str, Any]]:
+    # Setting 2: generation is driven by requirements/conflicts/persona, not IBIS positions.
+    if str(project.get("mode") or "").strip() == "vanilla" and not target_position_ids:
+        return []
     nodes = project.get("rationale_nodes") or []
     positions = [n for n in nodes if n.get("node_type") == "position"]
     if target_position_ids:
@@ -949,6 +952,52 @@ async def run_expert_reconcile(
     return result
 
 
+def _format_active_persona_for_schemes(project: dict[str, Any]) -> str:
+    active_id = project.get("active_persona_id")
+    personas = project.get("personas") or []
+    active = None
+    if active_id:
+        for persona in personas:
+            if isinstance(persona, dict) and persona.get("persona_id") == active_id:
+                active = persona
+                break
+    if active is None and len(personas) == 1 and isinstance(personas[0], dict):
+        active = personas[0]
+    if not isinstance(active, dict):
+        return "（无 active persona）"
+
+    name = str(active.get("name") or "").strip() or "Unnamed persona"
+    job = str(active.get("job") or "").strip()
+    explanation = str(active.get("explanation") or "").strip()
+    reason = str(active.get("reason") or "").strip()
+    lines = [f"- Name: {name}"]
+    if job:
+        lines.append(f"- Job: {job}")
+    if explanation:
+        lines.append(f"- Profile: {explanation[:400]}")
+    if reason:
+        lines.append(f"- Why this persona: {reason[:400]}")
+    return "\n".join(lines)
+
+
+def _format_creator_setup_for_schemes(project: dict[str, Any]) -> str:
+    """Brand requirements / conflicts from Setting 2 vanilla_setup_data (also harmless for Setting 1)."""
+    setup = project.get("vanilla_setup_data") or {}
+    requirements = str(setup.get("brand_requirements") or "").strip()
+    conflicts = str(setup.get("conflicts") or "").strip()
+    parts: list[str] = []
+    if requirements:
+        parts.append(f"## Brand requirements (creator)\n{requirements[:6000]}")
+    else:
+        parts.append("## Brand requirements (creator)\n（未填写）")
+    if conflicts:
+        parts.append(f"## Conflicts and trade-offs (creator)\n{conflicts[:6000]}")
+    else:
+        parts.append("## Conflicts and trade-offs (creator)\n（未填写）")
+    parts.append(f"## Active audience persona\n{_format_active_persona_for_schemes(project)}")
+    return "\n\n".join(parts)
+
+
 async def run_expert_generate_modification_schemes(
     project: dict[str, Any],
     *,
@@ -967,6 +1016,7 @@ async def run_expert_generate_modification_schemes(
         target_issue_ids,
         target_positions=target_positions,
     )
+    is_vanilla = str(project.get("mode") or "").strip() == "vanilla"
 
     log_step(
         "expert_agent.generate_schemes",
@@ -974,21 +1024,31 @@ async def run_expert_generate_modification_schemes(
         project_id=project_id,
         target_position_ids=[n.get("node_id") for n in target_positions],
         target_issue_ids=[n.get("node_id") for n in target_issues],
+        vanilla_context=is_vanilla,
     )
 
     positions_block = "\n".join(
         f"- {n.get('node_id')}: {n.get('title', '')} | {str(n.get('content', ''))[:120]}"
         for n in target_positions
-    ) or "（无采纳立场，请基于脚本与图整体给方案）"
+    ) or "（无采纳立场；请主要依据 Brand requirements、Conflicts、Persona 与脚本生成方案）"
     issues_block = "\n".join(
         f"- {n.get('node_id')}: {n.get('title', '')} | {str(n.get('content', ''))[:120]}"
         for n in target_issues
     ) or "（无关联 issue）"
 
+    default_message = (
+        "Generate one script modification plan that resolves the creator's recorded conflicts "
+        "and trade-offs while respecting brand requirements and the active audience persona. "
+        "Prefer concrete cell-level hunks using the provided row_id / column_id."
+        if is_vanilla
+        else "请针对 TO BE CONSIDERED 列表中的立场给出脚本修改方案"
+    )
+
     context_block = "\n\n".join(
         [
-            "## 场景\ngenerate_modification_schemes — 为创作者采纳的 Position 生成 1 个修改方案",
-            f"## 用户说明\n{user_message or '请针对 TO BE CONSIDERED 列表中的立场给出脚本修改方案'}",
+            "## 场景\ngenerate_modification_schemes — 为创作者生成 1 个可 Accept/Reject 的脚本修改方案",
+            f"## 用户说明\n{user_message or default_message}",
+            _format_creator_setup_for_schemes(project),
             f"## 采纳的 Position\n{positions_block}",
             f"## 关联 Issue\n{issues_block}",
             f"## 当前脚本（全文，hunk 须使用下列 row_id / column_id）\n{format_script_for_prompt(project)}",
