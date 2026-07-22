@@ -100,6 +100,8 @@ export type ScriptColumn = {
 export type ScriptCell = {
   column_id: string;
   value: string;
+  /** Creator reply under brand feedback when arguing (optional; only on feedback cells). */
+  creator_reply?: string;
 };
 
 export type ScriptRow = {

@@ -23,6 +23,7 @@ from app.models.schemas import (
     ScriptCellPatchRequest,
     ScriptColumnCreateRequest,
     ScriptColumnUpdateRequest,
+    ScriptFeedbackReplyPatchRequest,
     ProjectUpdateRequest,
     VanillaSetupUpdateRequest,
     ScriptPatchRequest,
@@ -50,6 +51,7 @@ from app.repositories.projects import (
     list_projects,
     patch_script,
     patch_script_cell,
+    patch_feedback_creator_reply,
     remove_script_column,
     remove_script_row,
     set_active_persona,
@@ -459,6 +461,28 @@ async def save_script_cell(
             payload.row_id,
             payload.column_id,
             payload.value,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
+@router.patch("/{project_id}/script/feedback-reply", response_model=ProjectResponse)
+async def save_feedback_creator_reply(
+    project_id: str,
+    payload: ScriptFeedbackReplyPatchRequest,
+    db: AsyncIOMotorDatabase = Depends(database_dependency),
+) -> dict:
+    try:
+        project = await patch_feedback_creator_reply(
+            db,
+            project_id,
+            payload.user_id.strip(),
+            payload.row_id,
+            payload.column_id,
+            payload.creator_reply,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

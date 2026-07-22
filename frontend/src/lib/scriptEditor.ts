@@ -83,6 +83,32 @@ export function updateCellValue(script: Script, rowId: string, columnId: string,
   };
 }
 
+export function updateFeedbackCreatorReply(
+  script: Script,
+  rowId: string,
+  columnId: string,
+  creatorReply: string
+): Script {
+  const column = script.columns.find((item) => item.column_id === columnId);
+  if (!column || !isBrandFeedbackColumn(column)) {
+    return script;
+  }
+
+  return {
+    ...script,
+    rows: script.rows.map((row) =>
+      row.row_id === rowId
+        ? {
+            ...row,
+            cells: row.cells.map((cell) =>
+              cell.column_id === columnId ? { ...cell, creator_reply: creatorReply } : cell
+            )
+          }
+        : row
+    )
+  };
+}
+
 export function insertRow(script: Script, afterRowId?: string): Script {
   const columns = sortedColumns(script);
   const rows = sortedRows(script);

@@ -19,6 +19,7 @@ from app.models.script_ops import (
     preserve_brand_feedback_cells,
     rename_column,
     update_cell,
+    update_feedback_creator_reply,
 )
 from app.models.script_validate import normalize_script, validate_script
 from app.services.audit_log import (
@@ -498,6 +499,48 @@ async def patch_script_cell(
         audit_action="script.cell.update",
         audit_meta={"row_id": row_id, "column_id": column_id},
     )
+
+
+async def patch_feedback_creator_reply(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    row_id: str,
+    column_id: str,
+    creator_reply: str,
+) -> dict | None:
+    """Persist creator reply on a brand-feedback cell without wiping brand value."""
+    project = await get_project(db, project_id, user_id)
+    if project is None:
+        return None
+
+    before_script = script_slice(project["current_script"])
+    updated_script = update_feedback_creator_reply(
+        project["current_script"], row_id, column_id, creator_reply
+    )
+
+    normalized = normalize_script(updated_script)
+    validate_script(normalized)
+    normalized["updated_at"] = now_iso()
+    await db.projects.update_one(
+        {"_id": project_id, "user_id": user_id},
+        {
+            "$set": {
+                "current_script": normalized,
+                "updated_at": normalized["updated_at"],
+            }
+        },
+    )
+    await record_mutation(
+        db,
+        action="script.feedback_reply.update",
+        user_id=user_id,
+        project_id=project_id,
+        before={"script": before_script},
+        after={"script": script_slice(normalized)},
+        meta={"row_id": row_id, "column_id": column_id},
+    )
+    return await get_project(db, project_id, user_id)
 
 
 async def create_script_row(

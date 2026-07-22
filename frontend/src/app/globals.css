@@ -7170,6 +7170,10 @@ button.editor-row-link-mark:focus-visible {
   position: relative;
 }
 
+.feedback-cell-main {
+  position: relative;
+}
+
 .feedback-argue-btn {
   position: absolute;
   right: 6px;
@@ -7207,6 +7211,41 @@ button.editor-row-link-mark:focus-visible {
 .feedback-argue-btn:disabled {
   cursor: default;
   opacity: 0.5;
+}
+
+.feedback-creator-reply {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(15, 23, 42, 0.12);
+}
+
+.feedback-creator-reply-label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--figma-muted, #64748b);
+  font-size: calc(11px + var(--app-font-size-delta));
+  font-weight: 600;
+}
+
+.feedback-creator-reply-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(0, 101, 145, 0.2);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+.feedback-creator-reply-input:focus {
+  outline: none;
+  border-color: var(--figma-primary);
+  box-shadow: 0 0 0 2px rgba(0, 101, 145, 0.12);
+}
+
+.feedback-creator-reply-text {
+  white-space: pre-wrap;
+  color: var(--figma-text);
+  font-size: calc(12px + var(--app-font-size-delta));
+  line-height: 1.45;
 }
 
 /* Communication panel (full workspace mode) */

@@ -3,7 +3,7 @@
 import { PointerEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { CellHunkDiff, useCellHunkMap } from "@/components/ScriptCellModification";
-import { fetchVanillaArguePrompt, toggleCommunicationSupport } from "@/lib/api";
+import { fetchVanillaArguePrompt, saveFeedbackCreatorReply, toggleCommunicationSupport } from "@/lib/api";
 import { analyzeDurations, durationInputValue, isBrandFeedbackColumn } from "@/lib/scriptEditor";
 import type { HunkDecision, ModificationSchemeHunk, Script } from "@/lib/types";
 import { useAppStore } from "@/store/appStore";
@@ -150,7 +150,8 @@ function ScriptGridBody({
     setMapFocusNodeId,
     setWorkspaceView,
     undoScript,
-    updateCell: storeUpdateCell
+    updateCell: storeUpdateCell,
+    updateFeedbackCreatorReply: storeUpdateFeedbackCreatorReply
   } = useAppStore();
   const isVanilla = appMode === "vanilla";
   const updateCell = isShare && onUpdateCell ? onUpdateCell : storeUpdateCell;
@@ -183,9 +184,19 @@ function ScriptGridBody({
   async function handleToggleArgue(rowId: string, columnId: string) {
     if (!project || argueBusyRowId) return;
 
-    if (isVanilla) {
-      setArgueBusyRowId(rowId);
-      try {
+    const nextInList = !communicationSupportRowIds.has(rowId);
+    setArgueBusyRowId(rowId);
+    try {
+      const updated = await toggleCommunicationSupport(
+        project._id,
+        project.user_id,
+        rowId,
+        columnId,
+        nextInList
+      );
+      setProject(updated);
+
+      if (isVanilla && nextInList) {
         const { prompt, appendBlock } = await fetchVanillaArguePrompt(
           project._id,
           project.user_id,
@@ -194,23 +205,27 @@ function ScriptGridBody({
         );
         setPendingChatDraft({ prompt, appendBlock });
         setCoordinatorChatOpen(true);
-      } catch (error) {
-        window.alert(error instanceof Error ? error.message : "Failed to fill argue prompt");
-      } finally {
-        setArgueBusyRowId(null);
       }
-      return;
-    }
-
-    const nextInList = !communicationSupportRowIds.has(rowId);
-    setArgueBusyRowId(rowId);
-    try {
-      const updated = await toggleCommunicationSupport(project._id, project.user_id, rowId, columnId, nextInList);
-      setProject(updated);
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Failed to update communication support list");
+      window.alert(error instanceof Error ? error.message : "Failed to update argue state");
     } finally {
       setArgueBusyRowId(null);
+    }
+  }
+
+  async function handleFeedbackReplyBlur(rowId: string, columnId: string, creatorReply: string) {
+    if (!project || isShare) return;
+    try {
+      const updated = await saveFeedbackCreatorReply(
+        project._id,
+        project.user_id,
+        rowId,
+        columnId,
+        creatorReply
+      );
+      setProject(updated);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Failed to save reply");
     }
   }
 
@@ -720,7 +735,7 @@ function ScriptGridBody({
                   argueBusy={!isShare && argueBusyRowId === row.row_id}
                   durationIssueMessages={isShare ? undefined : durationIssueByRowId.get(row.row_id)}
                   durationSegment={durationSegmentByRowId.get(row.row_id)}
-                  feedbackArgued={!isShare && !isVanilla && communicationSupportRowIds.has(row.row_id)}
+                  feedbackArgued={!isShare && communicationSupportRowIds.has(row.row_id)}
                   hunkByCell={hunkByCell}
                   hunkDecisions={hunkDecisions}
                   index={rowIndex}
@@ -730,6 +745,8 @@ function ScriptGridBody({
                   onToggleArgue={isShare ? undefined : handleToggleArgue}
                   onAddRow={() => insertRowAfter(row.row_id)}
                   onDeleteRow={() => handleDeleteRow(row.row_id)}
+                  onFeedbackReplyBlur={isShare ? undefined : handleFeedbackReplyBlur}
+                  onFeedbackReplyChange={isShare ? undefined : storeUpdateFeedbackCreatorReply}
                   onHunkAccept={(hunkId) => void acceptAndApplyHunk(hunkId)}
                   onHunkReject={(hunkId) => void rejectAndPersistHunk(hunkId)}
                   onJumpToNode={(nodeId) => {
@@ -794,6 +811,8 @@ function RowBlock({
   onCellBlur,
   onCellFocus,
   onDeleteRow,
+  onFeedbackReplyBlur,
+  onFeedbackReplyChange,
   onHunkAccept,
   onHunkReject,
   onJumpToNode,
@@ -820,6 +839,8 @@ function RowBlock({
   onCellBlur: () => void;
   onCellFocus: () => void;
   onDeleteRow: () => void;
+  onFeedbackReplyBlur?: (rowId: string, columnId: string, creatorReply: string) => void;
+  onFeedbackReplyChange?: (rowId: string, columnId: string, creatorReply: string) => void;
   onHunkAccept: (hunkId: string) => void;
   onHunkReject: (hunkId: string) => void;
   onJumpToNode?: (nodeId: string) => void;
@@ -873,7 +894,9 @@ function RowBlock({
           )}
         </td>
         {columns.map((column) => {
-          const value = row.cells.find((cell) => cell.column_id === column.column_id)?.value ?? "";
+          const cell = row.cells.find((item) => item.column_id === column.column_id);
+          const value = cell?.value ?? "";
+          const creatorReply = cell?.creator_reply ?? "";
           const brandFeedback = isBrandFeedbackColumn(column);
           const hunk = hunkByCell.get(`${row.row_id}:${column.column_id}`);
           const hunkDecision = hunk ? (hunkDecisions[hunk.hunk_id] ?? null) : null;
@@ -940,26 +963,51 @@ function RowBlock({
                   </div>
                 </div>
               ) : (
-                <AutoSizeTextarea
-                  className={`editor-table-cell cell-${column.key}${cellReadOnly ? " editor-table-cell--readonly" : ""}`}
-                  minHeight={cellMinHeight}
-                  {...commonProps}
-                />
+                <div className={brandFeedback ? "feedback-cell-main" : undefined}>
+                  <AutoSizeTextarea
+                    className={`editor-table-cell cell-${column.key}${cellReadOnly ? " editor-table-cell--readonly" : ""}`}
+                    minHeight={cellMinHeight}
+                    {...commonProps}
+                  />
+                  {brandFeedback && !isShare && value.trim() && onToggleArgue ? (
+                    <button
+                      className={`feedback-argue-btn${feedbackArgued ? " is-active" : ""}`}
+                      onClick={() => onToggleArgue(row.row_id, column.column_id)}
+                      disabled={argueBusy}
+                      type="button"
+                      title={
+                        feedbackArgued
+                          ? "On your communication support list — click to remove"
+                          : "Argue this feedback"
+                      }
+                    >
+                      {argueBusy ? "…" : feedbackArgued ? "Arguing ✓" : "Argue"}
+                    </button>
+                  ) : null}
+                </div>
               )}
-              {brandFeedback && !isShare && value.trim() && onToggleArgue ? (
-                <button
-                  className={`feedback-argue-btn${feedbackArgued ? " is-active" : ""}`}
-                  onClick={() => onToggleArgue(row.row_id, column.column_id)}
-                  disabled={argueBusy}
-                  type="button"
-                  title={
-                    feedbackArgued
-                      ? "On your communication support list — click to remove"
-                      : "Argue this feedback"
-                  }
-                >
-                  {argueBusy ? "…" : feedbackArgued ? "Arguing ✓" : "Argue"}
-                </button>
+              {brandFeedback && !isShare && feedbackArgued && onFeedbackReplyChange ? (
+                <div className="feedback-creator-reply">
+                  <label className="feedback-creator-reply-label" htmlFor={`feedback-reply-${row.row_id}`}>
+                    Your reply
+                  </label>
+                  <AutoSizeTextarea
+                    className="editor-table-cell feedback-creator-reply-input"
+                    id={`feedback-reply-${row.row_id}`}
+                    minHeight={56}
+                    onBlur={() => onFeedbackReplyBlur?.(row.row_id, column.column_id, creatorReply)}
+                    onChange={(event) =>
+                      onFeedbackReplyChange(row.row_id, column.column_id, event.target.value)
+                    }
+                    placeholder="Write your reply to the brand feedback…"
+                    value={creatorReply}
+                  />
+                </div>
+              ) : brandFeedback && !isShare && creatorReply.trim() ? (
+                <div className="feedback-creator-reply feedback-creator-reply--readonly">
+                  <div className="feedback-creator-reply-label">Your reply</div>
+                  <div className="feedback-creator-reply-text">{creatorReply}</div>
+                </div>
               ) : null}
             </td>
           );

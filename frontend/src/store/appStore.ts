@@ -16,7 +16,7 @@ import {
   readPersistedSchemeGen,
   writePersistedSchemeGen
 } from "@/lib/schemeGenPersistence";
-import { insertColumn, insertRow, removeColumn, removeRow, renameColumn, updateCellValue } from "@/lib/scriptEditor";
+import { insertColumn, insertRow, removeColumn, removeRow, renameColumn, updateCellValue, updateFeedbackCreatorReply } from "@/lib/scriptEditor";
 import type { AppMode, PendingChatDraft, Project, SaveStatus, Script } from "@/lib/types";
 
 type EditorState = {
@@ -124,6 +124,7 @@ type AppState = {
   setProject: (project: Project | null) => void;
   setScript: (script: Script | null) => void;
   updateCell: (rowId: string, columnId: string, value: string) => void;
+  updateFeedbackCreatorReply: (rowId: string, columnId: string, creatorReply: string) => void;
   setSaveStatus: (saveStatus: SaveStatus) => void;
   setCoordinatorChatOpen: (open: boolean) => void;
   setCoordinatorChatDocked: (docked: boolean) => void;
@@ -217,6 +218,21 @@ export const useAppStore = create<AppState>((set) => ({
         script: updateCellValue(state.script, rowId, columnId, value),
         editor: { ...state.editor, saveStatus: "editing" },
         undoStack: appendUndoStep(state.undoStack, state.script)
+      };
+    }),
+  updateFeedbackCreatorReply: (rowId, columnId, creatorReply) =>
+    set((state) => {
+      if (!state.script) {
+        return state;
+      }
+      const currentReply =
+        state.script.rows
+          .find((row) => row.row_id === rowId)
+          ?.cells.find((cell) => cell.column_id === columnId)?.creator_reply ?? "";
+      if (currentReply === creatorReply) return state;
+
+      return {
+        script: updateFeedbackCreatorReply(state.script, rowId, columnId, creatorReply)
       };
     }),
   setSaveStatus: (saveStatus) =>

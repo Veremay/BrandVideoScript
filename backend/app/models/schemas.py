@@ -51,6 +51,15 @@ class ScriptCellPatchRequest(BaseModel):
     value: str = ""
 
 
+class ScriptFeedbackReplyPatchRequest(BaseModel):
+    """Creator reply under an arguing brand-feedback cell."""
+
+    user_id: str = Field(min_length=1, max_length=80)
+    row_id: str = Field(min_length=1)
+    column_id: str = Field(min_length=1)
+    creator_reply: str = Field(default="", max_length=8000)
+
+
 class ScriptRowCreateRequest(BaseModel):
     user_id: str = Field(min_length=1, max_length=80)
     after_row_id: str | None = None

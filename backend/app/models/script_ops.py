@@ -142,16 +142,24 @@ def _feedback_column_id(script: dict) -> str | None:
 
 
 def preserve_brand_feedback_cells(incoming: dict, existing: dict) -> dict:
-    """Keep brand feedback values from the database when the creator saves the script."""
+    """Keep brand feedback values from the database when the creator saves the script.
+
+    Brand-owned ``value`` is always restored from the DB. Creator-owned
+    ``creator_reply`` is kept from the incoming script when present; otherwise
+    restored from the DB so full-script saves do not wipe replies.
+    """
     column_id = _feedback_column_id(existing)
     if not column_id:
         return incoming
 
-    existing_by_row: dict[str, str] = {}
+    existing_by_row: dict[str, dict] = {}
     for row in existing.get("rows", []):
         for cell in row.get("cells", []):
             if cell.get("column_id") == column_id:
-                existing_by_row[row["row_id"]] = str(cell.get("value", ""))
+                existing_by_row[row["row_id"]] = {
+                    "value": str(cell.get("value", "")),
+                    "creator_reply": cell.get("creator_reply"),
+                }
                 break
 
     next_script = deepcopy(incoming)
@@ -161,8 +169,40 @@ def preserve_brand_feedback_cells(incoming: dict, existing: dict) -> dict:
             continue
         for cell in row.get("cells", []):
             if cell.get("column_id") == column_id:
-                cell["value"] = preserved
+                cell["value"] = preserved["value"]
+                if "creator_reply" in cell:
+                    cell["creator_reply"] = str(cell.get("creator_reply") or "")
+                elif preserved.get("creator_reply") is not None:
+                    cell["creator_reply"] = str(preserved["creator_reply"] or "")
                 break
+    return next_script
+
+
+def update_feedback_creator_reply(script: dict, row_id: str, column_id: str, creator_reply: str) -> dict:
+    """Set the creator's reply on a brand-feedback cell (does not change brand value)."""
+    next_script = deepcopy(script)
+    target_column = next(
+        (column for column in next_script.get("columns", []) if column.get("column_id") == column_id),
+        None,
+    )
+    if target_column is None:
+        raise ValueError("Column not found")
+    if target_column.get("key") != BRAND_FEEDBACK_COLUMN_KEY:
+        raise ValueError("Creator reply is only allowed on the brand feedback column")
+
+    updated = False
+    for row in next_script.get("rows", []):
+        if row["row_id"] != row_id:
+            continue
+        for cell in row.get("cells", []):
+            if cell["column_id"] == column_id:
+                cell["creator_reply"] = creator_reply
+                updated = True
+                break
+
+    if not updated:
+        raise ValueError("Cell not found")
+
     return next_script
 
 

@@ -589,6 +589,26 @@ export async function saveScriptCell(
   });
 }
 
+export async function saveFeedbackCreatorReply(
+  projectId: string,
+  userId: string,
+  rowId: string,
+  columnId: string,
+  creatorReply: string
+): Promise<Project> {
+  return normalizeProject(
+    await request(`/projects/${projectId}/script/feedback-reply`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        user_id: userId,
+        row_id: rowId,
+        column_id: columnId,
+        creator_reply: creatorReply
+      })
+    })
+  )!;
+}
+
 export async function createScriptRow(projectId: string, userId: string, afterRowId?: string): Promise<Project> {
   return request(`/projects/${projectId}/script/rows`, {
     method: "POST",
